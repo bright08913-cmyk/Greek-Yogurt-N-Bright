@@ -39,7 +39,17 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     if (body.action === 'order') return json_({ ok: true, data: submitOrder(body.order) });
-    if (body.action === 'slip') return json_({ ok: true, data: attachSlip(body) });
+    if (body.action === 'slip') {
+      try { return json_({ ok: true, data: attachSlip(body) }); }
+      catch (err) {
+        // เจ้าของร้านยังไม่ได้กด Run "authorize" — ลูกค้าไม่ต้องเห็นข้อความเทคนิค
+        if (/permission|DriveApp|authoriz/i.test(String(err.message))) {
+          console.error(err);
+          throw new Error('ร้านยังเปิดรับสลิปไม่ได้ตอนนี้ ออเดอร์เข้าแล้ว ส่งสลิปให้ร้านทาง LINE ได้เลยค่า');
+        }
+        throw err;
+      }
+    }
     if (body.action === 'config') return json_({ ok: true, data: getConfig() });
     throw new Error('unknown action');
   } catch (err) {
