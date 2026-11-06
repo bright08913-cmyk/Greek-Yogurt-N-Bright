@@ -249,9 +249,18 @@ function call(fn, arg){
       const action = {getConfig:'config', submitOrder:'order', attachSlip:'slip'}[fn];
       const body = fn === 'submitOrder' ? {action, order: arg} : Object.assign({action}, arg || {});
       fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body), redirect:'follow'})
-        .then(r => r.json())
+        .then(r => r.text().then(t => {
+          let j; try { j = JSON.parse(t); } catch(e) {
+            console.error('Apps Script reply', r.status, t.slice(0, 500));
+            const why = /authoriz|ขออนุญาต|sign in|ลงชื่อเข้าใช้/i.test(t) ? 'ร้านต้องกดอนุญาตสิทธิ์ใน Apps Script ใหม่'
+                      : /doPost|not found|ไม่พบ/i.test(t) ? 'Apps Script ยังไม่ได้ Deploy เวอร์ชันล่าสุด'
+                      : 'Apps Script ตอบกลับผิดรูปแบบ (' + r.status + ')';
+            throw new Error('ส่งไม่สำเร็จ: ' + why);
+          }
+          return j;
+        }), () => { throw new Error('เชื่อมต่อไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่'); })
         .then(j => j.ok ? resolve(j.data) : reject(new Error(j.error)))
-        .catch(() => reject(new Error('เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง')));
+        .catch(e => reject(e));
       return;
     }
     setTimeout(() => { // demo
