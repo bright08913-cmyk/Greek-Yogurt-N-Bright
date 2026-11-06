@@ -8,7 +8,7 @@ assert re.match(r'^https://script\.google\.com/macros/s/[\w-]+/exec$', api), 'ap
 
 html = (root / 'Index.html').read_text()
 head = f'''<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#F4F6FB">
+<meta name="theme-color" content="#FFF6F1">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -32,7 +32,7 @@ html = html.replace('</title>', '</title>\n' + head, 1)
 (root / 'docs' / 'manifest.webmanifest').write_text(json.dumps({
   "name": "Bright Greek — สั่ง Greek Yogurt", "short_name": "Bright Greek",
   "start_url": "./", "scope": "./", "display": "standalone",
-  "background_color": "#F4F6FB", "theme_color": "#F4F6FB", "lang": "th",
+  "background_color": "#FFF6F1", "theme_color": "#FFF6F1", "lang": "th",
   "icons": [
     {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
     {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
@@ -40,7 +40,7 @@ html = html.replace('</title>', '</title>\n' + head, 1)
   ]}, ensure_ascii=False, indent=2))
 
 # network first (always the newest menu/page), cache only as an offline fallback
-(root / 'docs' / 'sw.js').write_text('''const CACHE = 'bright-greek-v1';
+(root / 'docs' / 'sw.js').write_text('''const CACHE = 'bright-greek-v2';
 self.addEventListener('install', e => { self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', 'index.html', 'manifest.webmanifest', 'icon-192.png']))); });
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));

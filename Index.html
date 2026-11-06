@@ -5,193 +5,185 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Bright Greek — สั่ง Greek Yogurt</title>
-<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Itim&family=Mali:wght@400;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#F4F6FB; --card:#FFFFFF; --ink:#14213D; --muted:#5B6478; --line:#DCE2EF;
-    --brand:#2546A8; --brand-dark:#1A3580; --soft:#E3E9F8; --danger:#B4234F; --ok:#1E8E5A;
-    --shadow:0 2px 10px rgba(20,33,61,.06);
+    --bg:#FFF6F1; --card:#FFFFFF; --ink:#4B3A4F; --muted:#76667A; --line:#EADCE0;
+    --pink:#FF8FAB; --pink-dark:#C93C63; --soft:#FFE3EA; --mint:#BFEBD5; --danger:#C0284F; --ok:#2E9E6A;
+    --shadow:0 4px 0 #4B3A4F;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans Thai',system-ui,sans-serif}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Mali,'IBM Plex Sans Thai',system-ui,sans-serif}
   body{padding-bottom:110px}
-  button,input,textarea{font:inherit}
-  .h{font-family:Prompt,'IBM Plex Sans Thai',sans-serif}
+  button,input,textarea{font:inherit;color:inherit}
+  .h{font-family:Itim,Mali,sans-serif;font-weight:400}
   .wrap{max-width:560px;margin:0 auto;padding:0 20px}
   .sub{color:var(--muted);font-size:14px}
 
   /* header */
-  .top{padding:24px 0 4px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-  .logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:22px}
-  .pill{font-size:13px;font-weight:600;color:var(--brand);background:var(--soft);padding:6px 12px;border-radius:999px;white-space:nowrap}
-  h1.hello{margin:14px 0 2px;font-weight:600;font-size:26px;line-height:1.25}
-  .demo{font-size:12px;background:#FFF1D6;color:#7A4E0B;padding:4px 10px;border-radius:8px;display:inline-block;margin-top:8px}
-  .closed{background:#FFF1D6;color:#7A4E0B;border-radius:16px;padding:14px;margin-top:14px;text-align:center;font-weight:600}
+  .top{padding:22px 0 4px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .logo{display:flex;align-items:center;gap:8px;font-size:26px}
+  .pill{font-size:12px;font-weight:600;background:#fff;border:2px solid var(--ink);padding:4px 10px;border-radius:999px;white-space:nowrap}
+  h1.hello{margin:12px 0 2px;font-size:30px;line-height:1.2}
+  .demo{font-size:12px;background:#FFF1C7;padding:4px 10px;border-radius:8px;display:inline-block;margin-top:8px}
+  .closed{background:#FFF1C7;border:2px solid var(--ink);border-radius:18px;padding:14px;margin-top:14px;text-align:center;font-weight:600}
 
   /* menu grid */
-  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
-  .menu{background:var(--card);border-radius:22px;padding:12px 14px 14px;display:flex;flex-direction:column;gap:2px;color:var(--ink);
-        box-shadow:var(--shadow);border:2px solid transparent;position:relative;text-align:left;cursor:pointer;transition:transform .12s}
-  .menu:active{transform:scale(.97)}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
+  .menu{background:var(--card);border:2.5px solid var(--ink);border-radius:24px;padding:10px 12px 12px;display:flex;flex-direction:column;gap:2px;
+        box-shadow:var(--shadow);position:relative;text-align:left;cursor:pointer;transition:transform .1s,box-shadow .1s}
+  .menu:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
   .menu:disabled{opacity:.5;cursor:not-allowed}
-  .menu.in-cart{border-color:var(--brand)}
-  .menu .art{height:96px;border-radius:16px;display:flex;align-items:center;justify-content:center}
-  .menu .nm{font-weight:600;font-size:16px;margin-top:8px}
+  .menu.in-cart{background:#FFF8FA}
+  .menu .art{height:104px;border-radius:18px;display:flex;align-items:center;justify-content:center}
+  .menu .nm{font-size:19px;margin-top:6px}
   .menu .ds{font-size:12px;color:var(--muted);min-height:18px}
-  .menu .pr{font-weight:700;font-size:18px;color:var(--brand);margin-top:2px}
-  .badge{position:absolute;top:10px;right:10px;background:var(--brand);color:#fff;font-size:12px;font-weight:600;min-width:24px;height:24px;
-         border-radius:12px;display:flex;align-items:center;justify-content:center;padding:0 7px;z-index:1}
+  .prow{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+  .menu .pr{font-size:21px;color:var(--pink-dark)}
+  .plus{width:30px;height:30px;border-radius:15px;background:var(--pink);border:2px solid var(--ink);font-size:20px;line-height:25px;text-align:center;font-weight:600}
+  .badge{position:absolute;top:-8px;right:-8px;background:var(--pink);border:2px solid var(--ink);font-size:13px;font-weight:600;min-width:28px;height:28px;
+         border-radius:14px;display:flex;align-items:center;justify-content:center;padding:0 7px;z-index:1}
 
   /* buttons */
   .bar{position:fixed;left:0;right:0;bottom:0;padding:14px 20px calc(18px + env(safe-area-inset-bottom));
-       background:linear-gradient(to top,var(--bg) 75%,rgba(244,246,251,0));z-index:5}
+       background:linear-gradient(to top,var(--bg) 75%,rgba(255,246,241,0));z-index:5}
   .maxw{max-width:560px;margin:0 auto}
-  .btn{width:100%;border:0;border-radius:18px;padding:16px 18px;font-family:Prompt,sans-serif;font-size:16px;font-weight:600;
-       background:var(--brand);color:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;
-       box-shadow:0 8px 20px rgba(37,70,168,.30)}
-  .btn:disabled{background:#AEB8CF;box-shadow:none;cursor:not-allowed}
+  .btn{width:100%;border:2.5px solid var(--ink);border-radius:22px;padding:14px 18px;font-family:Itim,Mali,sans-serif;font-size:19px;
+       background:var(--pink);color:var(--ink);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;
+       box-shadow:var(--shadow);transition:transform .1s,box-shadow .1s}
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+  .btn:disabled{background:#EADCE0;cursor:not-allowed}
   .btn.center{justify-content:center}
-  .btn.soft{background:var(--soft);color:var(--brand-dark);box-shadow:none;justify-content:center;font-family:inherit;font-size:15px;min-height:48px;padding:12px}
-  .icon-btn{width:44px;height:44px;border-radius:22px;background:#fff;border:0;display:flex;align-items:center;justify-content:center;
-            box-shadow:0 2px 8px rgba(20,33,61,.08);cursor:pointer;flex:none}
+  .btn.soft{background:#fff;box-shadow:0 3px 0 var(--ink);justify-content:center;font-family:Mali,sans-serif;font-weight:600;font-size:15px;min-height:48px;padding:10px;border-width:2px}
+  .icon-btn{width:44px;height:44px;border-radius:22px;background:#fff;border:2px solid var(--ink);display:flex;align-items:center;justify-content:center;
+            box-shadow:0 3px 0 var(--ink);cursor:pointer;flex:none}
 
   /* sheets */
-  .overlay{position:fixed;inset:0;background:rgba(20,33,61,.45);opacity:0;pointer-events:none;transition:opacity .2s;z-index:10}
+  .overlay{position:fixed;inset:0;background:rgba(75,58,79,.45);opacity:0;pointer-events:none;transition:opacity .2s;z-index:10}
   .overlay.show{opacity:1;pointer-events:auto}
-  .sheet{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-radius:28px 28px 0 0;max-height:94vh;overflow:auto;
-         transform:translateY(105%);visibility:hidden;transition:transform .32s cubic-bezier(.2,.9,.3,1),visibility 0s .32s;z-index:11}
-  .sheet.show{transform:translateY(0);visibility:visible;transition:transform .32s cubic-bezier(.2,.9,.3,1)}
+  .sheet{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-radius:28px 28px 0 0;border-top:2.5px solid var(--ink);max-height:94vh;overflow:auto;
+         transform:translateY(105%);visibility:hidden;transition:transform .34s cubic-bezier(.2,1.2,.3,1),visibility 0s .34s;z-index:11}
+  .sheet.show{transform:translateY(0);visibility:visible;transition:transform .34s cubic-bezier(.2,1.2,.3,1)}
   .sheet .inner{max-width:560px;margin:0 auto;padding:0 20px 120px}
   .sheet-bar{position:sticky;bottom:0;padding:12px 0 calc(14px + env(safe-area-inset-bottom));background:var(--bg);margin-top:14px}
 
-  .hero{margin:0 -20px;height:250px;border-radius:0 0 32px 32px;display:flex;align-items:flex-end;justify-content:center;position:relative}
+  .hero{margin:0 -20px;height:250px;border-radius:0 0 32px 32px;border-bottom:2.5px solid var(--ink);display:flex;align-items:flex-end;justify-content:center;position:relative}
   .hero .icon-btn{position:absolute;top:16px;left:20px}
   .title-row{display:flex;align-items:baseline;justify-content:space-between;margin-top:16px}
-  .title-row h2{margin:0;font-weight:600;font-size:24px}
-  .title-row .pr{font-weight:700;font-size:20px;color:var(--brand)}
+  .title-row h2{margin:0;font-size:28px}
+  .title-row .pr{font-size:24px;color:var(--pink-dark)}
 
-  .box{background:var(--card);border-radius:20px;padding:14px 16px;box-shadow:var(--shadow);margin-top:12px}
-  .box h3{margin:0 0 10px;font-size:15px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .box{background:var(--card);border:2px solid var(--ink);border-radius:20px;padding:14px 16px;box-shadow:0 3px 0 var(--ink);margin-top:14px}
+  .box h3{margin:0 0 10px;font-size:16px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px}
   .box h3 small{color:var(--muted);font-weight:400;font-size:13px}
   .req{color:var(--danger)}
 
   .fchips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-  .fchip{display:flex;align-items:center;gap:8px;min-height:48px;padding:0 12px;border-radius:16px;cursor:pointer;font-size:15px;text-align:left;
-         border:2px dashed #CBD3E4;background:#fff;color:var(--muted);transition:background .16s,border-color .16s,color .16s}
-  .fchip.on{border:2px solid var(--brand);background:var(--soft);color:var(--brand-dark);font-weight:600}
+  .fchip{display:flex;align-items:center;gap:8px;min-height:48px;padding:4px 10px;border-radius:16px;cursor:pointer;font-size:14px;line-height:1.2;text-align:left;
+         border:2px dashed #C9B8CC;background:#fff;color:var(--muted);transition:background .16s,border-color .16s,color .16s}
+  .fchip.on{border:2px solid var(--ink);background:var(--soft);color:var(--ink);font-weight:600}
   .fchip:disabled{opacity:.4;cursor:not-allowed}
   .fchip svg{flex:none}
   .pop{animation:pop .36s ease-out}
-  @keyframes pop{0%{transform:scale(1)}40%{transform:scale(.9)}75%{transform:scale(1.06)}100%{transform:scale(1)}}
+  @keyframes pop{0%{transform:scale(1)}40%{transform:scale(.88)}75%{transform:scale(1.07)}100%{transform:scale(1)}}
 
   .row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0}
-  .row + .row{border-top:1px dashed var(--line)}
+  .row + .row{border-top:2px dashed var(--line)}
   .row .lbl{font-weight:600;font-size:15px}
   .row .lbl small{display:block;color:var(--muted);font-size:12px;font-weight:400}
   .stepper{display:flex;align-items:center;gap:8px}
-  .stepper button{width:44px;height:44px;border-radius:14px;border:0;background:var(--soft);color:var(--brand);font-size:22px;font-weight:700;cursor:pointer}
+  .stepper button{width:44px;height:44px;border-radius:14px;border:2px solid var(--ink);background:var(--soft);font-size:22px;font-weight:700;cursor:pointer}
   .stepper button:disabled{opacity:.35;cursor:not-allowed}
-  .stepper span{min-width:24px;text-align:center;font-family:Prompt,sans-serif;font-weight:600;font-size:18px}
-  .switch{width:56px;height:32px;border-radius:16px;border:0;position:relative;cursor:pointer;background:#CBD3E4;transition:background .2s;flex:none}
-  .switch::after{content:"";position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:12px;background:#fff;
-                 box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .22s cubic-bezier(.34,1.6,.5,1)}
-  .switch.on{background:var(--brand)}
-  .switch.on::after{left:28px}
+  .stepper span{min-width:24px;text-align:center;font-family:Itim,sans-serif;font-size:20px}
+  .switch{width:58px;height:34px;border-radius:17px;border:2px solid var(--ink);position:relative;cursor:pointer;background:#EADCE0;transition:background .2s;flex:none}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:12px;background:#fff;border:2px solid var(--ink);
+                 box-sizing:border-box;transition:left .24s cubic-bezier(.34,1.6,.5,1)}
+  .switch.on{background:var(--pink)}
+  .switch.on::after{left:27px}
 
-  /* fruit animation in the cup */
-  .fr{transform-box:fill-box;transform-origin:50% 100%;
-      transition:transform .56s cubic-bezier(.34,1.9,.5,1),opacity .18s ease-out}
-  .fr.off{transform:translateY(14px) scale(.1);opacity:0;
-          transition:transform .42s cubic-bezier(.55,-.6,.75,.4),opacity .26s ease-in .16s}
+  /* the cup + fruit animation */
+  .fw{transition:transform .5s cubic-bezier(.34,1.4,.5,1)}
+  .fr{transform-box:fill-box;transform-origin:50% 100%;transition:transform .56s cubic-bezier(.34,1.9,.5,1),opacity .18s ease-out}
+  .fr.off{transform:translateY(14px) scale(.1);opacity:0;transition:transform .42s cubic-bezier(.55,-.6,.75,.4),opacity .26s ease-in .16s}
   .rp{transform-box:fill-box;transform-origin:50% 50%;opacity:0}
   .rp.go{animation:ripple .62s ease-out}
   .rp.go.late{animation-delay:.22s}
   @keyframes ripple{0%{transform:scale(.3);opacity:.9}100%{transform:scale(1.8);opacity:0}}
-  .drz{stroke-dasharray:110;stroke-dashoffset:110;transition:stroke-dashoffset .7s ease-in-out}
+  .drz{stroke-dasharray:120;stroke-dashoffset:120;transition:stroke-dashoffset .7s ease-in-out}
   .drz.on{stroke-dashoffset:0}
+  .body{transform-box:fill-box;transform-origin:50% 100%}
+  .body.wob{animation:wob .45s ease-out}
+  @keyframes wob{0%{transform:scale(1,1)}30%{transform:scale(1.06,.92)}60%{transform:scale(.97,1.04)}100%{transform:scale(1,1)}}
+  .fh{opacity:0}
+  .cup.happy .fh{opacity:1}
+  .cup.happy .fn{opacity:0}
 
   /* cart */
   .ci{display:flex;gap:12px;align-items:flex-start;padding:10px 0}
-  .ci + .ci{border-top:1px dashed var(--line)}
-  .ci .thumb{width:48px;height:48px;border-radius:14px;flex:none;display:flex;align-items:center;justify-content:center}
+  .ci + .ci{border-top:2px dashed var(--line)}
+  .ci .thumb{width:50px;height:50px;border-radius:14px;border:2px solid var(--ink);flex:none;display:flex;align-items:center;justify-content:center}
   .ci .info{flex:1;min-width:0}
-  .ci .nm{font-weight:600;font-size:15px}
+  .ci .nm{font-family:Itim,sans-serif;font-size:17px}
   .ci .opt{font-size:12px;color:var(--muted)}
-  .ci .pr{font-family:Prompt,sans-serif;font-weight:600;font-size:15px;white-space:nowrap}
-  .link{background:none;border:0;padding:4px 0;font-size:13px;cursor:pointer;color:var(--brand);margin-right:16px}
+  .ci .pr{font-family:Itim,sans-serif;font-size:17px;white-space:nowrap}
+  .link{background:none;border:0;padding:4px 0;font-size:13px;cursor:pointer;color:var(--ink);text-decoration:underline;margin-right:16px;font-weight:600}
   .link.del{color:var(--danger)}
-  label.f{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
-  input,textarea{width:100%;font-size:16px;padding:11px 14px;border:2px solid var(--line);border-radius:14px;background:#fff;color:var(--ink)}
-  input:focus,textarea:focus{outline:none;border-color:var(--brand)}
+  label.f{display:block;font-size:15px;font-weight:600;margin-bottom:6px}
+  input,textarea{width:100%;font-size:16px;padding:11px 14px;border:2px solid var(--ink);border-radius:14px;background:#fff}
+  input:focus,textarea:focus{outline:none;box-shadow:0 0 0 3px var(--soft)}
   .rounds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-  .round{min-height:56px;padding:8px 12px;border-radius:16px;border:2px solid var(--line);background:#fff;color:var(--ink);
-         text-align:left;display:flex;flex-direction:column;justify-content:center;gap:1px;cursor:pointer}
+  .round{min-height:54px;padding:8px 12px;border-radius:16px;border:2px dashed #C9B8CC;background:#fff;text-align:left;
+         display:flex;flex-direction:column;justify-content:center;gap:1px;cursor:pointer}
   .round b{font-weight:600;font-size:15px}
   .round small{font-size:12px;color:var(--muted)}
-  .round.on{border-color:var(--brand);background:var(--soft);color:var(--brand-dark)}
-  .round.on small{color:#3D4F7F}
-  .total{display:flex;justify-content:space-between;align-items:baseline;font-family:Prompt,sans-serif}
-  .total b{font-weight:700;font-size:24px;color:var(--brand)}
-  .paynote{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:14px;padding:10px 12px;margin-top:10px;font-size:13px;color:#3D4F7F}
+  .round.on{border:2px solid var(--ink);background:var(--soft)}
+  .total{display:flex;justify-content:space-between;align-items:baseline}
+  .total span{font-family:Itim,sans-serif;font-size:19px}
+  .total b{font-family:Itim,sans-serif;font-weight:400;font-size:26px;color:var(--pink-dark)}
   .err{color:var(--danger);font-size:14px;margin-top:10px;display:none;font-weight:600}
+  .payopts{display:flex;flex-direction:column;gap:8px}
+  .payopt{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;border:2px dashed #C9B8CC;background:#fff;text-align:left;cursor:pointer;min-height:60px}
+  .payopt .dot{width:24px;height:24px;border-radius:12px;border:2px solid var(--ink);flex:none;position:relative;background:#fff}
+  .payopt.on{border:2px solid var(--ink);background:var(--soft)}
+  .payopt.on .dot::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--pink-dark)}
+  .payopt b{display:block;font-weight:600;font-size:15px}
+  .payopt small{display:block;font-size:12px;color:var(--muted)}
 
   /* done */
-  .done{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:36px;text-align:center}
-  .tick{width:72px;height:72px;border-radius:36px;background:var(--ok);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 8px #DDF1E6;
-        animation:tickIn .5s cubic-bezier(.34,1.8,.5,1)}
-  @keyframes tickIn{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
-  .oid{font-family:Prompt,sans-serif;font-weight:700;font-size:22px;color:var(--brand-dark);background:#fff;border:2px dashed #8FA3D6;padding:2px 14px;border-radius:12px;letter-spacing:1px}
-  .paycard{align-self:stretch;background:#fff;border-radius:22px;padding:18px;margin-top:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;text-align:left}
-  .qr{display:flex;flex-direction:column;align-items:center;gap:6px;border:2px dashed var(--line);border-radius:18px;padding:14px}
+  .done{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:30px;text-align:center}
+  .oid{font-family:Itim,sans-serif;font-size:24px;background:#fff;border:2px dashed var(--ink);padding:2px 14px;border-radius:12px;letter-spacing:1px}
+  .paycard{align-self:stretch;background:#fff;border:2.5px solid var(--ink);border-radius:24px;padding:18px;margin-top:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;text-align:left}
+  .qr{display:flex;flex-direction:column;align-items:center;gap:6px;border:2px dashed #C9B8CC;border-radius:18px;padding:14px}
   .qr .tag{font-size:12px;font-weight:600;color:#fff;background:#113566;padding:3px 10px;border-radius:6px}
   .qr img{width:200px;height:200px;display:block}
   .or{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted)}
-  .or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+  .or::before,.or::after{content:"";flex:1;height:2px;background:var(--line)}
   .acct{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:16px;padding:12px 14px}
-  .acct .k{width:42px;height:42px;border-radius:12px;background:#138F2D;color:#fff;display:flex;align-items:center;justify-content:center;font-family:Prompt,sans-serif;font-weight:700;font-size:18px;flex:none}
-  .acct .no{font-family:Prompt,sans-serif;font-weight:700;font-size:20px;letter-spacing:.5px}
-  .line-btn{align-self:stretch;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:10px;min-height:52px;border-radius:18px;background:#fff;
-            border:2px solid #06C755;color:#04702F;font-family:Prompt,sans-serif;font-weight:600;font-size:15px;text-decoration:none}
-  .payopts{display:flex;flex-direction:column;gap:8px}
-  .payopt{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;border:2px solid var(--line);background:#fff;text-align:left;cursor:pointer;color:var(--ink);min-height:60px}
-  .payopt .dot{width:22px;height:22px;border-radius:11px;border:2px solid #AEB8CF;flex:none;position:relative}
-  .payopt.on{border-color:var(--brand);background:var(--soft)}
-  .payopt.on .dot{border-color:var(--brand)}
-  .payopt.on .dot::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--brand)}
-  .payopt b{display:block;font-weight:600;font-size:15px}
-  .payopt small{display:block;font-size:12px;color:var(--muted)}
-  .slip{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:120px;border-radius:18px;border:2px dashed #8FA3D6;
-        background:#F7F9FE;color:var(--brand-dark);font-weight:600;cursor:pointer;text-align:center;padding:14px;position:relative}
+  .acct .k{width:42px;height:42px;border-radius:12px;background:#138F2D;color:#fff;display:flex;align-items:center;justify-content:center;font-family:Itim,sans-serif;font-size:20px;flex:none}
+  .acct .no{font-family:Itim,sans-serif;font-size:22px;letter-spacing:.5px}
+  .slip{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:120px;border-radius:18px;border:2px dashed var(--ink);
+        background:#FFF8FA;font-weight:600;cursor:pointer;text-align:center;padding:14px;position:relative}
   .slip input{position:absolute;inset:0;opacity:0;cursor:pointer}
-  .slip img{max-width:160px;max-height:220px;border-radius:10px;box-shadow:var(--shadow)}
-  .slip.ok{border-style:solid;border-color:var(--ok);background:#EAF7F0;color:var(--ok)}
-  .slip.err{border-color:var(--danger);color:var(--danger);background:#FFF4F6}
+  .slip img{max-width:160px;max-height:220px;border-radius:10px;border:2px solid var(--ink)}
+  .slip.ok{border-style:solid;background:#E8F7EF;color:#1E6B47}
+  .slip.err{color:var(--danger);background:#FFF0F3}
   .later{display:flex;gap:12px;align-items:center;background:var(--bg);border-radius:16px;padding:14px;text-align:left}
-  .later .ic{width:42px;height:42px;border-radius:12px;background:#138F2D;display:flex;align-items:center;justify-content:center;flex:none}
-  .banner{display:flex;align-items:center;gap:10px;background:#FFF1D6;color:#7A4E0B;border-radius:16px;padding:12px 14px;margin-top:14px;border:0;width:100%;text-align:left;cursor:pointer;font-weight:600;font-size:14px}
+  .later .ic{width:42px;height:42px;border-radius:12px;background:#06C755;display:flex;align-items:center;justify-content:center;flex:none}
+  .banner{display:flex;align-items:center;gap:10px;background:#FFF1C7;border:2px solid var(--ink);border-radius:16px;padding:12px 14px;margin-top:14px;width:100%;text-align:left;cursor:pointer;font-weight:600;font-size:14px}
   .banner span{flex:1}
-  .install{display:flex;align-items:center;gap:10px;background:#fff;border-radius:16px;padding:10px 12px;margin-top:14px;box-shadow:var(--shadow);font-size:13px;color:var(--muted)}
+  .install{display:flex;align-items:center;gap:10px;background:#fff;border:2px solid var(--ink);border-radius:18px;padding:10px 12px;margin-top:14px;font-size:13px;color:var(--muted)}
   .install b{color:var(--ink);display:block;font-size:14px}
-  .install button{border:0;background:var(--brand);color:#fff;border-radius:12px;padding:8px 12px;font-weight:600;cursor:pointer;white-space:nowrap}
-  .install .x{background:none;color:var(--muted);padding:8px;font-size:18px;line-height:1}
+  .install button{border:2px solid var(--ink);background:var(--pink);border-radius:12px;padding:6px 12px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .install .x{background:none;border:0;color:var(--muted);padding:8px;font-size:18px;line-height:1}
   .loading{text-align:center;color:var(--muted);padding:80px 0}
-  .spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite}
+  .spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(75,58,79,.25);border-top-color:var(--ink);border-radius:50%;animation:sp 1s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
-  @media (prefers-reduced-motion: reduce){ .fr,.fr.off,.drz,.sheet{transition:none} .rp.go,.pop,.tick{animation:none} }
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  .tick{animation:bob 1.6s ease-in-out infinite}
+  @media (prefers-reduced-motion: reduce){ .fr,.fr.off,.drz,.sheet{transition:none} .rp.go,.pop,.tick,.body.wob{animation:none} }
 </style>
 </head>
 <body>
-<!-- shared gradients for all illustrations -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <radialGradient id="gYog" cx="45%" cy="30%" r="75%"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E9EEF8"/></radialGradient>
-    <radialGradient id="gBanana" cx="45%" cy="40%" r="65%"><stop offset="0" stop-color="#FFFBEA"/><stop offset=".7" stop-color="#FBEDB3"/><stop offset="1" stop-color="#F2D879"/></radialGradient>
-    <radialGradient id="gGrape" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#B873CF"/><stop offset=".55" stop-color="#7E3A96"/><stop offset="1" stop-color="#4E1C62"/></radialGradient>
-    <radialGradient id="gBlue" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#6E82D6"/><stop offset=".6" stop-color="#34449A"/><stop offset="1" stop-color="#1E2760"/></radialGradient>
-    <radialGradient id="gMuscat" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#EAF8B8"/><stop offset=".55" stop-color="#B5D96A"/><stop offset="1" stop-color="#7DA834"/></radialGradient>
-    <radialGradient id="gBerry" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#F58BA6"/><stop offset=".6" stop-color="#D23A62"/><stop offset="1" stop-color="#8E1C3C"/></radialGradient>
-  </defs>
-</svg>
 
 <div class="wrap" id="app"><div class="loading">กำลังโหลดเมนู…</div></div>
 
@@ -280,85 +272,142 @@ function describe(it){
   return parts.join(' · ');
 }
 const ICON = {
-  back:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14213D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
-  close:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14213D" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
-  cart:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg>',
-  qr:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2546A8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>',
-  copy:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A3580" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/></svg>',
+  back:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4B3A4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
+  close:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4B3A4F" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  cart:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4B3A4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg>',
+  qr:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4B3A4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>',
+  copy:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B3A4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/></svg>',
   check:'<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   line:'<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6" fill="#06C755"/><path d="M12 5.5c-4 0-7 2.5-7 5.6 0 2.8 2.4 5.1 5.7 5.5.6.1.4.6.3 1.2-.1.5 0 .9.6.6 1.9-1 4.6-3 5.9-4.6.9-1 1.5-1.9 1.5-2.7 0-3.1-3-5.6-7-5.6z" fill="#fff"/></svg>',
   logo:'<svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="18" fill="#2546A8"/><path d="M10 16 L26 16 L23.5 27 Q23 28.5 21.5 28.5 L14.5 28.5 Q13 28.5 12.5 27 Z" fill="#fff"/><path d="M9 16 Q9 9 18 8.5 Q27 9 27 16 Z" fill="#fff"/><circle cx="15" cy="12.5" r="2" fill="#D23A62"/><circle cx="20.5" cy="11.5" r="1.8" fill="#7FB241"/></svg>'
 };
 
-/* ---------- illustrations ---------- */
-const BAND = {ORI:'#2546A8', BIS:'#B9773A', ORE:'#2A2C35', BAN:'#C77D2E', NOF:'#8FA3D6'};
-const TINT = {ORI:'#FCEBF0', BIS:'#F6EBDD', ORE:'#E8EAF0', BAN:'#FFF3D1', NOF:'#E9EFFA'};
-const tintOf = m => TINT[m.id] || (m.fruitPick ? '#FCEBF0' : '#E9EFFA');
-function fruitKind(n){
-  if (/กล้วย|banana/i.test(n)) return 'banana';
-  if (/ไชน์|มัสคัท|muscat/i.test(n)) return 'muscat';
-  if (/บลู|blue/i.test(n)) return 'blue';
-  if (/องุ่น|grape/i.test(n)) return 'grape';
-  return 'berry';
+/* ---------- illustrations (kawaii) ---------- */
+const INK = '#4B3A4F';
+const BAND = {ORI:'#FFB5C8', BIS:'#E9B27C', ORE:'#8C7B91', BAN:'#FFD98A', NOF:'#BFDDF7'};
+const TINT = {ORI:'#FFE3EA', BIS:'#FBE9D7', ORE:'#ECE6F2', BAN:'#FFF0C7', NOF:'#E1F0FB'};
+const PASTEL = [['#FFE3EA','#FFB5C8'],['#E1F0FB','#BFDDF7'],['#E4F6E8','#B8E6B5'],['#FFF0C7','#FFD98A'],['#ECE6F2','#C9B6E4'],['#FFE8D6','#FFC29E']];
+const hashOf = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+const tintOf = m => TINT[m.id] || PASTEL[hashOf(m.id || m.name) % PASTEL.length][0];
+const bandOf = m => BAND[m.id] || PASTEL[hashOf(m.id || m.name) % PASTEL.length][1];
+
+/* fruit library — matched by name; anything new falls back to a pastel round fruit.
+   Sheet columns "รูปทรง" (ลูกกลม/แว่น/ชิ้นเต๋า/เบอร์รี่) and "สี" (#hex) override the guess. */
+const FRUIT_KINDS = [
+  [/กล้วย|banana/i,            {shape:'slice', color:'#FFE7A3', inner:'#F2C34E', seeds:'#C99A2E'}],
+  [/ไชน์|มัสคัท|องุ่นเขียว|muscat|green grape/i, {shape:'round', color:'#BDEB8D'}],
+  [/บลู|blue/i,                {shape:'blue',  color:'#7C8BFF'}],
+  [/องุ่น|grape/i,             {shape:'round', color:'#B28DFF'}],
+  [/สตรอ|straw/i,              {shape:'berry', color:'#FF7A8A'}],
+  [/ราสพ์|ราสเบอร์|rasp/i,     {shape:'berry', color:'#E8507A'}],
+  [/แบล็คเบอร์|blackberry/i,   {shape:'round', color:'#6B4F7C'}],
+  [/กีวี|kiwi/i,               {shape:'slice', color:'#B5D86A', inner:'#F1F7D2', seeds:INK}],
+  [/แก้วมังกร|dragon/i,        {shape:'slice', color:'#FF6FA8', inner:'#FFF7FB', seeds:INK}],
+  [/ส้ม|orange|mandarin|tangerine/i, {shape:'citrus', color:'#FFB45C'}],
+  [/มะม่วง|mango/i,            {shape:'cube',  color:'#FFC94D'}],
+  [/สับปะรด|pineapple/i,       {shape:'cube',  color:'#FFE066'}],
+  [/แตงโม|watermelon/i,        {shape:'cube',  color:'#FF8A94'}],
+  [/เมลอน|melon|แคนตาลูป/i,    {shape:'cube',  color:'#C8EE9A'}],
+  [/มะละกอ|papaya/i,           {shape:'cube',  color:'#FFA766'}],
+  [/พีช|peach/i,               {shape:'cube',  color:'#FFC2A3'}],
+  [/แอปเปิ้ล|แอปเปิล|apple/i,   {shape:'cube',  color:'#FF9C9C'}],
+  [/เชอร์รี่|cherry/i,          {shape:'cherry',color:'#E2384F'}],
+  [/ทับทิม|pomegranate/i,      {shape:'seeds', color:'#E2384F'}],
+  [/ลิ้นจี่|lychee/i,           {shape:'round', color:'#FFF1EF'}],
+  [/ลำไย|longan/i,             {shape:'round', color:'#EAD7B0'}],
+  [/เสาวรส|passion/i,          {shape:'slice', color:'#FFD25A', inner:'#FFB13B', seeds:INK}]
+];
+const SHAPE_TH = {'ลูกกลม':'round', 'แว่น':'slice', 'ชิ้นเต๋า':'cube', 'เบอร์รี่':'berry'};
+function fruitLook(f){
+  const hit = FRUIT_KINDS.find(k => k[0].test(f.name));
+  const look = Object.assign({shape:'round', color: PASTEL[hashOf(f.name) % PASTEL.length][1]}, hit ? hit[1] : {});
+  if (SHAPE_TH[f.shape]) look.shape = SHAPE_TH[f.shape];
+  if (f.color) { look.color = f.color; if (look.shape === 'slice') look.inner = '#FFFFFF'; }
+  return look;
 }
-const bananaSlice = (x,y,rot,s) => `<g transform="translate(${x} ${y}) rotate(${rot}) scale(${s})"><ellipse rx="8.6" ry="7.8" fill="#EFCF63"/><ellipse cy="-.3" rx="7.4" ry="6.7" fill="url(#gBanana)"/><g fill="#B8913B"><circle cy="-2.4" r=".75"/><circle cx="2.3" cy="-.7" r=".75"/><circle cx="1.4" cy="1.9" r=".75"/><circle cx="-1.4" cy="1.9" r=".75"/><circle cx="-2.3" cy="-.7" r=".75"/></g><ellipse cx="-3" cy="-3.6" rx="2.2" ry="1" fill="#fff" opacity=".7"/></g>`;
-const blueBerry = (x,y,r) => `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#gBlue)"/><path d="M${x-1.3} ${y-r+1} l1.3 -1 1.3 1 -.5 1 h-1.4 z" fill="#141A40"/>`;
-// fruit art in local coords (about 22 x 16), sitting on the yogurt
-const FRUIT = {
-  banana: bananaSlice(6,8,-12,1) + bananaSlice(16,4,10,.88),
-  grape: `<path d="M7 1 Q8 -2 10 -3" fill="none" stroke="#6B4B2A" stroke-width="1.2" stroke-linecap="round"/><ellipse cx="4" cy="7" rx="5.2" ry="6" fill="url(#gGrape)"/><ellipse cx="2.4" cy="4.6" rx="1.4" ry="2" fill="#fff" opacity=".55"/><ellipse cx="11.5" cy="8.5" rx="5" ry="5.7" fill="url(#gGrape)"/><ellipse cx="10" cy="6.2" rx="1.3" ry="1.8" fill="#fff" opacity=".5"/>`,
-  blue: blueBerry(4.5,8,4.6) + blueBerry(13.5,9,4.4) + blueBerry(9,3.5,4.2) + `<circle cx="7.6" cy="2.2" r="1" fill="#fff" opacity=".45"/><circle cx="3" cy="6.6" r="1" fill="#fff" opacity=".45"/>`,
-  muscat: `<path d="M9 2 Q10 -1 12.5 -2" fill="none" stroke="#6B4B2A" stroke-width="1.2" stroke-linecap="round"/><ellipse cx="5" cy="9" rx="5.8" ry="6.5" fill="url(#gMuscat)"/><ellipse cx="3.2" cy="6.4" rx="1.6" ry="2.2" fill="#fff" opacity=".6"/><ellipse cx="13.5" cy="10.5" rx="5.4" ry="6" fill="url(#gMuscat)"/><ellipse cx="11.8" cy="8" rx="1.4" ry="2" fill="#fff" opacity=".55"/>`,
-  berry: `<circle cx="6" cy="8" r="5.4" fill="url(#gBerry)"/><circle cx="14" cy="9" r="5" fill="url(#gBerry)"/><circle cx="4.4" cy="6" r="1.2" fill="#fff" opacity=".5"/>`
-};
-const CHIP_ICON = {
-  banana:`<svg width="26" height="26" viewBox="-10 -10 20 20" aria-hidden="true">${bananaSlice(0,0,0,1)}</svg>`,
-  grape:`<svg width="26" height="26" viewBox="-10 -10 20 20" aria-hidden="true"><ellipse cx="-3" rx="5.2" ry="6" fill="url(#gGrape)"/><ellipse cx="3.5" cy="1.5" rx="5" ry="5.7" fill="url(#gGrape)"/><ellipse cx="-4.4" cy="-2.4" rx="1.3" ry="1.9" fill="#fff" opacity=".55"/></svg>`,
-  blue:`<svg width="26" height="26" viewBox="-10 -10 20 20" aria-hidden="true">${blueBerry(-4,2,4.6)}${blueBerry(4,3,4.4)}${blueBerry(0,-3.5,4.4)}</svg>`,
-  muscat:`<svg width="26" height="26" viewBox="-10 -10 20 20" aria-hidden="true"><ellipse cx="-3.5" rx="5.6" ry="6.3" fill="url(#gMuscat)"/><ellipse cx="4" cy="1.5" rx="5.2" ry="5.8" fill="url(#gMuscat)"/><ellipse cx="-5" cy="-2.6" rx="1.5" ry="2.1" fill="#fff" opacity=".6"/></svg>`,
-  berry:`<svg width="26" height="26" viewBox="-10 -10 20 20" aria-hidden="true"><circle cx="-3" cy="0" r="5.4" fill="url(#gBerry)"/><circle cx="4" cy="1" r="5" fill="url(#gBerry)"/></svg>`
-};
-const SLOTS = [[22,34],[43,22],[60,28],[78,26]];
-const slotOf = i => { const s = SLOTS[i % 4], k = Math.floor(i / 4); return [s[0] + k*6, s[1] - k*7]; };
-// static toppings per menu, drawn on the yogurt before the fruit
+// one fruit, centred on 0,0, about 16 units wide; inherits the ink outline
+function fruitArt(L){
+  const hi = '<circle cx="-2.2" cy="-2.4" r="1.6" fill="#fff" stroke="none"/>';
+  switch (L.shape) {
+    case 'slice': {
+      const dots = [0,72,144,216,288].map(a => { const r = a * Math.PI / 180;
+        return `<circle cx="${(Math.sin(r)*2.8).toFixed(1)}" cy="${(-Math.cos(r)*2.8).toFixed(1)}" r=".8"/>`; }).join('');
+      return `<circle r="7.5" fill="${L.color}"/><circle r="4.8" fill="${L.inner || '#FFF6D8'}" stroke="none"/><g fill="${L.seeds || '#C99A2E'}" stroke="none">${dots}</g>`;
+    }
+    case 'cube':   return `<rect x="-6.5" y="-6.5" width="13" height="13" rx="3.5" fill="${L.color}"/><path d="M-3.5 -3.5 h3" stroke="#fff" stroke-width="1.6" fill="none"/>`;
+    case 'berry':  return `<path d="M0 7.5 Q-8 1 -6.5 -3 Q-4.5 -6.5 0 -5 Q4.5 -6.5 6.5 -3 Q8 1 0 7.5 Z" fill="${L.color}"/><path d="M-4 -5 L-1.5 -8 L0 -5.5 L1.5 -8 L4 -5" fill="#7BC67B" stroke-width="1.8"/><g fill="#FFF3C4" stroke="none"><circle cx="-2.4" cy="-1" r=".8"/><circle cx="2.2" cy="-.4" r=".8"/><circle cx="0" cy="2.8" r=".8"/></g>`;
+    case 'blue':   return `<circle r="5.6" fill="${L.color}"/><path d="M-1.8 -5.4 l1.8 1.5 1.8 -1.5" fill="none" stroke-width="1.6"/><circle cx="-2" cy="-1" r="1.2" fill="#fff" stroke="none"/>`;
+    case 'citrus': return `<circle r="7.5" fill="${L.color}"/><circle r="5.2" fill="#FFD9A3" stroke="none"/><path d="M0 -5 V5 M-4.3 -2.5 L4.3 2.5 M-4.3 2.5 L4.3 -2.5" stroke="${L.color}" stroke-width="1.3" fill="none"/>`;
+    case 'cherry': return `<path d="M0 -3 Q1 -9 5 -10" fill="none" stroke-width="1.8"/><circle cy="1" r="6" fill="${L.color}"/>${hi}`;
+    case 'seeds':  return `<g fill="${L.color}"><circle cx="-3" cy="1" r="3.2"/><circle cx="3" cy="1" r="3.2"/><circle cy="-3.5" r="3.2"/></g>`;
+    default:       return `<circle r="6.4" fill="${L.color}"/>${hi}`;
+  }
+}
+// where each available fruit sits: chosen ones spread evenly over the cream (they slide when one leaves),
+// unchosen ones keep a spot of their own so they can sink and pop back in place
+function fruitSpots(chosen){
+  const all = availFruits(), on = all.filter(f => chosen.indexOf(f.name) >= 0), n = on.length;
+  return all.map((f,i) => {
+    const k = on.indexOf(f), [x,y,s] = k >= 0 ? slotOf(k, n) : slotOf(i, all.length);
+    return `translate(${x}px,${y}px) scale(${s})`;
+  });
+}
+function layoutFruits(){ fruitSpots(draft.fruits).forEach((t,i) => { const w = $('fw'+i); if (w) w.style.transform = t; }); }
+// fruit spots along the top of the cream, spread for however many fruits there are
+function slotOf(i, n){
+  const t = n <= 1 ? .5 : i / (n - 1);
+  return [ (33 + 54 * t).toFixed(1), (43 - 12 * Math.sin(Math.PI * t)).toFixed(1), n > 5 ? .8 : 1 ];
+}
+const CREAM = 'M22 58 Q17 46 30 44 Q30 32 44 34 Q50 24 62 30 Q74 24 80 34 Q94 32 92 44 Q104 46 98 58 Z';
+const BLUSH = '<ellipse cx="44" cy="73" rx="4" ry="2.4" fill="#FF9DB5" stroke="none"/><ellipse cx="76" cy="73" rx="4" ry="2.4" fill="#FF9DB5" stroke="none"/>';
+function faceOf(id){
+  if (id === 'ORE') return '<path d="M48 68 Q51 65 54 68" fill="none" stroke-width="2.4"/><path d="M66 68 Q69 65 72 68" fill="none" stroke-width="2.4"/><path d="M56 72 Q60 76 64 72" fill="none" stroke-width="2.4"/>';
+  if (id === 'BAN') return '<path d="M48 66 L53 69 L48 72" fill="none" stroke-width="2.4"/><path d="M72 66 L67 69 L72 72" fill="none" stroke-width="2.4"/><path d="M55 72 Q60 78 65 72 Z" fill="#E2557A" stroke-width="2"/>';
+  return '<circle cx="51" cy="68" r="2.6" fill="#4B3A4F" stroke="none"/><circle cx="69" cy="68" r="2.6" fill="#4B3A4F" stroke="none"/><path d="M56 72 Q60 76 64 72" fill="none" stroke-width="2.4"/>';
+}
+const HAPPY = '<path d="M47 69 Q51 64 55 69" fill="none" stroke-width="2.4"/><path d="M65 69 Q69 64 73 69" fill="none" stroke-width="2.4"/><path d="M55 72 Q60 79 65 72 Z" fill="#E2557A" stroke-width="2"/>';
 function toppings(id){
-  if (id === 'BIS') return `<rect x="66" y="31" width="20" height="13" rx="3" fill="#C98A4B" transform="rotate(-10 76 37)"/><rect x="58" y="42" width="7" height="5" rx="1.5" fill="#8F5626" transform="rotate(20 61 44)"/><rect x="88" y="43" width="6" height="4" rx="1.5" fill="#B9773A"/><rect x="26" y="45" width="6" height="4" rx="1.5" fill="#8F5626"/>`;
-  if (id === 'ORE') return `<circle cx="60" cy="26" r="10" fill="#2A2C35"/><circle cx="60" cy="26" r="6" fill="none" stroke="#4A4D5A" stroke-width="1.5"/><rect x="28" y="45" width="6" height="4" rx="1" fill="#2A2C35"/><rect x="88" y="44" width="6" height="4" rx="1" fill="#2A2C35"/>`;
-  if (id === 'BAN') return bananaSlice(36,41,-10,1) + bananaSlice(60,34,6,1) + bananaSlice(84,41,14,1) + `<path d="M22 46 Q34 30 48 40 T72 40 T98 44" fill="none" stroke="#C77D2E" stroke-width="3.4" stroke-linecap="round"/>`;
-  if (id === 'NOF') return `<path d="M34 44 Q60 26 86 44" fill="none" stroke="#D3DAEA" stroke-width="2.5" stroke-linecap="round"/><path d="M46 38 Q60 30 74 38" fill="none" stroke="#D3DAEA" stroke-width="2.5" stroke-linecap="round"/>`;
+  const slice = (x,y) => `<g transform="translate(${x} ${y})">${fruitArt({shape:'slice', color:'#FFE7A3', inner:'#FFF6D8', seeds:'#C99A2E'})}</g>`;
+  if (id === 'BIS') return '<rect x="60" y="25" width="26" height="18" rx="4" fill="#D9A066" transform="rotate(-10 73 34)"/><g fill="#8A5A2B" stroke="none"><circle cx="68" cy="32" r="1.5"/><circle cx="76" cy="31" r="1.5"/><circle cx="72" cy="37" r="1.5"/></g>';
+  if (id === 'ORE') return '<circle cx="60" cy="27" r="11" fill="#4B3A4F"/><circle cx="60" cy="27" r="6.5" fill="none" stroke="#9C8CA2" stroke-width="2"/><rect x="40" y="49" width="5" height="4" rx="1" fill="#4B3A4F" stroke="none"/><rect x="76" y="50" width="4" height="4" rx="1" fill="#4B3A4F" stroke="none"/>';
+  if (id === 'BAN') return '<path d="M26 50 Q36 40 46 48 T66 46 T94 50" fill="none" stroke="#D98B3A" stroke-width="4.5"/>' + slice(40,40) + slice(60,31) + slice(80,39);
+  if (id === 'NOF') return '<path d="M60 12 L62 18 L68 20 L62 22 L60 28 L58 22 L52 20 L58 18 Z" fill="#FFE7A3" stroke-width="2"/><path d="M86 18 L87 21 L90 22 L87 23 L86 26 L85 23 L82 22 L85 21 Z" fill="#FFB5C8" stroke-width="1.6"/>';
   return '';
 }
-/* cup(m, {size, fruits:[names], live:true}) — live adds ids so fruit can animate */
+/* cup(m, {size, fruits:[names], live:true, syrup:bool}) — live = ids + hidden fruit so they can pop in */
 function cup(m, o){
   o = o || {};
-  const size = o.size || 88, band = BAND[m.id] || '#2546A8';
-  const fr = m.fruitPick > 0 ? availFruits().map((f,i) => {
+  const size = o.size || 104, all = availFruits(), pos = fruitSpots(o.fruits || []);
+  const fr = m.fruitPick > 0 ? all.map((f,i) => {
     const on = (o.fruits || []).indexOf(f.name) >= 0;
     if (!o.live && !on) return '';
-    const [x,y] = slotOf(i), k = fruitKind(f.name);
-    return `<g transform="translate(${x} ${y})">${o.live ? `<ellipse class="rp" id="rp${i}" cx="10" cy="13" rx="10" ry="2.8" fill="none" stroke="#B9C4DE" stroke-width="1"/>` : ''}<g class="fr${o.live ? ' off' : ''}" ${o.live ? `id="fr${i}"` : ''}>${FRUIT[k]}</g></g>`;
+    return `<g class="fw" ${o.live ? `id="fw${i}"` : ''} style="transform:${pos[i]}">${o.live ? `<ellipse class="rp" id="rp${i}" cx="0" cy="7" rx="9" ry="2.6" fill="none" stroke="#C9B8CC" stroke-width="1.4"/>` : ''}<g class="fr${o.live ? ' off' : ''}" ${o.live ? `id="fr${i}"` : ''}>${fruitArt(fruitLook(f))}</g></g>`;
   }).join('') : '';
-  return `<svg width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true" style="overflow:visible">
-    <ellipse cx="60" cy="114" rx="35" ry="4" fill="#14213D" opacity=".08"/>
-    <path d="M24 52 L96 52 L87 106 Q86 111 81 111 L39 111 Q34 111 33 106 Z" fill="#fff" stroke="#C9D2E6" stroke-width="1.6"/>
-    <path d="M28.5 74 L91.5 74 L89 90 L31 90 Z" fill="${band}"/>
-    <path d="M17 52 Q17 27 60 25 Q103 27 103 52 Z" fill="url(#gYog)" stroke="#C9D2E6" stroke-width="1.6"/>
-    <path d="M30 44 Q44 33 60 34" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
-    <rect x="14" y="48" width="92" height="8" rx="4" fill="#E3E8F4"/>
-    ${toppings(m.id)}${fr}
-    ${o.live ? '<path id="drz" class="drz" d="M22 47 Q34 36 46 44 T70 40 T98 46" fill="none" stroke="#5A3418" stroke-width="2.6" stroke-linecap="round"/>' : ''}
+  return `<svg class="cup" ${o.live ? 'id="cupSvg"' : ''} width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true" style="overflow:visible" stroke="${INK}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="60" cy="113" rx="30" ry="3.5" fill="#4B3A4F" opacity=".12" stroke="none"/>
+    <g class="body" ${o.live ? 'id="cupBody"' : ''}>
+      <path d="M28 56 L92 56 L85 102 Q84 108 78 108 L42 108 Q36 108 35 102 Z" fill="#fff"/>
+      <path d="M31.5 80 L88.5 80 L86.5 94 L33.5 94 Z" fill="${bandOf(m)}" stroke="none"/>
+      <g class="fn">${faceOf(m.id)}</g><g class="fh">${HAPPY}</g>${BLUSH}
+      <path d="${CREAM}" fill="#fff"/>
+      ${toppings(m.id)}${fr}
+      <path ${o.live ? 'id="drz"' : ''} class="drz${o.syrup ? ' on' : ''}" d="M24 52 Q34 42 44 49 T64 46 T96 51" fill="none" stroke="#6B3E26" stroke-width="3.5"/>
+    </g>
   </svg>`;
 }
+const chipIcon = f => `<svg width="26" height="26" viewBox="-10 -10 20 20" aria-hidden="true" stroke="${INK}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">${fruitArt(fruitLook(f))}</svg>`;
+// a little happy cup for the logo / done screen
+const happyCup = size => `<svg width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true" stroke="${INK}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"><circle cx="60" cy="60" r="56" fill="#FFB5C8" stroke="none"/><path d="M36 58 L84 58 L79 92 Q78 97 73 97 L47 97 Q42 97 41 92 Z" fill="#fff"/><path d="M30 60 Q26 48 38 46 Q40 34 54 38 Q60 28 70 36 Q84 34 84 46 Q96 48 90 60 Z" fill="#fff"/><path d="M48 73 Q52 68 56 73" fill="none" stroke-width="4"/><path d="M64 73 Q68 68 72 73" fill="none" stroke-width="4"/><path d="M55 79 Q60 85 65 79" fill="none" stroke-width="4"/></svg>`;
 
 /* ---------- main screen ---------- */
 function render(){
   const inCart = {}; cart.forEach(it => inCart[it.menuId] = (inCart[it.menuId]||0) + it.qty);
   $('app').innerHTML = `
     <div class="top">
-      <div class="logo h">${ICON.logo}${esc(C.shopName)}</div>
+      <div class="logo h">${happyCup(40)}${esc(C.shopName)}</div>
       ${C.salePeriod ? `<div class="pill">รอบส่ง ${esc(C.salePeriod)}</div>` : ''}
     </div>
-    <h1 class="hello h">วันนี้กินถ้วยไหนดี?</h1>
+    <h1 class="hello h">วันนี้กินถ้วยไหนดี~</h1>
     <div class="sub">แตะเมนู เลือกผลไม้ แล้วกดสั่งได้เลย</div>
     ${IS_GAS || API_URL ? '' : '<div class="demo">โหมดตัวอย่าง (ยังไม่ต่อ Google Sheet)</div>'}
     ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}</div>`}
@@ -371,7 +420,7 @@ function render(){
           <div class="art" style="background:${tintOf(m)}">${cup(m, {fruits: availFruits().slice(0, m.fruitPick).map(f => f.name)})}</div>
           <div class="nm h">${esc(m.name)}</div>
           <div class="ds">${esc(m.desc)}</div>
-          <div class="pr h">${baht(m.price)}</div>
+          <div class="prow"><div class="pr h">${baht(m.price)}</div><span class="plus" aria-hidden="true">+</span></div>
         </button>`).join('')}
     </div>`;
   const n = cupCount();
@@ -389,7 +438,7 @@ function openItem(menuId, idx){
     <div class="box">
       <h3>เลือกผลไม้ <small id="pickInfo"></small></h3>
       <div class="fchips">
-        ${availFruits().map((f,i) => `<button class="fchip" id="fc${i}" onclick="toggleFruit(${i})">${CHIP_ICON[fruitKind(f.name)]}${esc(f.name)}</button>`).join('')}
+        ${availFruits().map((f,i) => `<button class="fchip" id="fc${i}" onclick="toggleFruit(${i})">${chipIcon(f)}${esc(f.name)}</button>`).join('')}
       </div>
     </div>` : '';
   const addons = addonsFor(m).map(a => a.type === 'count' ? `
@@ -401,7 +450,7 @@ function openItem(menuId, idx){
   $('itemInner').innerHTML = `
     <div class="hero" style="background:${tintOf(m)}">
       <button class="icon-btn" onclick="closeSheets()" aria-label="ปิด">${ICON.close}</button>
-      ${cup(m, {size: 220, live: true})}
+      ${cup(m, {size: 220, live: true, fruits: draft.fruits})}
     </div>
     <div class="title-row"><h2 class="h">${esc(m.name)}</h2><div class="pr h">${baht(m.price)}</div></div>
     ${m.desc ? `<div class="sub">${esc(m.desc)}</div>` : ''}
@@ -443,7 +492,16 @@ function toggleFruit(i){
   if (k >= 0) draft.fruits.splice(k,1); else if (draft.fruits.length < m.fruitPick) draft.fruits.push(name); else return;
   const b = $('fc'+i); b.classList.remove('pop'); b.getBoundingClientRect(); b.classList.add('pop');
   setFruit(i, k < 0, true);
+  setTimeout(layoutFruits, k < 0 ? 0 : 380);   // others slide over once the removed one has sunk
+  cupReact(k < 0);
   refreshItem();
+}
+// the cup squishes a little, and smiles when a fruit goes in
+let happyTimer = 0;
+function cupReact(added){
+  const body = $('cupBody'), svg = $('cupSvg'); if (!body) return;
+  body.classList.remove('wob'); body.getBoundingClientRect(); body.classList.add('wob');
+  if (added){ svg.classList.add('happy'); clearTimeout(happyTimer); happyTimer = setTimeout(() => svg.classList.remove('happy'), 900); }
 }
 function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
   const v = d === 0 ? (n ? 0 : 1) : Math.max(0, Math.min(a.max, n + d));
@@ -468,7 +526,7 @@ function renderCart(){
     </div>
     <div class="box" style="padding-top:4px">
       ${cart.map((it,i) => { const m = menuOf(it.menuId); return `
-        <div class="ci"><div class="thumb" style="background:${tintOf(m)}">${cup(m, {size:42, fruits: it.fruits})}</div>
+        <div class="ci"><div class="thumb" style="background:${tintOf(m)}">${cup(m, {size:44, fruits: it.fruits, syrup: !!(it.addons && it.addons.HER)})}</div>
           <div class="info"><div class="nm">${esc(m.name)} × ${it.qty}</div>
             <div class="opt">${esc(describe(it)) || '—'}</div>
             <div><button class="link" onclick="editItem(${i})">แก้ไข</button><button class="link del" onclick="removeItem(${i})">ลบ</button></div></div>
@@ -529,8 +587,8 @@ function renderDone(r){
   const payNow = !r.payLater;
   $('app').innerHTML = `
     <div class="done">
-      <div class="tick">${ICON.check}</div>
-      <h1 class="h" style="margin:18px 0 0;font-weight:600;font-size:26px">สั่งเรียบร้อย!</h1>
+      <div class="tick">${happyCup(88)}</div>
+      <h1 class="h" style="margin:14px 0 0;font-size:30px">สั่งเรียบร้อย~ ขอบคุณค่า</h1>
       <div style="display:flex;align-items:center;gap:10px;margin-top:4px"><span class="sub">เลขออเดอร์</span><span class="oid">${esc(r.orderId)}</span></div>
       <div class="sub" style="margin-top:4px">${esc(r.name || '')} · ${r.cups} ถ้วย${r.round ? ' · ' + esc(roundLabel(r.round)) : ''}</div>
       <div class="paycard">
@@ -614,7 +672,7 @@ function installCard(){
   if (IS_GAS || !API_URL || standalone() || load('greek_noinstall')) return '';
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
   if (!installEvt && !ios) return '';
-  return `<div class="install">${ICON.logo.replace(/36/g,'32')}<div style="flex:1"><b>ติดตั้งเป็นแอป</b>${ios ? 'กดปุ่มแชร์ ⎋ แล้วเลือก "เพิ่มไปยังหน้าจอโฮม"' : 'เปิดสั่งได้จากหน้าจอมือถือเลย'}</div>
+  return `<div class="install">${happyCup(34)}<div style="flex:1"><b>ติดตั้งเป็นแอป</b>${ios ? 'กดปุ่มแชร์ ⎋ แล้วเลือก "เพิ่มไปยังหน้าจอโฮม"' : 'เปิดสั่งได้จากหน้าจอมือถือเลย'}</div>
     ${installEvt ? '<button onclick="doInstall()">ติดตั้ง</button>' : ''}<button class="x" aria-label="ปิด" onclick="save(\'greek_noinstall\',1);render()">×</button></div>`;
 }
 function doInstall(){ if (installEvt){ installEvt.prompt(); installEvt = null; render(); } }

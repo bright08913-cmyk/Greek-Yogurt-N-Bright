@@ -90,7 +90,8 @@ function getConfig() {
     type: String(r[3] || 'toggle'), max: Number(r[4]) || 1
   }));
   const fruits = rows_(ss.getSheetByName(SH.FRUIT)).filter(r => r[0]).map(r => ({
-    name: String(r[0]), emoji: String(r[1] || ''), available: isOn_(r[2])
+    name: String(r[0]), emoji: String(r[1] || ''), available: isOn_(r[2]),
+    shape: String(r[3] || ''), color: /^#[0-9a-f]{6}$/i.test(String(r[4] || '').trim()) ? String(r[4]).trim() : ''
   }));
   const s = settings_();
   // รอบรับ: อ่านจากแท็บ Rounds (เฉพาะที่ติ๊ก "เปิดรับ"); ถ้าไม่มีแท็บนี้ ใช้ Settings แบบเดิม
@@ -279,7 +280,7 @@ function setup() {
     ['SCP', 'เพิ่ม Scoop', 10, 'count', 5, true],
     ['HER', 'Hershey syrup', 10, 'toggle', 1, true]
   ]);
-  sheet_(ss, SH.FRUIT, ['ผลไม้', 'อีโมจิ', 'มีของ'], [
+  sheet_(ss, SH.FRUIT, ['ผลไม้', 'อีโมจิ', 'มีของ', 'รูปทรง (ไม่บังคับ)', 'สี เช่น #FF7A8A (ไม่บังคับ)'], [
     ['กล้วยหอม', '🍌', true],
     ['องุ่น', '🍇', true],
     ['บลูเบอร์รี่', '🫐', true],
