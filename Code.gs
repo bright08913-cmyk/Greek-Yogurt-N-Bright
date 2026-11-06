@@ -125,14 +125,14 @@ function getConfig() {
 
 /**
  * รับออเดอร์จากแอป — คำนวณราคาใหม่ฝั่ง server เสมอ (ไม่เชื่อราคาจากหน้าเว็บ)
- * order = { name, contact, round, delivery, payMethod, note, items:[{menuId, fruits:[], addons:{SCP:2,HER:1}, qty}] }
+ * order = { name, note, payLater, round?, items:[{menuId, fruits:[], addons:{SCP:2,HER:1}, qty, round}] }
+ * แต่ละถ้วยมีวันรับของตัวเอง → ออเดอร์เดียวแยกเป็นแถวตามวันรับ (G0041-1, G0041-2) จ่าย/แนบสลิปครั้งเดียว
  */
 function submitOrder(order) {
   const cfg = getConfig();
   if (!cfg.open) throw new Error(cfg.closedMsg);
   if (!order || !String(order.name || '').trim()) throw new Error('กรุณาใส่ชื่อ');
   if (!order.items || !order.items.length) throw new Error('ยังไม่มีรายการในตะกร้า');
-  if (cfg.rounds.length && cfg.rounds.indexOf(order.round) < 0) throw new Error('กรุณาเลือกรอบรับ');
 
   const menuById = {}; cfg.menu.forEach(m => menuById[m.id] = m);
   const addonById = {}; cfg.addons.forEach(a => addonById[a.id] = a);
@@ -143,6 +143,8 @@ function submitOrder(order) {
   const lines = order.items.map(it => {
     const m = menuById[it.menuId];
     if (!m) throw new Error('ไม่พบเมนู ' + it.menuId);
+    const round = String(it.round || order.round || '');
+    if (cfg.rounds.length && cfg.rounds.indexOf(round) < 0) throw new Error(m.name + ': กรุณาเลือกวันรับ (วันที่เลือกอาจปิดรับไปแล้ว)');
     const qty = Math.max(1, Math.min(50, parseInt(it.qty, 10) || 1));
     const fruits = (it.fruits || []).filter(f => fruitOk[f]);
     if (fruits.length > m.fruitPick) throw new Error(m.name + ' เลือกผลไม้ได้สูงสุด ' + m.fruitPick + ' อย่าง');
@@ -156,45 +158,66 @@ function submitOrder(order) {
       if (n) { addonCount[id] = n; addonPrice += n * a.price; }
     });
     const unit = m.price + addonPrice;
-    return { m, qty, fruits, excluded, addonCount, addonPrice, unit, total: unit * qty };
+    return { m, round, qty, fruits, excluded, addonCount, addonPrice, unit, total: unit * qty };
   });
 
-  const food = lines.reduce((s, l) => s + l.total, 0);
-  const cups = lines.reduce((s, l) => s + l.qty, 0);
-  const grand = food + deliv.fee;
+  // group by pickup day, in the order the days are listed in the Rounds tab
+  const rounds = [];
+  lines.forEach(l => { if (rounds.indexOf(l.round) < 0) rounds.push(l.round); });
+  rounds.sort((x, y) => cfg.rounds.indexOf(x) - cfg.rounds.indexOf(y));
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const ss = SpreadsheetApp.getActive();
     const ordSh = ss.getSheetByName(SH.ORD), itemSh = ss.getSheetByName(SH.ITEM);
-    const orderNo = Math.max(1, ordSh.getLastRow());           // header = row 1
-    const orderId = 'G' + ('000' + orderNo).slice(-4);
+    const base = 'G' + ('000' + nextOrderNo_(ordSh)).slice(-4);
     const now = new Date();
     const name = String(order.name).trim().slice(0, 60);
-    const summary = lines.map(l => l.m.name + (l.qty > 1 ? ' x' + l.qty : '')).join(', ');
     const payMethod = order.payLater ? PAY_LATER : PAY_NOW;
     const token = Utilities.getUuid();   // ใช้ยืนยันตอนแนบสลิป (กันคนอื่นแนบมั่ว)
-
-    ordSh.appendRow([orderId, now, name, String(order.contact || '').slice(0, 80), order.round || '',
-      deliv.name, deliv.fee, food, grand, payMethod, PAY_STATUS[0], ORDER_STATUS[0],
-      String(order.note || '').slice(0, 300), summary, cups, '', '', token]);
-
     const payF = '=IFERROR(VLOOKUP(INDIRECT("A"&ROW()),Orders!A:L,11,FALSE),"")';
     const statF = '=IFERROR(VLOOKUP(INDIRECT("A"&ROW()),Orders!A:L,12,FALSE),"")';
-    const itemRows = lines.map(l => {
-      const scoop = l.addonCount.SCP || 0, her = l.addonCount.HER || 0;
-      return [orderId, now, order.round || '', name, l.m.name, l.fruits.join(', '), l.excluded.join(', '),
-        scoop, her ? 'ใช่' : '', l.m.price, l.addonPrice, l.unit, l.qty, l.total,
-        remark_(order.round, l, addonById), payF, statF];
-    });
-    itemSh.getRange(itemSh.getLastRow() + 1, 1, itemRows.length, ITEM_HEAD.length).setValues(itemRows);
 
-    return { orderId, token, payLater: !!order.payLater, food, fee: deliv.fee, total: grand, cups,
+    const parts = rounds.map((round, k) => {
+      const ls = lines.filter(l => l.round === round);
+      const id = rounds.length > 1 ? base + '-' + (k + 1) : base;
+      const food = ls.reduce((s, l) => s + l.total, 0);
+      const cups = ls.reduce((s, l) => s + l.qty, 0);
+      const fee = k === 0 ? deliv.fee : 0;
+      const summary = ls.map(l => l.m.name + (l.qty > 1 ? ' x' + l.qty : '')).join(', ');
+      ordSh.appendRow([id, now, name, String(order.contact || '').slice(0, 80), round,
+        deliv.name, fee, food, food + fee, payMethod, PAY_STATUS[0], ORDER_STATUS[0],
+        String(order.note || '').slice(0, 300), summary, cups, '', '', token]);
+      const itemRows = ls.map(l => {
+        const scoop = l.addonCount.SCP || 0, her = l.addonCount.HER || 0;
+        return [id, now, round, name, l.m.name, l.fruits.join(', '), l.excluded.join(', '),
+          scoop, her ? 'ใช่' : '', l.m.price, l.addonPrice, l.unit, l.qty, l.total,
+          remark_(round, l, addonById), payF, statF];
+      });
+      itemSh.getRange(itemSh.getLastRow() + 1, 1, itemRows.length, ITEM_HEAD.length).setValues(itemRows);
+      return { orderId: id, round, cups, total: food + fee, summary };
+    });
+
+    return { orderId: base, token, payLater: !!order.payLater, parts,
+      total: parts.reduce((s, p) => s + p.total, 0), cups: parts.reduce((s, p) => s + p.cups, 0),
       bankAccount: cfg.bankAccount, accountName: cfg.accountName, bankName: cfg.bankName };
   } finally {
     lock.releaseLock();
   }
+}
+/** เลขออเดอร์วิ่งต่อจากเลขสูงสุดในแท็บ Orders */
+function nextOrderNo_(ordSh) {
+  const props = PropertiesService.getScriptProperties();
+  let n = Number(props.getProperty('ORDER_SEQ')) || 0;
+  if (!n && ordSh.getLastRow() > 1) {
+    ordSh.getRange(2, 1, ordSh.getLastRow() - 1, 1).getValues().forEach(r => {
+      const m = String(r[0]).match(/^G(\d+)/); if (m) n = Math.max(n, Number(m[1]));
+    });
+  }
+  n += 1;
+  props.setProperty('ORDER_SEQ', String(n));
+  return n;
 }
 
 /**
@@ -211,24 +234,26 @@ function attachSlip(req) {
   lock.waitLock(20000);
   try {
     const sh = SpreadsheetApp.getActive().getSheetByName(SH.ORD);
-    const ids = sh.getRange(2, 1, Math.max(1, sh.getLastRow() - 1), 1).getValues();
-    const idx = ids.findIndex(r => String(r[0]) === String(req.orderId));
-    if (idx < 0) throw new Error('ไม่พบออเดอร์ ' + req.orderId);
-    const row = idx + 2;
-    const rowVals = sh.getRange(row, 1, 1, ORD_HEAD.length).getValues()[0];
-    if (!req.token || String(rowVals[17]) !== String(req.token)) throw new Error('ลิงก์แนบสลิปไม่ถูกต้อง');
+    const vals = sh.getRange(2, 1, Math.max(1, sh.getLastRow() - 1), ORD_HEAD.length).getValues();
+    const base = String(req.orderId);
+    const rows = [];
+    vals.forEach((r, i) => { const id = String(r[0]); if (id === base || id.indexOf(base + '-') === 0) rows.push({ row: i + 2, vals: r }); });
+    if (!rows.length) throw new Error('ไม่พบออเดอร์ ' + base);
+    if (!req.token || rows.some(x => String(x.vals[17]) !== String(req.token))) throw new Error('ลิงก์แนบสลิปไม่ถูกต้อง');
 
     const ext = m[2] === 'jpeg' ? 'jpg' : m[2];
     const file = slipFolder_().createFile(
-      Utilities.newBlob(bytes, m[1], req.orderId + '_' + rowVals[2] + '_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'MMdd-HHmm') + '.' + ext));
+      Utilities.newBlob(bytes, m[1], base + '_' + rows[0].vals[2] + '_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'MMdd-HHmm') + '.' + ext));
     try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
     const id = file.getId();
-    sh.getRange(row, 16, 1, 2).setFormulas([[
-      '=IMAGE("https://drive.google.com/thumbnail?id=' + id + '&sz=w400")',
-      '=HYPERLINK("' + file.getUrl() + '","เปิดสลิป")'
-    ]]);
-    if (rowVals[10] !== 'จ่ายแล้ว') sh.getRange(row, 11).setValue('ส่งสลิปแล้ว');
-    sh.setRowHeight(row, 80);
+    rows.forEach(x => {
+      sh.getRange(x.row, 16, 1, 2).setFormulas([[
+        '=IMAGE("https://drive.google.com/thumbnail?id=' + id + '&sz=w400")',
+        '=HYPERLINK("' + file.getUrl() + '","เปิดสลิป")'
+      ]]);
+      if (x.vals[10] !== 'จ่ายแล้ว') sh.getRange(x.row, 11).setValue('ส่งสลิปแล้ว');
+      sh.setRowHeight(x.row, 80);
+    });
     return { orderId: req.orderId };
   } finally {
     lock.releaseLock();
