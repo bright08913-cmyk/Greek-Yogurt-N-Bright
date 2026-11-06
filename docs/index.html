@@ -85,7 +85,10 @@
   .sheet-bar{position:sticky;bottom:0;padding:12px 0 calc(14px + env(safe-area-inset-bottom));background:var(--bg);margin-top:14px}
 
   .hero{margin:0 -20px;height:250px;border-radius:0 0 32px 32px;border-bottom:2.5px solid var(--ink);display:flex;align-items:flex-end;justify-content:center;position:relative}
-  .hero .icon-btn{position:absolute;top:16px;left:20px}
+  .hero .back-btn{position:absolute;top:16px;left:20px}
+  .back-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px 0 10px;border-radius:22px;background:#fff;border:2px solid var(--ink);
+            box-shadow:0 3px 0 var(--ink);cursor:pointer;font-weight:600;font-size:15px;flex:none}
+  .back-btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
   .title-row{display:flex;align-items:baseline;justify-content:space-between;margin-top:16px}
   .title-row h2{margin:0;font-size:28px}
   .title-row .pr{font-size:24px;color:var(--pink-dark)}
@@ -466,7 +469,7 @@ function openItem(menuId, idx){
         <button class="switch" id="ad-${a.id}" aria-label="${esc(a.name)}" onclick="stepAddon('${a.id}',0)"></button></div>`).join('');
   $('itemInner').innerHTML = `
     <div class="hero" style="background:${tintOf(m)}">
-      <button class="icon-btn" onclick="closeSheets()" aria-label="ปิด">${ICON.close}</button>
+      <button class="back-btn" onclick="closeSheets()">${ICON.back}<span>${editIndex >= 0 ? 'กลับไปตะกร้า' : 'กลับ'}</span></button>
       ${cup(m, {size: 220, live: true, fruits: draft.fruits})}
     </div>
     <div class="title-row"><h2 class="h">${esc(m.name)}</h2><div class="pr h">${baht(m.price)}</div></div>
@@ -526,8 +529,8 @@ function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
 function setQty(d){ draft.qty = Math.max(1, Math.min(50, draft.qty + d)); refreshItem(); }
 function commitItem(){
   if (editIndex >= 0) cart[editIndex] = draft; else cart.push(draft);
-  save('greek_cart', cart); closeSheets(); render();
-  if (editIndex >= 0) setTimeout(openCart, 220);
+  save('greek_cart', cart); closeSheets({stay: true}); render();
+  if (editIndex >= 0) setTimeout(openCart, 260);
 }
 
 /* ---------- cart / checkout ---------- */
@@ -537,10 +540,8 @@ function renderCart(){
   if (C.rounds.indexOf(info.round) < 0) info.round = C.rounds.length === 1 ? C.rounds[0] : '';
   const notes = C.roundNotes || {};
   $('cartInner').innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;padding-top:18px">
-      <button class="icon-btn" onclick="closeSheets()" aria-label="กลับไปหน้าเมนู">${ICON.back}</button>
-      <div><h2 class="h" style="margin:0;font-weight:600;font-size:22px">ตะกร้าของคุณ</h2><div class="sub" style="font-size:13px">${cupCount()} ถ้วย</div></div>
-    </div>
+    <div style="padding-top:16px"><button class="back-btn" onclick="closeSheets()">${ICON.back}<span>กลับไปเลือกเมนู</span></button></div>
+    <h2 class="h" style="margin:14px 0 0;font-size:26px">ตะกร้าของคุณ</h2><div class="sub" style="font-size:13px">${cupCount()} ถ้วย · แตะ "แก้ไข" เพื่อเปลี่ยนผลไม้หรือจำนวน</div>
     <div class="box" style="padding-top:4px">
       ${cart.map((it,i) => { const m = menuOf(it.menuId); return `
         <div class="ci"><div class="thumb" style="background:${tintOf(m)}">${cup(m, {size:44, fruits: it.fruits, syrup: !!(it.addons && it.addons.HER)})}</div>
@@ -577,7 +578,7 @@ function pickPay(later){ info.payLater = later;
   document.querySelectorAll('.payopt').forEach((b,j) => { const on = (j === 1) === later; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); }
 function pickRound(i){ info.round = C.rounds[i];
   document.querySelectorAll('.round').forEach((b,j) => { b.classList.toggle('on', i === j); b.setAttribute('aria-pressed', i === j); }); }
-function editItem(i){ closeSheets(); setTimeout(() => openItem(cart[i].menuId, i), 220); }
+function editItem(i){ closeSheets({stay: true}); setTimeout(() => openItem(cart[i].menuId, i), 260); }
 function removeItem(i){ cart.splice(i,1); save('greek_cart', cart); render(); renderCart(); }
 
 function submit(){
@@ -593,7 +594,8 @@ function submit(){
     const done = Object.assign({}, res, { name: info.name, round: info.round, itemsText });
     if (!res.payLater) save('greek_pending', done);         // remember until the slip is in
     cart = []; save('greek_cart', []); info.note = '';
-    closeSheets(); renderDone(done);
+    closeSheets({stay: true}); renderDone(done);
+    setTimeout(() => { try { history.pushState({page:'done'}, ''); } catch(e){} }, 300);
   }).catch(e => { renderCart(); $('err').textContent = (e && e.message) || 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง'; $('err').style.display = 'block'; });
 }
 
@@ -695,8 +697,26 @@ function installCard(){
 function doInstall(){ if (installEvt){ installEvt.prompt(); installEvt = null; render(); } }
 
 /* ---------- sheets ---------- */
-function show(id){ $('overlay').classList.add('show'); $(id).classList.add('show'); $(id).scrollTop = 0; }
-function closeSheets(){ ['itemSheet','cartSheet'].forEach(id => $(id).classList.remove('show')); $('overlay').classList.remove('show'); }
+/* each open sheet is a step in the browser history, so the phone's back button / swipe closes it
+   instead of leaving the app; closing a fruit sheet opened from the cart goes back to the cart */
+let sheetOpen = null, ignorePop = false;
+function show(id){
+  $('overlay').classList.add('show'); $(id).classList.add('show'); $(id).scrollTop = 0;
+  const had = !!sheetOpen; sheetOpen = id;
+  try { history[had ? 'replaceState' : 'pushState']({sheet: id}, ''); } catch(e){}
+}
+function hideSheets(){ ['itemSheet','cartSheet'].forEach(id => $(id).classList.remove('show')); $('overlay').classList.remove('show'); sheetOpen = null; }
+function closeSheets(opts){
+  const toCart = sheetOpen === 'itemSheet' && editIndex >= 0 && !(opts && opts.stay);
+  hideSheets();
+  if (history.state && history.state.sheet){ ignorePop = true; history.back(); }
+  if (toCart) setTimeout(openCart, 260);
+}
+window.addEventListener('popstate', () => {
+  if (ignorePop){ ignorePop = false; return; }
+  if (sheetOpen) closeSheets();                                   // phone back button on a sheet
+  else if (document.querySelector('.done')) render();             // back from the "ordered" screen
+});
 
 /* ---------- boot ---------- */
 function boot(cfg){
