@@ -2,7 +2,7 @@
    python3 build.py            (reads the Apps Script /exec link from api_url.txt)"""
 import json, pathlib, re
 root = pathlib.Path(__file__).parent
-SITE = 'https://bright08913-cmyk.github.io/bright-greek/'
+SITE = 'https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/'
 api = (root / 'api_url.txt').read_text().strip()
 assert re.match(r'^https://script\.google\.com/macros/s/[\w-]+/exec$', api), 'api_url.txt must be the /exec link'
 

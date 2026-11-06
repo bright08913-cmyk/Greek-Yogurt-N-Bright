@@ -1,6 +1,6 @@
 # Bright Greek — แอปสั่ง Greek Yogurt
 
-- **หน้าแอปสำหรับลูกค้า:** https://bright08913-cmyk.github.io/bright-greek/ (โฟลเดอร์ `docs/`)
+- **หน้าแอปสำหรับลูกค้า:** https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/ (โฟลเดอร์ `docs/`)
 - **หลังบ้าน:** Google Sheet "Bright Tracker" + Apps Script (`Code.gs`)
 
 ## ไฟล์
