@@ -235,7 +235,7 @@ const DEMO_CONFIG = {
     {id:'ORI',name:'Original',price:80,fruitPick:4,desc:'ผลไม้ 4 อย่าง'},
     {id:'BIS',name:'Biscoff',price:90,fruitPick:2,desc:'ครัมบ์ + ผลไม้ 2 อย่าง'},
     {id:'ORE',name:'Oreo',price:90,fruitPick:4,desc:'Oreo + ผลไม้ 4 อย่าง'},
-    {id:'BAN',name:'Greek Banoffee',price:100,fruitPick:0,desc:'กล้วย + คาราเมล'},
+    {id:'BAN',name:'Greek Banoffee',price:100,fruitPick:0,desc:'กล้วย + คาราเมล',addons:false},
     {id:'NOF',name:'Greek no fruits',price:40,fruitPick:0,desc:'กรีกเปล่า'}
   ],
   addons:[{id:'SCP',name:'เพิ่ม Scoop',price:10,type:'count',max:5},{id:'HER',name:'Hershey syrup',price:10,type:'toggle',max:1}],
@@ -278,6 +278,7 @@ function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){}
 const roundLabel = r => /^รับ/.test(r) ? r : 'รับวันที่ ' + r;
 const menuOf = id => C.menu.find(m => m.id === id);
 const addonOf = id => C.addons.find(a => a.id === id);
+const addonsFor = m => m.addons === false ? [] : C.addons;   // บางเมนู (เช่น Banoffee) ใส่ Add-on ไม่ได้
 const availFruits = () => C.fruits.filter(f => f.available);
 function unitPrice(it){ const m = menuOf(it.menuId); let p = m ? m.price : 0;
   Object.keys(it.addons||{}).forEach(id => { const a = addonOf(id); if (a) p += a.price * (it.addons[id]||0); }); return p; }
@@ -408,7 +409,7 @@ function openItem(menuId, idx){
         ${availFruits().map((f,i) => `<button class="fchip" id="fc${i}" onclick="toggleFruit(${i})">${CHIP_ICON[fruitKind(f.name)]}${esc(f.name)}</button>`).join('')}
       </div>
     </div>` : '';
-  const addons = C.addons.map(a => a.type === 'count' ? `
+  const addons = addonsFor(m).map(a => a.type === 'count' ? `
       <div class="row"><div class="lbl">${esc(a.name)}<small>+${baht(a.price)} ต่อ scoop</small></div>
         <div class="stepper"><button id="ad-${a.id}-m" aria-label="ลด ${esc(a.name)}" onclick="stepAddon('${a.id}',-1)">−</button>
         <span id="ad-${a.id}">0</span><button id="ad-${a.id}-p" aria-label="เพิ่ม ${esc(a.name)}" onclick="stepAddon('${a.id}',1)">+</button></div></div>` : `
@@ -422,7 +423,7 @@ function openItem(menuId, idx){
     <div class="title-row"><h2 class="h">${esc(m.name)}</h2><div class="pr h">${baht(m.price)}</div></div>
     ${m.desc ? `<div class="sub">${esc(m.desc)}</div>` : ''}
     ${fruitsBox}
-    ${C.addons.length ? `<div class="box" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
+    ${addonsFor(m).length ? `<div class="box" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
     <div class="box" style="padding-top:6px;padding-bottom:6px"><div class="row"><div class="lbl">จำนวน<small id="unitTxt"></small></div>
       <div class="stepper"><button id="qm" aria-label="ลดจำนวน" onclick="setQty(-1)">−</button><span id="qv">1</span><button aria-label="เพิ่มจำนวน" onclick="setQty(1)">+</button></div></div></div>
     <div class="sheet-bar"><button class="btn" onclick="commitItem()"><span>${editIndex>=0?'บันทึก':'ใส่ตะกร้า'}</span><span id="addPrice"></span></button></div>`;
@@ -444,11 +445,11 @@ function refreshItem(){
     availFruits().forEach((f,i) => { const on = draft.fruits.indexOf(f.name) >= 0, b = $('fc'+i);
       b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.disabled = !on && full; });
   }
-  C.addons.forEach(a => { const n = draft.addons[a.id] || 0, el = $('ad-'+a.id);
+  addonsFor(m).forEach(a => { const n = draft.addons[a.id] || 0, el = $('ad-'+a.id);
     if (a.type === 'count'){ el.textContent = n; $('ad-'+a.id+'-m').disabled = n <= 0; $('ad-'+a.id+'-p').disabled = n >= a.max; }
     else { el.classList.toggle('on', !!n); el.setAttribute('aria-pressed', !!n); }
   });
-  const syrup = C.addons.find(a => a.type !== 'count');
+  const syrup = addonsFor(m).find(a => a.type !== 'count');
   $('drz').classList.toggle('on', !!(syrup && draft.addons[syrup.id]));
   $('qv').textContent = draft.qty; $('qm').disabled = draft.qty <= 1;
   $('unitTxt').textContent = baht(unitPrice(draft)) + ' / ถ้วย';

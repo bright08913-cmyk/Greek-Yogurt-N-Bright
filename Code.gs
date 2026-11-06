@@ -82,7 +82,8 @@ function getConfig() {
   const ss = SpreadsheetApp.getActive();
   const menu = rows_(ss.getSheetByName(SH.MENU)).filter(r => isOn_(r[6])).map(r => ({
     id: String(r[0]), name: String(r[1]), price: Number(r[2]) || 0,
-    fruitPick: Number(r[3]) || 0, desc: String(r[4] || ''), emoji: String(r[5] || '🥣')
+    fruitPick: Number(r[3]) || 0, desc: String(r[4] || ''), emoji: String(r[5] || '🥣'),
+    addons: r[7] === '' || r[7] === undefined ? true : isOn_(r[7])   // คอลัมน์ H "ใส่ Add-on ได้"
   }));
   const addons = rows_(ss.getSheetByName(SH.ADDON)).filter(r => isOn_(r[5])).map(r => ({
     id: String(r[0]), name: String(r[1]), price: Number(r[2]) || 0,
@@ -148,7 +149,7 @@ function submitOrder(order) {
       ? allFruits.filter(f => fruits.indexOf(f) < 0) : [];
 
     let addonPrice = 0; const addonCount = {};
-    Object.keys(it.addons || {}).forEach(id => {
+    Object.keys(m.addons ? (it.addons || {}) : {}).forEach(id => {
       const a = addonById[id]; if (!a) return;
       const n = Math.max(0, Math.min(a.max, parseInt(it.addons[id], 10) || 0));
       if (n) { addonCount[id] = n; addonPrice += n * a.price; }
@@ -267,12 +268,12 @@ function setup() {
   sheet_(ss, SH.ROUND, ['วันที่รับ (เช่น 6 Nov)', 'เปิดรับ', 'หมายเหตุ (ไม่บังคับ โชว์ใต้ปุ่ม)'], [
     ['6 Nov', true, '']
   ]);
-  sheet_(ss, SH.MENU, ['ID', 'ชื่อเมนู', 'ราคา', 'เลือกผลไม้ได้ (อย่าง)', 'คำอธิบาย', 'อีโมจิ', 'เปิดขาย'], [
-    ['ORI', 'Original', 80, 4, 'กรีกโยเกิร์ต + ผลไม้ 4 อย่าง', '🍓', true],
-    ['BIS', 'Biscoff', 90, 2, 'ครัมบ์ Biscoff + ผลไม้ 2 อย่าง', '🍪', true],
-    ['ORE', 'Oreo', 90, 4, 'Oreo + ผลไม้ 4 อย่าง', '🖤', true],
-    ['BAN', 'Greek Banoffee', 100, 0, 'กล้วย + คาราเมล', '🍌', true],
-    ['NOF', 'Greek no fruits', 40, 0, 'กรีกเปล่า ไม่ใส่ผลไม้', '🥛', true]
+  sheet_(ss, SH.MENU, ['ID', 'ชื่อเมนู', 'ราคา', 'เลือกผลไม้ได้ (อย่าง)', 'คำอธิบาย', 'อีโมจิ', 'เปิดขาย', 'ใส่ Add-on ได้'], [
+    ['ORI', 'Original', 80, 4, 'กรีกโยเกิร์ต + ผลไม้ 4 อย่าง', '🍓', true, true],
+    ['BIS', 'Biscoff', 90, 2, 'ครัมบ์ Biscoff + ผลไม้ 2 อย่าง', '🍪', true, true],
+    ['ORE', 'Oreo', 90, 4, 'Oreo + ผลไม้ 4 อย่าง', '🖤', true, true],
+    ['BAN', 'Greek Banoffee', 100, 0, 'กล้วย + คาราเมล', '🍌', true, false],
+    ['NOF', 'Greek no fruits', 40, 0, 'กรีกเปล่า ไม่ใส่ผลไม้', '🥛', true, true]
   ]);
   sheet_(ss, SH.ADDON, ['ID', 'ชื่อ', 'ราคา', 'แบบ (count/toggle)', 'สูงสุด', 'เปิดขาย'], [
     ['SCP', 'เพิ่ม Scoop', 10, 'count', 5, true],
