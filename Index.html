@@ -359,7 +359,7 @@ function render(){
     </div>
     <h1 class="hello h">วันนี้กินถ้วยไหนดี?</h1>
     <div class="sub">แตะเมนู เลือกผลไม้ แล้วกดสั่งได้เลย</div>
-    ${IS_GAS ? '' : '<div class="demo">โหมดตัวอย่าง (ยังไม่ต่อ Google Sheet)</div>'}
+    ${IS_GAS || API_URL ? '' : '<div class="demo">โหมดตัวอย่าง (ยังไม่ต่อ Google Sheet)</div>'}
     ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}</div>`}
     ${load('greek_pending') ? `<button class="banner" onclick="renderDone(load('greek_pending'))">${ICON.qr}<span>ออเดอร์ ${esc(load('greek_pending').orderId)} ยังไม่ได้แนบสลิป</span>แนบเลย →</button>` : ''}
     ${installCard()}
