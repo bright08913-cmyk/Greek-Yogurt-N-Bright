@@ -20,7 +20,7 @@
 <meta property="og:image" content="https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/og.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "ce0710f0fa";</script>
+<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "4e10cc03de";</script>
 
 <link href="https://fonts.googleapis.com/css2?family=Itim&family=Mali:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -516,7 +516,7 @@ function render(){
     ${history_().length ? `<button class="hist-btn" onclick="openHistory()">${ICON.receipt}<span>ออเดอร์ของฉัน</span><em>${history_().length}</em></button>` : ''}
     <div class="grid">
       ${C.menu.map(m => `
-        <button class="menu ${inCart[m.id]?'in-cart':''}" onclick="openItem('${m.id}')" ${C.open?'':'disabled'}>
+        <button class="menu ${inCart[m.id]?'in-cart':''}" onclick="openItem('${m.id}')">
           ${inCart[m.id] ? `<span class="badge">${inCart[m.id]}</span>` : ''}
           <div class="art" style="background:${tintOf(m)}">${cup(m, {fruits: availFruits().slice(0, m.fruitPick).map(f => f.name)})}</div>
           <div class="nm h">${esc(m.name)}</div>
@@ -556,6 +556,7 @@ function openItem(menuId, idx){
     </div>
     <div class="title-row"><h2 class="h">${esc(m.name)}</h2><div class="pr h">${baht(m.price)}</div></div>
     ${m.desc ? `<div class="sub">${esc(m.desc)}</div>` : ''}
+    ${C.open ? '' : `<div class="closed" id="itemClosed" style="margin-top:12px">${esc(C.closedMsg)}<div style="font-weight:400;font-size:13px;margin-top:4px">ดูเมนูได้ตามสบาย แต่ยังสั่งไม่ได้จนกว่าร้านจะเปิดรอบใหม่</div></div>`}
     ${fruitsBox}
     ${addonsFor(m).length ? `<div class="box" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
     ${C.rounds.length > 1 ? `<div class="box" id="dayBox"><h3><span>รับวันไหน <span class="req">*</span></span><small>ถ้วยนี้</small></h3><div class="rounds">
@@ -594,7 +595,8 @@ function refreshItem(){
   C.rounds.forEach((r,i) => { const b = $('rd'+i); if (b){ b.classList.toggle('on', draft.round === r); b.setAttribute('aria-pressed', draft.round === r); } });
   const needFruit = m.fruitPick > 0 && !draft.fruits.length;
   const needDay = C.rounds.length && C.rounds.indexOf(draft.round) < 0;
-  $('addBtn').classList.toggle('dim', needFruit || needDay);
+  $('addBtn').classList.toggle('dim', needFruit || needDay || !C.open);
+  if (!C.open){ $('addLbl').textContent = 'ร้านปิดรับอยู่ · ดูได้อย่างเดียว'; need('fruitBox', false); need('dayBox', false); return; }
   need('fruitBox', needFruit); need('dayBox', needDay);
   $('addLbl').textContent = needFruit ? 'เลือกผลไม้ก่อนนะ' : needDay ? 'เลือกวันรับก่อนนะ' : editIndex >= 0 ? 'บันทึก' : 'ใส่ตะกร้า';
 }
@@ -625,6 +627,7 @@ function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
   if (v) draft.addons[id] = v; else delete draft.addons[id]; refreshItem(); }
 function setQty(d){ draft.qty = Math.max(1, Math.min(50, draft.qty + d)); refreshItem(); }
 function commitItem(){
+  if (!C.open) { bump('itemClosed'); return; }      // closed: look around freely, but nothing goes in the cart
   const needFruit = menuOf(draft.menuId).fruitPick > 0 && !draft.fruits.length;
   const needDay = C.rounds.length && C.rounds.indexOf(draft.round) < 0;
   if (needFruit || needDay){ if (needDay) bump('dayBox', !needFruit); if (needFruit) bump('fruitBox', true); return; }
