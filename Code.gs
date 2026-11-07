@@ -150,7 +150,8 @@ function submitOrder(order) {
     const fruits = (it.fruits || []).filter(f => fruitOk[f]);
     if (fruits.length > m.fruitPick) throw new Error(m.name + ' เลือกผลไม้ได้สูงสุด ' + m.fruitPick + ' อย่าง');
     if (m.fruitPick > 0 && !fruits.length) throw new Error(m.name + ': กรุณาเลือกผลไม้อย่างน้อย 1 อย่าง');
-    const excluded = m.fruitPick > 0 && fruits.length < allFruits.length
+    // "ไม่เอา" only means something for cups that normally get every fruit (e.g. Original 4 of 4)
+    const excluded = m.fruitPick >= allFruits.length && fruits.length < allFruits.length
       ? allFruits.filter(f => fruits.indexOf(f) < 0) : [];
 
     let addonPrice = 0; const addonCount = {};

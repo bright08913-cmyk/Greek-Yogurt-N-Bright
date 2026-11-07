@@ -183,6 +183,7 @@
   .hfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding-top:8px;border-top:2px dashed var(--line);font-size:13px;color:var(--muted)}
   .mini{border:2px solid var(--ink);background:#fff;border-radius:12px;padding:6px 12px;font-weight:600;font-size:14px;cursor:pointer;min-height:36px}
   .mini.pink{background:var(--pink)}
+  .mini:disabled{opacity:.4;cursor:not-allowed}
   .total{display:flex;justify-content:space-between;align-items:baseline}
   .total span{font-family:Itim,sans-serif;font-size:19px}
   .total b{font-family:Itim,sans-serif;font-weight:400;font-size:26px;color:var(--pink-dark)}
@@ -326,7 +327,7 @@ function describe(it){
   if (m.fruitPick > 0){
     const miss = availFruits().map(f => f.name).filter(f => it.fruits.indexOf(f) < 0);
     parts.push(it.fruits.length ? it.fruits.join(' · ') : 'ไม่ใส่ผลไม้');
-    if (it.fruits.length && miss.length && it.fruits.length < m.fruitPick) parts.push('ไม่เอา' + miss.join('/'));
+    if (it.fruits.length && miss.length && m.fruitPick >= availFruits().length) parts.push('ไม่เอา' + miss.join('/'));
   }
   Object.keys(it.addons).forEach(id => { const a = addonOf(id), n = it.addons[id]; if (!a || !n) return;
     parts.push(a.type === 'count' ? '+' + n + ' scoop' : '+' + a.name); });
@@ -488,7 +489,7 @@ function render(){
     </div>`;
   const n = cupCount();
   $('bar').style.display = n ? 'block' : 'none';
-  $('barBtn').innerHTML = `<span style="display:flex;align-items:center;gap:10px">${ICON.cart}ตะกร้า · ${n} ถ้วย</span><span>${baht(foodTotal())} →</span>`;
+  $('barBtn').innerHTML = `<span style="display:flex;align-items:center;gap:10px">${ICON.cart}ตะกร้า · ${n} ถ้วย</span><span>${C.open ? baht(foodTotal()) + ' →' : 'ร้านปิดรับอยู่'}</span>`;
 }
 
 /* ---------- item sheet: built once, then updated in place so animations run ---------- */
@@ -595,7 +596,16 @@ function commitItem(){
 }
 
 /* ---------- cart / checkout ---------- */
-function openCart(){ renderCart(); show('cartSheet'); }
+function openCart(){
+  renderCart(); show('cartSheet');
+  // re-check the shop (open/closed, days) so a phone left open since earlier can't order into a closed shop
+  refreshConfig().then(() => { if (sheetOpen === 'cartSheet') renderCart(); }).catch(() => {});
+}
+function refreshConfig(){
+  return call('getConfig').then(cfg => { if (!IS_GAS) save('greek_cfg', cfg);
+    C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || [];
+    if (!sheetOpen && !document.querySelector('.done')) render(); });
+}
 function renderCart(){
   if (!cart.length){ closeSheets(); render(); return; }
   cart.forEach(it => { if (C.rounds.indexOf(it.round) < 0) it.round = C.rounds.length === 1 ? C.rounds[0] : (it.round && C.rounds.indexOf(it.round) >= 0 ? it.round : ''); });
@@ -608,13 +618,14 @@ function renderCart(){
           <div class="pr">${baht(linePrice(it))}</div></div>`; };
   $('cartInner').innerHTML = `
     <div style="padding-top:16px"><button class="back-btn" onclick="closeSheets()">${ICON.back}<span>กลับไปเลือกเมนู</span></button></div>
+    ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}<div style="font-weight:400;font-size:13px;margin-top:4px">ของในตะกร้ายังเก็บไว้ให้ เปิดรอบหน้ากดสั่งต่อได้เลย</div></div>`}
     <h2 class="h" style="margin:14px 0 0;font-size:26px">ตะกร้าของคุณ</h2><div class="sub" style="font-size:13px">${cupCount()} ถ้วย · แตะ "แก้ไข" เพื่อเปลี่ยนผลไม้ จำนวน หรือวันรับ</div>
     ${groups.map(g => `<div class="box" style="padding-top:10px">
       <div class="dayhead">${g.r ? `รับวันที่ ${esc(g.r.replace(/^รับ(วันที่)?\s*/, ''))}` : '<span style="color:var(--danger)">ยังไม่ได้เลือกวันรับ — แตะ "แก้ไข"</span>'}
         <span>${g.items.reduce((s,x) => s + x.it.qty, 0)} ถ้วย · ${baht(g.items.reduce((s,x) => s + linePrice(x.it), 0))}</span></div>
       ${g.items.map(itemRow).join('')}
     </div>`).join('')}
-    <button class="btn soft" style="margin-top:12px" onclick="closeSheets()">+ เพิ่มเมนู / เพิ่มวันรับอื่น</button>
+    ${C.open ? `<button class="btn soft" style="margin-top:12px" onclick="closeSheets()">+ เพิ่มเมนู / เพิ่มวันรับอื่น</button>` : ''}
     <div class="box">
       <label class="f" for="fName">ชื่อ <span class="req">*</span></label>
       <input id="fName" value="${esc(info.name)}" placeholder="เช่น Ice, Nitcha" autocomplete="name" oninput="info.name=this.value">
@@ -633,7 +644,7 @@ function renderCart(){
       <div class="total" style="margin-top:14px"><span style="font-weight:600;font-size:17px">ยอดรวม</span><b>${baht(foodTotal())}</b></div>
     </div>
     <div class="err" id="err" role="alert"></div>
-    <div class="sheet-bar"><button class="btn" id="submitBtn" onclick="submit()"><span>ยืนยันสั่ง</span><span>${baht(foodTotal())}</span></button></div>`;
+    <div class="sheet-bar"><button class="btn" id="submitBtn" onclick="submit()" ${C.open ? '' : 'disabled'}><span>${C.open ? 'ยืนยันสั่ง' : 'ร้านปิดรับออเดอร์อยู่'}</span><span>${baht(foodTotal())}</span></button></div>`;
 }
 function pickPay(later){ info.payLater = later;
   document.querySelectorAll('.payopt').forEach((b,j) => { const on = (j === 1) === later; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); }
@@ -643,6 +654,7 @@ function removeItem(i){ cart.splice(i,1); save('greek_cart', cart); render(); re
 function submit(){
   const err = $('err'), fail = msg => { err.textContent = msg; err.style.display = 'block'; };
   err.style.display = 'none';
+  if (!C.open) { fail(C.closedMsg); return; }
   if (!info.name.trim()) { fail('กรุณาใส่ชื่อ'); $('fName').focus(); return; }
   if (cart.some(it => menuOf(it.menuId).fruitPick > 0 && !(it.fruits || []).length)) { fail('มีถ้วยที่ยังไม่ได้เลือกผลไม้ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
   if (C.rounds.length && cart.some(it => C.rounds.indexOf(it.round) < 0)) { fail('มีถ้วยที่ยังไม่ได้เลือกวันรับ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
@@ -766,6 +778,7 @@ const ST_TXT = {'ใหม่':['ร้านได้รับออเดอ�
 let histLive = {};
 function openHistory(){
   histLive = null; renderHistory(); show('histSheet');
+  refreshConfig().then(() => { if (sheetOpen === 'histSheet') renderHistory(); }).catch(() => {});
   const list = history_().map(h => ({ orderId: h.orderId, token: h.token }));
   call('myOrders', { orders: list }).then(m => { histLive = m || {}; renderHistory(); })
     .catch(() => { histLive = {}; renderHistory('อัปเดตสถานะไม่ได้ตอนนี้ — แสดงข้อมูลที่จำไว้'); });
@@ -777,6 +790,7 @@ function renderHistory(note){
     <div style="padding-top:16px"><button class="back-btn" onclick="closeSheets()">${ICON.back}<span>กลับ</span></button></div>
     <h2 class="h" style="margin:14px 0 0;font-size:26px">ออเดอร์ของฉัน</h2>
     <div class="sub" style="font-size:13px">${histLive === null ? '<span class="spin"></span> กำลังอัปเดตสถานะ…' : esc(note || 'สถานะล่าสุดจากร้าน')}</div>
+    ${C.open ? '' : `<div class="closed" style="margin-top:12px">${esc(C.closedMsg)} · สั่งซ้ำได้ตอนร้านเปิด</div>`}
     ${hs.map((h, k) => { const live = histLive && histLive[h.orderId];
       const rows = live || (h.parts || []).map(p => ({ id: p.orderId, round: p.round, total: p.total }));
       const needSlip = !h.payLater && !h.slip && !(live && live.every(r => r.slip || r.pay === 'จ่ายแล้ว'));
@@ -787,12 +801,13 @@ function renderHistory(note){
             <div class="chips">${live ? chip(ST_TXT, r.status) + chip(PAY_TXT, r.pay) : ''}</div></div><em>${baht(r.total)}</em></div>`; }).join('')}
         <div class="hfoot"><span>${h.payLater ? 'จ่ายตอนรับของ' : 'จ่ายเลย'} · รวม ${baht(h.total)}</span>
           <span style="display:flex;gap:8px">${needSlip ? `<button class="mini" onclick="slipFromHistory(${k})">แนบสลิป</button>` : ''}
-          <button class="mini pink" onclick="reorder(${k})">สั่งซ้ำ</button></span></div>
+          <button class="mini pink" onclick="reorder(${k})" ${C.open ? '' : 'disabled title="ร้านปิดรับอยู่"'}>สั่งซ้ำ</button></span></div>
       </div>`; }).join('')}
     <div class="sub" style="font-size:12px;text-align:center;margin-top:14px">เก็บไว้ในมือถือเครื่องนี้ · 30 ออเดอร์ล่าสุด</div>`;
 }
 function slipFromHistory(k){ const h = history_()[k]; save('greek_pending', h); closeSheets({stay: true}); renderDone(h); }
 function reorder(k){
+  if (!C.open) return;
   const h = history_()[k];
   const add = (h.items || []).filter(it => menuOf(it.menuId)).map(it => Object.assign(JSON.parse(JSON.stringify(it)), {
     round: C.rounds.indexOf(it.round) >= 0 ? it.round : (C.rounds.length === 1 ? C.rounds[0] : ''),
