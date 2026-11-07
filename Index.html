@@ -784,8 +784,9 @@ function renderHistory(note){
       const rows = live || (h.parts || []).map(p => ({ id: p.orderId, round: p.round, total: p.total }));
       const alive = live ? live.filter(r => r.status !== 'ยกเลิก') : rows;
       const needSlip = !h.payLater && !h.slip && alive.length && !(live && alive.every(r => r.slip || r.pay === 'จ่ายแล้ว'));
-      const canCancel = r => live && r.pay === 'ยังไม่จ่าย' && !r.slip && r.status !== 'ส่งแล้ว' && r.status !== 'ยกเลิก';
-      const cancellable = live ? live.filter(canCancel) : [];
+      // before the sheet answers, offer cancel on anything this phone hasn't sent a slip for; the server re-checks on tap
+      const canCancel = r => live ? (r.pay === 'ยังไม่จ่าย' && !r.slip && r.status !== 'ส่งแล้ว' && r.status !== 'ยกเลิก') : !h.slip;
+      const cancellable = rows.filter(canCancel);
       return `<div class="box hcard">
         <div class="hhead"><b>${esc(h.orderId)}</b><span>${fmt(h.at)}</span></div>
         ${rows.map(r => { const part = (h.parts || []).find(p => p.orderId === r.id) || {};
