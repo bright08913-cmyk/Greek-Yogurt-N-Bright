@@ -148,6 +148,7 @@ function submitOrder(order) {
     const qty = Math.max(1, Math.min(50, parseInt(it.qty, 10) || 1));
     const fruits = (it.fruits || []).filter(f => fruitOk[f]);
     if (fruits.length > m.fruitPick) throw new Error(m.name + ' เลือกผลไม้ได้สูงสุด ' + m.fruitPick + ' อย่าง');
+    if (m.fruitPick > 0 && !fruits.length) throw new Error(m.name + ': กรุณาเลือกผลไม้อย่างน้อย 1 อย่าง');
     const excluded = m.fruitPick > 0 && fruits.length < allFruits.length
       ? allFruits.filter(f => fruits.indexOf(f) < 0) : [];
 

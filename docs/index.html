@@ -472,11 +472,11 @@ function openItem(menuId, idx){
   const m = menuOf(menuId);
   editIndex = (idx === undefined) ? -1 : idx;
   draft = editIndex >= 0 ? JSON.parse(JSON.stringify(cart[editIndex]))
-        : { menuId, qty:1, addons:{}, fruits: availFruits().slice(0, m.fruitPick).map(f => f.name), round: defaultRound() };
+        : { menuId, qty:1, addons:{}, fruits: [], round: defaultRound() };   // no fruit picked yet — customer chooses
   if (C.rounds.indexOf(draft.round) < 0) draft.round = defaultRound();
   const fruitsBox = m.fruitPick > 0 ? `
     <div class="box">
-      <h3>เลือกผลไม้ <small id="pickInfo"></small></h3>
+      <h3><span>เลือกผลไม้ <span class="req">*</span></span><small id="pickInfo"></small></h3>
       <div class="fchips">
         ${availFruits().map((f,i) => `<button class="fchip" id="fc${i}" onclick="toggleFruit(${i})">${chipIcon(f)}${esc(f.name)}</button>`).join('')}
       </div>
@@ -516,7 +516,7 @@ function refreshItem(){
   const m = menuOf(draft.menuId);
   if (m.fruitPick > 0){
     const full = draft.fruits.length >= m.fruitPick;
-    $('pickInfo').textContent = `เลือกได้ ${m.fruitPick} · เลือกแล้ว ${draft.fruits.length}`;
+    $('pickInfo').textContent = draft.fruits.length ? `เลือกได้ ${m.fruitPick} · เลือกแล้ว ${draft.fruits.length}` : `แตะเลือกได้สูงสุด ${m.fruitPick} อย่าง`;
     availFruits().forEach((f,i) => { const on = draft.fruits.indexOf(f.name) >= 0, b = $('fc'+i);
       b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.disabled = !on && full; });
   }
@@ -530,9 +530,10 @@ function refreshItem(){
   $('unitTxt').textContent = baht(unitPrice(draft)) + ' / ถ้วย';
   $('addPrice').textContent = baht(linePrice(draft));
   C.rounds.forEach((r,i) => { const b = $('rd'+i); if (b){ b.classList.toggle('on', draft.round === r); b.setAttribute('aria-pressed', draft.round === r); } });
-  const ready = !C.rounds.length || C.rounds.indexOf(draft.round) >= 0;
-  $('addBtn').disabled = !ready;
-  $('addLbl').textContent = !ready ? 'เลือกวันรับก่อนนะ' : editIndex >= 0 ? 'บันทึก' : 'ใส่ตะกร้า';
+  const needFruit = m.fruitPick > 0 && !draft.fruits.length;
+  const needDay = C.rounds.length && C.rounds.indexOf(draft.round) < 0;
+  $('addBtn').disabled = needFruit || needDay;
+  $('addLbl').textContent = needFruit ? 'เลือกผลไม้ก่อนนะ' : needDay ? 'เลือกวันรับก่อนนะ' : editIndex >= 0 ? 'บันทึก' : 'ใส่ตะกร้า';
 }
 // a new cup starts on the day picked last time (or the only open day)
 function defaultRound(){
@@ -562,6 +563,7 @@ function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
 function setQty(d){ draft.qty = Math.max(1, Math.min(50, draft.qty + d)); refreshItem(); }
 function commitItem(){
   if (C.rounds.length && C.rounds.indexOf(draft.round) < 0) return;
+  if (menuOf(draft.menuId).fruitPick > 0 && !draft.fruits.length) return;
   info.lastRound = draft.round;
   if (editIndex >= 0) cart[editIndex] = draft; else cart.push(draft);
   save('greek_cart', cart); closeSheets({stay: true}); render();
@@ -618,6 +620,7 @@ function submit(){
   const err = $('err'), fail = msg => { err.textContent = msg; err.style.display = 'block'; };
   err.style.display = 'none';
   if (!info.name.trim()) { fail('กรุณาใส่ชื่อ'); $('fName').focus(); return; }
+  if (cart.some(it => menuOf(it.menuId).fruitPick > 0 && !(it.fruits || []).length)) { fail('มีถ้วยที่ยังไม่ได้เลือกผลไม้ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
   if (C.rounds.length && cart.some(it => C.rounds.indexOf(it.round) < 0)) { fail('มีถ้วยที่ยังไม่ได้เลือกวันรับ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
   const btn = $('submitBtn'); btn.disabled = true; btn.innerHTML = '<span>กำลังส่งออเดอร์…</span><span class="spin"></span>';
   save('greek_form', {name: info.name});
