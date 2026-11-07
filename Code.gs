@@ -218,9 +218,10 @@ function submitOrder(order) {
 function myOrders(req) {
   const asked = (req && req.orders || []).slice(0, 60);
   const sh = SpreadsheetApp.getActive().getSheetByName(SH.ORD);
-  if (!asked.length || sh.getLastRow() < 2) return {};
+  // __v บอกแอปว่าเป็นคำตอบเวอร์ชันนี้: ออเดอร์ไหนไม่มีในคำตอบ = ไม่อยู่ในชีตแล้ว แอปจะลบออกจากประวัติในมือถือ
+  if (!asked.length || sh.getLastRow() < 2) return { __v: 2 };
   const vals = sh.getRange(2, 1, sh.getLastRow() - 1, ORD_HEAD.length).getValues();
-  const out = {};
+  const out = { __v: 2 };
   asked.forEach(a => {
     const base = String(a.orderId || ''), tok = String(a.token || '');
     if (!base || !tok) return;
