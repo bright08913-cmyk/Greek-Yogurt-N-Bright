@@ -3,7 +3,7 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Bright Greek — สั่ง Greek Yogurt</title>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Jersey+10&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -73,10 +73,13 @@
   /* sheets */
   .overlay{position:fixed;inset:0;background:rgba(59,42,64,.5);opacity:0;pointer-events:none;transition:opacity .2s;z-index:10}
   .overlay.show{opacity:1;pointer-events:auto}
-  .sheet{position:fixed;left:0;right:0;bottom:0;background-color:var(--bg);background-image:inherit;border-top:0;box-shadow:0 -3px 0 var(--ink),0 -6px 0 var(--pink);max-height:94vh;overflow:auto;
+  .sheet{position:fixed;left:0;right:0;bottom:var(--kb,0px);background-color:var(--bg);background-image:inherit;border-top:0;box-shadow:0 -3px 0 var(--ink),0 -6px 0 var(--pink);max-height:calc(var(--vvh,100vh) * .94);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
          transform:translateY(105%);visibility:hidden;transition:transform .34s cubic-bezier(.2,1.2,.3,1),visibility 0s .34s;z-index:11}
   .sheet.show{transform:translateY(0);visibility:visible;transition:transform .34s cubic-bezier(.2,1.2,.3,1)}
   .sheet .inner{max-width:560px;margin:0 auto;padding:0 20px 120px}
+  /* while the phone keyboard is up, the pay button stops floating so the field being typed in has room */
+  body.typing .sheet-bar{position:static}
+  body.typing .bar{display:none !important}
   .sheet-bar{position:sticky;bottom:0;padding:12px 3px calc(18px + env(safe-area-inset-bottom));background:var(--bg);margin-top:16px}
 
   .hero{margin:0 -20px;height:250px;display:flex;align-items:flex-end;justify-content:center;position:relative;overflow:hidden;box-shadow:inset 0 -3px 0 var(--ink);
@@ -673,11 +676,11 @@ function renderCart(){
     ${C.open ? `<button class="btn soft" style="margin-top:12px" onclick="closeSheets()">+ เพิ่มเมนู / เพิ่มวันรับอื่น</button>` : ''}
     <div class="box${info.name.trim() ? '' : ' need'}" id="nameBox">
       <label class="f" for="fName">ชื่อ <span class="req">*</span></label>
-      <input id="fName" value="${esc(info.name)}" placeholder="เช่น Ice, Nitcha" autocomplete="name" oninput="info.name=this.value; need('nameBox', !this.value.trim())">
+      <input id="fName" value="${esc(info.name)}" placeholder="เช่น Ice, Nitcha" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done" oninput="info.name=this.value; need('nameBox', !this.value.trim())">
       <div class="sub" style="font-size:12px;margin-top:6px">ใช้ชื่อเดียวกับใน LINE กลุ่ม จะได้เช็คยอดง่าย</div>
     </div>
     <div class="box"><label class="f" for="fNote">หมายเหตุ <span class="sub" style="font-weight:400;font-size:13px">ไม่บังคับ</span></label>
-      <textarea id="fNote" rows="2" placeholder="เช่น ขอช้อน 2 อัน" oninput="info.note=this.value">${esc(info.note)}</textarea></div>
+      <textarea id="fNote" rows="2" placeholder="เช่น ขอช้อน 2 อัน" autocomplete="off" enterkeyhint="done" oninput="info.note=this.value">${esc(info.note)}</textarea></div>
     <div class="box${C.open && info.payLater === null ? ' need' : ''}" id="payBox">
       <h3><span>จ่ายเงิน <span class="req">*</span></span><small id="payHint">${info.payLater === null ? 'แตะเลือก 1 แบบ' : ''}</small></h3>
       <div class="payopts">
@@ -1177,6 +1180,26 @@ function checkUpdate(){
     location.reload();
   }).catch(() => {});
 }
+/* iPhone (Safari / LINE browser) puts the keyboard OVER the page instead of shrinking it like Android.
+   visualViewport tells us how much is still visible: lift the open sheet above the keyboard and keep the field in view. */
+(function keyboardFix(){
+  const vv = window.visualViewport; if (!vv) return;
+  const root = document.documentElement;
+  const fit = () => {
+    const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    root.style.setProperty('--vvh', vv.height + 'px');
+    root.style.setProperty('--kb', kb + 'px');
+    document.body.classList.toggle('typing', kb > 80);
+  };
+  vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); fit();
+  document.addEventListener('focusin', e => {
+    const el = e.target; if (!el.matches || !el.matches('input:not([type=file]),textarea')) return;
+    setTimeout(() => { fit(); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 320);
+  });
+  document.addEventListener('focusout', () => setTimeout(fit, 120));
+  // "done" on the keyboard closes it
+  document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'fName') e.target.blur(); });
+})();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { checkUpdate(); quietSync(); } });
 setTimeout(checkUpdate, 1500);
 </script>
