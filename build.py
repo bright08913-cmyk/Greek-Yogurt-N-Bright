@@ -6,6 +6,8 @@ SITE = 'https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/'
 api = (root / 'api_url.txt').read_text().strip()
 assert re.match(r'^https://script\.google\.com/macros/s/[\w-]+/exec$', api), 'api_url.txt must be the /exec link'
 
+import hashlib
+ver = hashlib.sha1((root / "Index.html").read_bytes()).hexdigest()[:10]
 html = (root / 'Index.html').read_text()
 head = f'''<link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#FFF6F1">
@@ -23,7 +25,7 @@ head = f'''<link rel="manifest" href="manifest.webmanifest">
 <meta property="og:image" content="{SITE}og.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<script>window.GREEK_API = {json.dumps(api)};</script>
+<script>window.GREEK_API = {json.dumps(api)}; window.APP_VER = {json.dumps(ver)};</script>
 '''
 html = html.replace('<base target="_top">\n', '')          # only needed inside Apps Script
 html = html.replace('</title>', '</title>\n' + head, 1)
@@ -40,16 +42,19 @@ html = html.replace('</title>', '</title>\n' + head, 1)
   ]}, ensure_ascii=False, indent=2))
 
 # network first (always the newest menu/page), cache only as an offline fallback
-(root / 'docs' / 'sw.js').write_text('''const CACHE = 'bright-greek-v2';
+(root / 'docs' / 'sw.js').write_text('''const CACHE = 'bright-greek-v3';
 self.addEventListener('install', e => { self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', 'index.html', 'manifest.webmanifest', 'icon-192.png']))); });
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', e => e.waitUntil(caches.keys()
+  .then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))
+  .then(() => self.clients.claim())));
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   if (e.request.method !== 'GET' || u.origin !== location.origin) return;
-  e.respondWith(fetch(e.request).then(r => { const c = r.clone(); caches.open(CACHE).then(x => x.put(e.request, c)); return r; })
+  e.respondWith(fetch(e.request, { cache: 'no-cache' }).then(r => { const c = r.clone(); caches.open(CACHE).then(x => x.put(e.request, c)); return r; })
     .catch(() => caches.match(e.request)));
 });
 ''')
 (root / 'docs' / '.nojekyll').write_text('')
+(root / 'docs' / 'version.txt').write_text(ver)
 print('built docs/ with API', api)

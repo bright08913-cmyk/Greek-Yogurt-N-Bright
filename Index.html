@@ -1065,6 +1065,20 @@ if (cached) boot(cached);                              // open instantly with la
 call('getConfig').then(cfg => { if (!IS_GAS) save('greek_cfg', cfg); boot(cfg); })   // …then refresh from the sheet
   .catch(e => { if (!cached) $('app').innerHTML = '<div class="loading">โหลดเมนูไม่สำเร็จ<br>' + esc(e.message) + '</div>'; });
 if ('serviceWorker' in navigator && !IS_GAS && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// a phone keeps the app open in the background for days: when it comes back, look for a newer version
+// and reload only while the customer is not in the middle of something (the cart is saved anyway)
+function checkUpdate(){
+  if (!window.APP_VER || IS_GAS) return;
+  fetch('version.txt?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(v => {
+    v = v.trim();
+    if (!v || v === window.APP_VER) return;
+    const busy = document.querySelector('.sheet.show') || document.querySelector('.done');
+    if (busy) { window.__updLater = true; return; }
+    location.reload();
+  }).catch(() => {});
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+setTimeout(checkUpdate, 1500);
 </script>
 </body>
 </html>
