@@ -172,6 +172,7 @@ function submitOrder(order) {
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
+  let result, alert;
   try {
     const ss = SpreadsheetApp.getActive();
     const ordSh = ss.getSheetByName(SH.ORD);
@@ -204,12 +205,15 @@ function submitOrder(order) {
     ordSh.getRange(r0, COL.DAY, rows.length, 1).setNumberFormat('@');      // "9 Nov" เก็บเป็นข้อความ ไม่ให้กลายเป็นวันที่
     ordSh.getRange(r0, 1, rows.length, ORD_HEAD.length).setValues(rows);
 
-    return { orderId: base, token, payLater: !!order.payLater, parts,
+    result = { orderId: base, token, payLater: !!order.payLater, parts,
       total: parts.reduce((s, p) => s + p.total, 0), cups: parts.reduce((s, p) => s + p.cups, 0),
       bankAccount: cfg.bankAccount, accountName: cfg.accountName, bankName: cfg.bankName };
+    alert = { base, name, note, payLater: !!order.payLater, rows, total: result.total, cups: result.cups };
   } finally {
     lock.releaseLock();
   }
+  alertOrder_(alert);
+  return result;
 }
 /**
  * "ออเดอร์ของฉัน": แอปส่งเลขออเดอร์ + token ที่มือถือเครื่องนั้นจำไว้ → ส่งสถานะล่าสุดกลับ
@@ -253,6 +257,7 @@ function cancelOrder(req) {
   if (!base || !tok) throw new Error('ไม่พบออเดอร์');
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
+  let cancelled = [];
   try {
     const sh = SpreadsheetApp.getActive().getSheetByName(SH.ORD);
     const vals = sh.getRange(2, 1, Math.max(1, sh.getLastRow() - 1), ORD_HEAD.length).getValues();
@@ -266,6 +271,7 @@ function cancelOrder(req) {
     if (blocked) throw new Error('ออเดอร์ ' + at_(blocked.r, COL.ID) + ' แนบสลิปหรือจ่ายแล้ว ยกเลิกเองไม่ได้ ทักร้านได้เลยนะ');
     const stamp = 'ลูกค้ายกเลิกเอง ' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM HH:mm');
     const stamped = {};
+    cancelled = rows.filter(x => String(at_(x.r, COL.STATUS)) !== 'ยกเลิก').map(x => x.r);
     rows.forEach(x => {
       if (String(at_(x.r, COL.STATUS)) === 'ยกเลิก') return;
       sh.getRange(x.row, COL.STATUS).setValue('ยกเลิก');
@@ -276,6 +282,7 @@ function cancelOrder(req) {
   } finally {
     lock.releaseLock();
   }
+  if (cancelled.length) alertCancel_(base, cancelled);
   return myOrders({ orders: [{ orderId: base, token: tok }] });
 }
 
@@ -305,6 +312,7 @@ function attachSlip(req) {
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
+  let slipInfo = null;
   try {
     const sh = SpreadsheetApp.getActive().getSheetByName(SH.ORD);
     const vals = sh.getRange(2, 1, Math.max(1, sh.getLastRow() - 1), ORD_HEAD.length).getValues();
@@ -314,11 +322,13 @@ function attachSlip(req) {
     if (!rows.length) throw new Error('ไม่พบออเดอร์ ' + base);
     if (!req.token || rows.some(x => String(at_(x.vals, COL.TOKEN)) !== String(req.token))) throw new Error('ลิงก์แนบสลิปไม่ถูกต้อง');
 
+    slipInfo = { base, name: at_(rows[0].vals, COL.NAME), rows: rows.map(x => x.vals) };
     const ext = m[2] === 'jpeg' ? 'jpg' : m[2];
     const file = slipFolder_().createFile(
       Utilities.newBlob(bytes, m[1], base + '_' + at_(rows[0].vals, COL.NAME) + '_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'MMdd-HHmm') + '.' + ext));
     try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
     const id = file.getId();
+    slipInfo.url = file.getUrl(); slipInfo.fileId = id;
     rows.forEach(x => {
       if (String(at_(x.vals, COL.STATUS)) === 'ยกเลิก') return;
       sh.getRange(x.row, COL.SLIP, 1, 2).setFormulas([[
@@ -328,15 +338,77 @@ function attachSlip(req) {
       if (at_(x.vals, COL.PAY) !== 'จ่ายแล้ว') sh.getRange(x.row, COL.PAY).setValue('ส่งสลิปแล้ว');
       sh.setRowHeight(x.row, 80);
     });
-    return { orderId: req.orderId };
   } finally {
     lock.releaseLock();
   }
+  alertSlip_(slipInfo);
+  return { orderId: req.orderId };
 }
 /** กด Run ฟังก์ชันนี้ 1 ครั้งใน Apps Script เพื่ออนุญาตให้เก็บสลิปใน Google Drive */
 function authorize() {
   const f = slipFolder_();
   Logger.log('โฟลเดอร์สลิปพร้อมแล้ว: ' + f.getUrl());
+  Logger.log('อีเมลแจ้งเตือนเหลือส่งได้วันนี้: ' + MailApp.getRemainingDailyQuota() + ' ฉบับ · ส่งไปที่ ' + alertTo_());
+}
+/** กด Run เพื่อลองส่งอีเมลแจ้งเตือน 1 ฉบับ */
+function testAlert() {
+  sendAlert_('order', '🧪 ทดสอบแจ้งเตือน Bright Greek', '<p>ถ้าเห็นอีเมลนี้ แปลว่าแจ้งเตือนออเดอร์ใช้งานได้แล้ว ✅</p>');
+}
+
+/* ---------------- แจ้งเตือนเจ้าของร้านทางอีเมล ----------------
+ * Settings: notify_email (เว้นว่าง = อีเมลเจ้าของสคริปต์), notify_events (order, slip, cancel — เว้นว่าง = ทั้งหมด, off = ปิด) */
+function alertTo_() {
+  const s = settings_(), to = String(s.notify_email || '').trim();
+  return to || Session.getEffectiveUser().getEmail();
+}
+function sendAlert_(event, subject, html) {
+  try {
+    const s = settings_(), ev = String(s.notify_events || '').toLowerCase().trim();
+    if (ev === 'off' || (ev && ev.split(/[\s,]+/).indexOf(event) < 0)) return;
+    const to = alertTo_(); if (!to) return;
+    const ss = SpreadsheetApp.getActive(), sh = ss.getSheetByName(SH.ORD);
+    const link = ss.getUrl() + '#gid=' + sh.getSheetId();
+    MailApp.sendEmail({ to, subject, name: 'Bright Greek', htmlBody:
+      '<div style="font-family:sans-serif;font-size:15px;color:#3B2A40;max-width:520px">' + html +
+      '<p style="margin-top:18px"><a href="' + link + '" style="background:#FF8FAB;color:#3B2A40;padding:10px 16px;text-decoration:none;font-weight:bold;border:2px solid #3B2A40">เปิดแท็บ Orders</a></p></div>' });
+  } catch (err) {
+    console.error('alert failed: ' + err);      // แจ้งเตือนพลาดไม่ทำให้ออเดอร์พัง
+  }
+}
+const h_ = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const baht_ = n => '฿' + Number(n || 0).toLocaleString('en-US');
+function itemLines_(rows) {
+  const days = {};
+  rows.forEach(r => { const d = dayText_(at_(r, COL.DAY)); (days[d] = days[d] || []).push(r); });
+  return Object.keys(days).map(d => '<p style="margin:12px 0 4px"><b>📅 รับวันที่ ' + h_(d) + '</b></p><ul style="margin:0;padding-left:20px">' +
+    days[d].map(r => '<li><b>' + h_(at_(r, COL.MENU)) + ' × ' + at_(r, COL.QTY) + '</b> — ' + baht_(at_(r, COL.TOTAL)) +
+      [at_(r, COL.FRUIT) ? '<br><span style="color:#7A6A7E">ผลไม้: ' + h_(at_(r, COL.FRUIT)) + '</span>' : '',
+       at_(r, COL.SCOOP) ? '<br><span style="color:#7A6A7E">+' + at_(r, COL.SCOOP) + ' scoop</span>' : '',
+       at_(r, COL.TOP) ? '<br><span style="color:#7A6A7E">' + h_(at_(r, COL.TOP)) + '</span>' : ''].join('') + '</li>').join('') + '</ul>').join('');
+}
+function alertOrder_(a) {
+  if (!a) return;
+  sendAlert_('order', '🛎️ ออเดอร์ใหม่ ' + a.base + ' · ' + a.name + ' · ' + a.cups + ' ถ้วย · ' + baht_(a.total),
+    '<h2 style="margin:0 0 6px">🛎️ ออเดอร์ใหม่ ' + h_(a.base) + '</h2>' +
+    '<p style="margin:0">👤 <b>' + h_(a.name) + '</b> · ' + a.cups + ' ถ้วย · <b>' + baht_(a.total) + '</b></p>' +
+    '<p style="margin:4px 0">💳 ' + (a.payLater ? 'จ่ายตอนรับ (ขุนทอง)' : 'จ่ายเลย — รอสลิป') + '</p>' +
+    (a.note ? '<p style="margin:4px 0">📝 ' + h_(a.note) + '</p>' : '') + itemLines_(a.rows));
+}
+function alertSlip_(x) {
+  if (!x) return;
+  const live = x.rows.filter(r => String(at_(r, COL.STATUS)) !== 'ยกเลิก');
+  const total = live.reduce((t, r) => t + (Number(at_(r, COL.TOTAL)) || 0), 0);
+  sendAlert_('slip', '📎 สลิปเข้า ' + x.base + ' · ' + x.name + ' · ' + baht_(total),
+    '<h2 style="margin:0 0 6px">📎 ลูกค้าแนบสลิปแล้ว ' + h_(x.base) + '</h2>' +
+    '<p style="margin:0">👤 <b>' + h_(x.name) + '</b> · ยอดที่ต้องได้ <b>' + baht_(total) + '</b></p>' +
+    '<p><a href="' + x.url + '"><img src="https://drive.google.com/thumbnail?id=' + x.fileId + '&sz=w400" alt="สลิป" style="max-width:240px;border:2px solid #3B2A40"></a></p>' +
+    '<p style="color:#7A6A7E">เช็คยอดในสลิปแล้วเปลี่ยน "สถานะจ่าย" เป็น "จ่ายแล้ว" ในแท็บ Orders</p>');
+}
+function alertCancel_(base, rows) {
+  const name = at_(rows[0], COL.NAME);
+  sendAlert_('cancel', '❌ ยกเลิก ' + base + ' · ' + name,
+    '<h2 style="margin:0 0 6px">❌ ลูกค้ายกเลิกเอง ' + h_(base) + '</h2><p style="margin:0">👤 <b>' + h_(name) + '</b></p>' + itemLines_(rows) +
+    '<p style="color:#7A6A7E">ไม่ต้องเตรียมรายการนี้แล้ว</p>');
 }
 function slipFolder_() {
   const props = PropertiesService.getScriptProperties();
@@ -406,7 +478,9 @@ function setup() {
     ['bank_name', 'ธนาคารกสิกรไทย', 'ชื่อธนาคาร'],
     ['sale_period', '', 'เว้นว่าง = คำนวณจากแท็บ Rounds อัตโนมัติ (พิมพ์เองได้ถ้าอยากใช้ข้อความอื่น)'],
     ['pay_later_note', 'ผ่านขุนทองในกลุ่ม LINE', 'ข้อความใต้ตัวเลือก "จ่ายตอนรับ"'],
-    ['line_group_url', '', 'ลิงก์เชิญกลุ่ม LINE (https://line.me/...) เว้นว่าง = ให้ลูกค้าเลือกแชทเอง']
+    ['line_group_url', '', 'ลิงก์เชิญกลุ่ม LINE (https://line.me/...) เว้นว่าง = ให้ลูกค้าเลือกแชทเอง'],
+    ['notify_email', '', 'อีเมลรับแจ้งเตือน (เว้นว่าง = อีเมลเจ้าของสคริปต์)'],
+    ['notify_events', 'order, slip, cancel', 'แจ้งเตือนเมื่อ: order = ออเดอร์ใหม่, slip = แนบสลิป, cancel = ลูกค้ายกเลิก · off = ปิดทั้งหมด']
   ]);
   ['Rounds', 'Menu', 'AddOns', 'Fruits'].forEach(n => {
     const sh = ss.getSheetByName(n);
