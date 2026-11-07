@@ -52,7 +52,7 @@
        background:var(--pink);color:var(--ink);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;
        box-shadow:var(--shadow);transition:transform .1s,box-shadow .1s}
   .btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
-  .btn:disabled{background:#EADCE0;cursor:not-allowed}
+  .btn:disabled,.btn.dim{background:#EADCE0;cursor:not-allowed}
   .btn.center{justify-content:center}
   .btn.soft{background:#fff;box-shadow:0 3px 0 var(--ink);justify-content:center;font-family:Mali,sans-serif;font-weight:600;font-size:15px;min-height:48px;padding:10px;border-width:2px}
   .icon-btn{width:44px;height:44px;border-radius:22px;background:#fff;border:2px solid var(--ink);display:flex;align-items:center;justify-content:center;
@@ -174,12 +174,11 @@
   .total b{font-family:Itim,sans-serif;font-weight:400;font-size:26px;color:var(--pink-dark)}
   .err{color:var(--danger);font-size:14px;margin-top:10px;display:none;font-weight:600}
   .payopts{display:flex;flex-direction:column;gap:8px}
-  .box.need{border:2px dashed var(--pink);animation:nudge 2.6s ease-in-out .6s infinite}
+  .box.need{border:2px dashed var(--pink)}
   .box.need .req{color:var(--pink-dark)}
   .box.bump{animation:bump .45s ease-in-out}
-  @keyframes nudge{0%,76%,100%{transform:none}80%{transform:translateX(-3px) rotate(-.4deg)}84%{transform:translateX(3px) rotate(.4deg)}88%{transform:translateX(-2px)}92%{transform:translateX(2px)}96%{transform:translateX(-1px)}}
   @keyframes bump{0%,100%{transform:none}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
-  @media (prefers-reduced-motion: reduce){.box.need,.box.bump{animation:none}}
+  @media (prefers-reduced-motion: reduce){.box.bump{animation:none}}
   .payopt{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;border:2px dashed #C9B8CC;background:#fff;text-align:left;cursor:pointer;min-height:60px}
   .payopt .dot{width:24px;height:24px;border-radius:12px;border:2px solid var(--ink);flex:none;position:relative;background:#fff}
   .payopt.on{border:2px solid var(--ink);background:var(--soft)}
@@ -578,7 +577,7 @@ function refreshItem(){
   C.rounds.forEach((r,i) => { const b = $('rd'+i); if (b){ b.classList.toggle('on', draft.round === r); b.setAttribute('aria-pressed', draft.round === r); } });
   const needFruit = m.fruitPick > 0 && !draft.fruits.length;
   const needDay = C.rounds.length && C.rounds.indexOf(draft.round) < 0;
-  $('addBtn').disabled = needFruit || needDay;
+  $('addBtn').classList.toggle('dim', needFruit || needDay);
   need('fruitBox', needFruit); need('dayBox', needDay);
   $('addLbl').textContent = needFruit ? 'เลือกผลไม้ก่อนนะ' : needDay ? 'เลือกวันรับก่อนนะ' : editIndex >= 0 ? 'บันทึก' : 'ใส่ตะกร้า';
 }
@@ -609,8 +608,9 @@ function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
   if (v) draft.addons[id] = v; else delete draft.addons[id]; refreshItem(); }
 function setQty(d){ draft.qty = Math.max(1, Math.min(50, draft.qty + d)); refreshItem(); }
 function commitItem(){
-  if (C.rounds.length && C.rounds.indexOf(draft.round) < 0) return;
-  if (menuOf(draft.menuId).fruitPick > 0 && !draft.fruits.length) return;
+  const needFruit = menuOf(draft.menuId).fruitPick > 0 && !draft.fruits.length;
+  const needDay = C.rounds.length && C.rounds.indexOf(draft.round) < 0;
+  if (needFruit || needDay){ if (needDay) bump('dayBox', !needFruit); if (needFruit) bump('fruitBox', true); return; }
   info.lastRound = draft.round;
   if (editIndex >= 0) cart[editIndex] = draft; else cart.push(draft);
   save('greek_cart', cart); closeSheets({stay: true}); render();
@@ -670,8 +670,8 @@ function renderCart(){
 }
 // required box: dashed pink + a small shake every few seconds until it's filled
 function need(id, on){ const b = $(id); if (b) b.classList.toggle('need', !!on); }
-function bump(id){ const b = $(id); if (!b) return; b.classList.remove('bump'); b.getBoundingClientRect(); b.classList.add('bump');
-  b.scrollIntoView({behavior:'smooth', block:'center'}); setTimeout(() => b.classList.remove('bump'), 500); }
+function bump(id, scroll = true){ const b = $(id); if (!b) return; b.classList.remove('bump'); b.getBoundingClientRect(); b.classList.add('bump');
+  if (scroll) b.scrollIntoView({behavior:'smooth', block:'center'}); setTimeout(() => b.classList.remove('bump'), 500); }
 function pickPay(later){ info.payLater = later; need('payBox', false); $('payHint').textContent = '';
   document.querySelectorAll('.payopt').forEach((b,j) => { const on = (j === 1) === later; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); }
 function editItem(i){ closeSheets({stay: true}); setTimeout(() => openItem(cart[i].menuId, i), 260); }
@@ -681,8 +681,13 @@ function submit(){
   const err = $('err'), fail = msg => { err.textContent = msg; err.style.display = 'block'; };
   err.style.display = 'none';
   if (!C.open) { fail(C.closedMsg); return; }
-  if (!info.name.trim()) { fail('กรุณาใส่ชื่อ'); bump('nameBox'); $('fName').focus(); return; }
-  if (info.payLater === null) { fail('เลือกวิธีจ่ายเงินก่อนนะ'); bump('payBox'); return; }
+  const noName = !info.name.trim(), noPay = info.payLater === null;
+  if (noName || noPay){
+    fail(noName && noPay ? 'ใส่ชื่อ และเลือกวิธีจ่ายเงินก่อนนะ' : noName ? 'กรุณาใส่ชื่อ' : 'เลือกวิธีจ่ายเงินก่อนนะ');
+    if (noPay) bump('payBox', !noName);
+    if (noName){ bump('nameBox'); $('fName').focus({preventScroll: true}); }
+    return;
+  }
   if (cart.some(it => menuOf(it.menuId).fruitPick > 0 && !(it.fruits || []).length)) { fail('มีถ้วยที่ยังไม่ได้เลือกผลไม้ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
   if (C.rounds.length && cart.some(it => C.rounds.indexOf(it.round) < 0)) { fail('มีถ้วยที่ยังไม่ได้เลือกวันรับ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
   const btn = $('submitBtn'); btn.disabled = true; btn.innerHTML = '<span>กำลังส่งออเดอร์…</span><span class="spin"></span>';
