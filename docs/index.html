@@ -20,7 +20,7 @@
 <meta property="og:image" content="https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/og.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "b89512b780";</script>
+<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "4ea3d23819";</script>
 
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Jersey+10&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -89,7 +89,7 @@
 
   /* sheets */
   .overlay{position:fixed;inset:0;background:rgba(59,42,64,.5);opacity:0;pointer-events:none;transition:opacity .2s;z-index:10}
-  .overlay.show{opacity:1;pointer-events:auto}
+  .overlay.show{opacity:1;pointer-events:auto;touch-action:none}
   .sheet{position:fixed;left:0;right:0;bottom:var(--kb,0px);background-color:var(--bg);background-image:inherit;border-top:0;box-shadow:0 -3px 0 var(--ink),0 -6px 0 var(--pink);max-height:calc(var(--vvh,100vh) * .94);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
          transform:translateY(105%);visibility:hidden;transition:transform .34s cubic-bezier(.2,1.2,.3,1),visibility 0s .34s;z-index:11}
   .sheet.show{transform:translateY(0);visibility:visible;transition:transform .34s cubic-bezier(.2,1.2,.3,1)}
@@ -1155,12 +1155,27 @@ function reorder(k){
 /* each open sheet is a step in the browser history, so the phone's back button / swipe closes it
    instead of leaving the app; closing a fruit sheet opened from the cart goes back to the cart */
 let sheetOpen = null, ignorePop = false;
+/* while a sheet is open the page behind must not move (iPhone Safari otherwise scrolls it and the toolbar jumps):
+   pin the body where it is, and put it back exactly there when the sheet closes */
+let lockY = null;
+try { history.scrollRestoration = 'manual'; } catch(e){}   // closing a sheet uses history.back(); keep our own scroll position
+function lockPage(){
+  if (lockY !== null) return;
+  lockY = window.scrollY || 0;
+  Object.assign(document.body.style, { position: 'fixed', top: -lockY + 'px', left: '0', right: '0', width: '100%' });
+}
+function unlockPage(){
+  if (lockY === null) return;
+  Object.assign(document.body.style, { position: '', top: '', left: '', right: '', width: '' });
+  window.scrollTo(0, lockY); lockY = null;
+}
 function show(id){
+  lockPage();
   $('overlay').classList.add('show'); $(id).classList.add('show'); $(id).scrollTop = 0;
   const had = !!sheetOpen; sheetOpen = id;
   try { history[had ? 'replaceState' : 'pushState']({sheet: id}, ''); } catch(e){}
 }
-function hideSheets(){ ['itemSheet','cartSheet','histSheet'].forEach(id => $(id).classList.remove('show')); $('overlay').classList.remove('show'); sheetOpen = null; }
+function hideSheets(){ ['itemSheet','cartSheet','histSheet'].forEach(id => $(id).classList.remove('show')); $('overlay').classList.remove('show'); sheetOpen = null; unlockPage(); }
 function closeSheets(opts){
   const toCart = sheetOpen === 'itemSheet' && editIndex >= 0 && !(opts && opts.stay);
   hideSheets();
