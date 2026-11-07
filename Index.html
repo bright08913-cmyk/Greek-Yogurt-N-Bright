@@ -161,6 +161,7 @@
   .link.del{color:var(--danger)}
   label.f{display:block;font-size:15px;font-weight:700;margin-bottom:8px}
   input,textarea{width:calc(100% - 6px);margin:0 3px;font-size:16px;padding:11px 14px;border:0;border-radius:0;background:#fff;box-shadow:var(--pxs)}
+  textarea{resize:none;height:72px;min-height:72px;max-height:72px;overflow-y:auto;line-height:1.4}   /* fixed size: no drag handle to catch by accident */
   input:focus,textarea:focus{outline:none;--ec:var(--pink-dark);background:#FFFBFC}
   .rounds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .round{min-height:54px;padding:8px 12px;border:0;background:#fff;text-align:left;margin:2px;--pw:2px;--ec:var(--lilac);box-shadow:var(--pxs);
@@ -680,7 +681,7 @@ function renderCart(){
       <div class="sub" style="font-size:12px;margin-top:6px">ใช้ชื่อเดียวกับใน LINE กลุ่ม จะได้เช็คยอดง่าย</div>
     </div>
     <div class="box"><label class="f" for="fNote">หมายเหตุ <span class="sub" style="font-weight:400;font-size:13px">ไม่บังคับ</span></label>
-      <textarea id="fNote" rows="2" placeholder="เช่น ขอช้อน 2 อัน" autocomplete="off" enterkeyhint="done" oninput="info.note=this.value">${esc(info.note)}</textarea></div>
+      <textarea id="fNote" rows="2" maxlength="300" placeholder="เช่น ขอช้อน 2 อัน" autocomplete="off" enterkeyhint="done" oninput="info.note=this.value">${esc(info.note)}</textarea></div>
     <div class="box${C.open && info.payLater === null ? ' need' : ''}" id="payBox">
       <h3><span>จ่ายเงิน <span class="req">*</span></span><small id="payHint">${info.payLater === null ? 'แตะเลือก 1 แบบ' : ''}</small></h3>
       <div class="payopts">
