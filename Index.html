@@ -167,6 +167,8 @@
   .mini{border:2px solid var(--ink);background:#fff;border-radius:12px;padding:6px 12px;font-weight:600;font-size:14px;cursor:pointer;min-height:36px}
   .mini.pink{background:var(--pink)}
   .mini:disabled{opacity:.4;cursor:not-allowed}
+  .mini.danger{background:#fff;color:var(--danger);border-color:var(--danger)}
+  .mini.armed,.link.armed{background:var(--danger);color:#fff;border-color:var(--danger);text-decoration:none;padding:4px 10px;border-radius:10px}
   .total{display:flex;justify-content:space-between;align-items:baseline}
   .total span{font-family:Itim,sans-serif;font-size:19px}
   .total b{font-family:Itim,sans-serif;font-weight:400;font-size:26px;color:var(--pink-dark)}
@@ -257,7 +259,7 @@ function call(fn, arg){
   return new Promise((resolve, reject) => {
     if (IS_GAS) return google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](arg);
     if (API_URL){
-      const action = {getConfig:'config', submitOrder:'order', attachSlip:'slip', myOrders:'history'}[fn];
+      const action = {getConfig:'config', submitOrder:'order', attachSlip:'slip', myOrders:'history', cancelOrder:'cancel'}[fn];
       const body = fn === 'submitOrder' ? {action, order: arg} : Object.assign({action}, arg || {});
       fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body), redirect:'follow'})
         .then(r => r.text().then(t => {
@@ -281,8 +283,11 @@ function call(fn, arg){
           return { orderId: a.length > 1 ? oid + '-' + (k+1) : oid, round: rd, cups: its.reduce((s,it) => s + it.qty, 0), total: its.reduce((s,it) => s + linePrice(it), 0),
                    summary: its.map(it => menuOf(it.menuId).name + (it.qty > 1 ? ' x' + it.qty : '')).join(', ') }; }),
         bankAccount:C.bankAccount, accountName:C.accountName, bankName:C.bankName }); }
-      else if (fn === 'myOrders') { const out = {}; history_().forEach(h => out[h.orderId] = (h.parts || []).map(p => ({ id: p.orderId, round: p.round, total: p.total,
-          pay: h.payLater ? 'ยังไม่จ่าย' : (h.slip ? 'ส่งสลิปแล้ว' : 'ยังไม่จ่าย'), status: 'ใหม่', slip: !!h.slip }))); resolve(out); }
+      else if (fn === 'myOrders' || fn === 'cancelOrder') {
+        const gone = load('demo_cancel') || [];
+        if (fn === 'cancelOrder') { history_().filter(h => h.orderId === arg.orderId).forEach(h => (h.parts || []).forEach(p => { if (!arg.partId || p.orderId === arg.partId) gone.push(p.orderId); })); save('demo_cancel', gone); }
+        const out = {}; history_().forEach(h => out[h.orderId] = (h.parts || []).map(p => ({ id: p.orderId, round: p.round, total: p.total,
+          pay: h.slip ? 'ส่งสลิปแล้ว' : 'ยังไม่จ่าย', status: gone.indexOf(p.orderId) >= 0 ? 'ยกเลิก' : 'ใหม่', slip: !!h.slip }))); resolve(out); }
       else resolve({ orderId: arg.orderId });
     }, 700);
   });
@@ -692,7 +697,8 @@ function renderDone(r){
         <div class="later"><div class="ic">${ICON.line.replace('width="24" height="24"','width="26" height="26"')}</div>
           <div><b style="font-size:15px">จ่ายตอนรับของ</b><div class="sub" style="font-size:13px">${esc((C && C.payLaterNote) || 'ผ่านขุนทองในกลุ่ม LINE')} · ร้านจะส่งบิลให้ในกลุ่ม</div></div></div>`}
       </div>
-      <div style="height:16px"></div>
+      <button class="link" style="margin:14px 0 0" onclick="openHistory()">สั่งผิด? ดูหรือยกเลิกได้ที่ "ออเดอร์ของฉัน"</button>
+      <div style="height:10px"></div>
       <button class="btn center" onclick="render()">${payNow ? 'กลับหน้าเมนู' : 'สั่งเพิ่ม'}</button>
     </div>`;
   window.scrollTo(0,0);
@@ -776,17 +782,39 @@ function renderHistory(note){
     ${C.open ? '' : `<div class="closed" style="margin-top:12px">${esc(C.closedMsg)} · สั่งซ้ำได้ตอนร้านเปิด</div>`}
     ${hs.map((h, k) => { const live = histLive && histLive[h.orderId];
       const rows = live || (h.parts || []).map(p => ({ id: p.orderId, round: p.round, total: p.total }));
-      const needSlip = !h.payLater && !h.slip && !(live && live.every(r => r.slip || r.pay === 'จ่ายแล้ว'));
+      const alive = live ? live.filter(r => r.status !== 'ยกเลิก') : rows;
+      const needSlip = !h.payLater && !h.slip && alive.length && !(live && alive.every(r => r.slip || r.pay === 'จ่ายแล้ว'));
+      const canCancel = r => live && r.pay === 'ยังไม่จ่าย' && !r.slip && r.status !== 'ส่งแล้ว' && r.status !== 'ยกเลิก';
+      const cancellable = live ? live.filter(canCancel) : [];
       return `<div class="box hcard">
         <div class="hhead"><b>${esc(h.orderId)}</b><span>${fmt(h.at)}</span></div>
         ${rows.map(r => { const part = (h.parts || []).find(p => p.orderId === r.id) || {};
           return `<div class="hrow"><div><b>${esc(roundLabel(r.round || ''))}</b><small>${esc(part.summary || '')}</small>
-            <div class="chips">${live ? chip(ST_TXT, r.status) + chip(PAY_TXT, r.pay) : ''}</div></div><em>${baht(r.total)}</em></div>`; }).join('')}
-        <div class="hfoot"><span>${h.payLater ? 'จ่ายตอนรับของ' : 'จ่ายเลย'} · รวม ${baht(h.total)}</span>
-          <span style="display:flex;gap:8px">${needSlip ? `<button class="mini" onclick="slipFromHistory(${k})">แนบสลิป</button>` : ''}
+            <div class="chips">${live ? chip(ST_TXT, r.status) + (r.status === 'ยกเลิก' ? '' : chip(PAY_TXT, r.pay)) : ''}</div>
+            ${rows.length > 1 && canCancel(r) ? `<button class="link del" onclick="askCancel(this, ${k}, '${esc(r.id)}')">ยกเลิกวันนี้</button>` : ''}</div>
+            <em style="${r.status === 'ยกเลิก' ? 'text-decoration:line-through;opacity:.5' : ''}">${baht(r.total)}</em></div>`; }).join('')}
+        <div class="hfoot"><span>${h.payLater ? 'จ่ายตอนรับของ' : 'จ่ายเลย'} · ${alive.length ? 'รวม ' + baht(live ? alive.reduce((t,r) => t + r.total, 0) : h.total) : 'ยกเลิกทั้งออเดอร์แล้ว'}</span>
+          <span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">${rows.length === 1 && cancellable.length ? `<button class="mini danger" onclick="askCancel(this, ${k}, '')">ยกเลิกออเดอร์</button>` : ''}
+          ${rows.length > 1 && cancellable.length > 1 ? `<button class="mini danger" onclick="askCancel(this, ${k}, '')">ยกเลิกทั้งหมด</button>` : ''}
+          ${needSlip ? `<button class="mini" onclick="slipFromHistory(${k})">แนบสลิป</button>` : ''}
           <button class="mini pink" onclick="reorder(${k})" ${C.open ? '' : 'disabled title="ร้านปิดรับอยู่"'}>สั่งซ้ำ</button></span></div>
       </div>`; }).join('')}
     <div class="sub" style="font-size:12px;text-align:center;margin-top:14px">เก็บไว้ในมือถือเครื่องนี้ · 30 ออเดอร์ล่าสุด</div>`;
+}
+// two taps to cancel, so a stray tap never cancels an order
+function askCancel(btn, k, partId){
+  if (!btn.dataset.armed){
+    btn.dataset.armed = '1'; btn.dataset.label = btn.textContent; btn.textContent = 'แตะอีกครั้งเพื่อยืนยัน'; btn.classList.add('armed');
+    setTimeout(() => { if (btn.isConnected && btn.dataset.armed){ delete btn.dataset.armed; btn.textContent = btn.dataset.label; btn.classList.remove('armed'); } }, 4000);
+    return;
+  }
+  const h = history_()[k]; btn.disabled = true; btn.textContent = 'กำลังยกเลิก…';
+  call('cancelOrder', { orderId: h.orderId, token: h.token, partId: partId || '' }).then(m => {
+    histLive = Object.assign(histLive || {}, m || {});
+    const rows = (m || {})[h.orderId] || [];
+    if (rows.length && rows.every(r => r.status === 'ยกเลิก')){ const p = load('greek_pending'); if (p && p.orderId === h.orderId) { try { localStorage.removeItem('greek_pending'); } catch(e){} } }
+    renderHistory('ยกเลิกเรียบร้อย');
+  }).catch(e => renderHistory((e && e.message) || 'ยกเลิกไม่สำเร็จ ลองใหม่อีกครั้ง'));
 }
 function slipFromHistory(k){ const h = history_()[k]; save('greek_pending', h); closeSheets({stay: true}); renderDone(h); }
 function reorder(k){

@@ -52,6 +52,7 @@ function doPost(e) {
     }
     if (body.action === 'config') return json_({ ok: true, data: getConfig() });
     if (body.action === 'history') return json_({ ok: true, data: myOrders(body) });
+    if (body.action === 'cancel') return json_({ ok: true, data: cancelOrder(body) });
     throw new Error('unknown action');
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err) });
@@ -227,6 +228,38 @@ function myOrders(req) {
       total: Number(r[8]) || 0, pay: String(r[10]), status: String(r[11]), slip: !!String(r[15]) }));
   });
   return out;
+}
+
+/**
+ * ลูกค้ายกเลิกเอง: ได้เฉพาะแถวที่ยังไม่แนบสลิป / ยังไม่จ่าย / ยังไม่รับของ
+ * req = { orderId, token, partId? }  (partId = เช่น G0041-2 เพื่อยกเลิกเฉพาะวันนั้น; ไม่ส่ง = ทั้งออเดอร์)
+ */
+function cancelOrder(req) {
+  const base = String(req && req.orderId || ''), tok = String(req && req.token || '');
+  if (!base || !tok) throw new Error('ไม่พบออเดอร์');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = SpreadsheetApp.getActive().getSheetByName(SH.ORD);
+    const vals = sh.getRange(2, 1, Math.max(1, sh.getLastRow() - 1), ORD_HEAD.length).getValues();
+    const rows = [];
+    vals.forEach((r, i) => {
+      const id = String(r[0]);
+      if ((id === base || id.indexOf(base + '-') === 0) && String(r[17]) === tok && (!req.partId || id === String(req.partId))) rows.push({ row: i + 2, r });
+    });
+    if (!rows.length) throw new Error('ไม่พบออเดอร์');
+    const blocked = rows.find(x => String(x.r[10]) !== 'ยังไม่จ่าย' || String(x.r[15]) || String(x.r[11]) === 'ส่งแล้ว');
+    if (blocked) throw new Error('ออเดอร์ ' + blocked.r[0] + ' แนบสลิปหรือจ่ายแล้ว ยกเลิกเองไม่ได้ ทักร้านได้เลยนะ');
+    const stamp = 'ลูกค้ายกเลิกเอง ' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM HH:mm');
+    rows.forEach(x => {
+      if (String(x.r[11]) === 'ยกเลิก') return;
+      sh.getRange(x.row, 12).setValue('ยกเลิก');
+      sh.getRange(x.row, 13).setValue([String(x.r[12] || ''), stamp].filter(Boolean).join(' · '));
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  return myOrders({ orders: [{ orderId: base, token: tok }] });
 }
 
 /** เลขออเดอร์วิ่งต่อจากเลขสูงสุดในแท็บ Orders */
