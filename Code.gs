@@ -6,14 +6,13 @@
  *   AddOns     ท็อปปิ้งเพิ่ม (scoop, hershey)
  *   Fruits     รายการผลไม้ + เปิด/ปิด ของหมด
  *   Settings   รอบรับ, วิธีรับ/ค่าส่ง, PromptPay, เปิด/ปิดรับออเดอร์
- *   Orders     1 แถว = 1 ออเดอร์ (ยอดรวม, สถานะจ่าย, สถานะออเดอร์)
- *   OrderItems 1 แถว = 1 รายการ (ละเอียด: ผลไม้, scoop, hershey, ราคาแยก)
+ *   Orders     แท็บเดียวดูได้ครบ: 1 แถว = 1 รายการในตะกร้า (เมนู ผลไม้ add-on จำนวน วันรับ จ่ายเงิน สลิป สถานะ)
  *   Summary    สรุปต่อรอบ: จำนวนแต่ละเมนู, ผลไม้ที่ต้องเตรียม, ยอดเงิน จ่ายแล้ว/ค้าง
  */
 
 const SH = {
   ROUND: 'Rounds', MENU: 'Menu', ADDON: 'AddOns', FRUIT: 'Fruits', SET: 'Settings',
-  ORD: 'Orders', ITEM: 'OrderItems', SUM: 'Summary'
+  ORD: 'Orders', SUM: 'Summary'
 };
 const PAY_STATUS = ['ยังไม่จ่าย', 'ส่งสลิปแล้ว', 'จ่ายแล้ว'];
 const PAY_NOW = 'จ่ายเลย (แนบสลิป)';
@@ -21,12 +20,14 @@ const PAY_LATER = 'จ่ายตอนรับ (ขุนทอง)';
 const SLIP_FOLDER = 'Bright Greek Slips';
 const ORDER_STATUS = ['ใหม่', 'ทำแล้ว', 'ส่งแล้ว', 'ยกเลิก'];
 
-const ORD_HEAD = ['OrderID', 'เวลาสั่ง', 'ชื่อ', 'ติดต่อ', 'รอบรับ', 'วิธีรับ', 'ค่าส่ง',
-  'ยอดอาหาร', 'ยอดรวม', 'ช่องทางจ่าย', 'สถานะจ่าย', 'สถานะออเดอร์', 'หมายเหตุ', 'รายการ (สรุป)', 'จำนวนถ้วย',
-  'สลิป', 'ลิงก์สลิป', 'token'];
-const ITEM_HEAD = ['OrderID', 'เวลาสั่ง', 'รอบรับ', 'ชื่อ', 'เมนู', 'ผลไม้ที่เลือก', 'ไม่เอา',
-  'Scoop เพิ่ม', 'Hershey', 'ราคาเมนู', 'ราคา Add-on', 'ราคา/ถ้วย', 'จำนวน', 'รวม', 'Remark',
-  'สถานะจ่าย', 'สถานะออเดอร์'];
+// คอลัมน์เรียงตามลำดับที่ลูกค้ากดในแอป: เมนู → ผลไม้ → add-on → จำนวน → วันรับ → ชื่อ/หมายเหตุ → จ่ายเงิน
+const ORD_HEAD = ['OrderID', 'เวลาสั่ง', 'ชื่อ', 'รับวันที่', 'เมนู', 'ผลไม้', 'Scoop เพิ่ม', 'ท็อปปิ้ง',
+  'จำนวน', 'ราคา/ถ้วย', 'รวม', 'หมายเหตุ', 'วิธีจ่าย', 'ยอดโอน (ทั้งออเดอร์)', 'สถานะจ่าย', 'สลิป', 'ลิงก์สลิป',
+  'สถานะออเดอร์', 'token'];
+const COL = { ID: 1, TIME: 2, NAME: 3, DAY: 4, MENU: 5, FRUIT: 6, SCOOP: 7, TOP: 8, QTY: 9, UNIT: 10, TOTAL: 11,
+  NOTE: 12, METHOD: 13, SUM: 14, PAY: 15, SLIP: 16, LINK: 17, STATUS: 18, TOKEN: 19 };
+const at_ = (r, c) => r[c - 1];          // อ่านค่าจากแถว (array) ตามชื่อคอลัมน์
+const base_ = id => String(id).replace(/-\d+$/, '');
 
 /* ---------------- Web app ---------------- */
 
@@ -140,7 +141,6 @@ function submitOrder(order) {
   const addonById = {}; cfg.addons.forEach(a => addonById[a.id] = a);
   const fruitOk = {}; cfg.fruits.forEach(f => { if (f.available) fruitOk[f.name] = true; });
   const allFruits = cfg.fruits.filter(f => f.available).map(f => f.name);
-  const deliv = cfg.delivery.find(d => d.name === order.delivery) || cfg.delivery[0] || { name: '-', fee: 0 };
 
   const lines = order.items.map(it => {
     const m = menuById[it.menuId];
@@ -174,34 +174,35 @@ function submitOrder(order) {
   lock.waitLock(20000);
   try {
     const ss = SpreadsheetApp.getActive();
-    const ordSh = ss.getSheetByName(SH.ORD), itemSh = ss.getSheetByName(SH.ITEM);
+    const ordSh = ss.getSheetByName(SH.ORD);
     const base = 'G' + ('000' + nextOrderNo_(ordSh)).slice(-4);
     const now = new Date();
     const name = String(order.name).trim().slice(0, 60);
+    const note = String(order.note || '').slice(0, 300);
     const payMethod = order.payLater ? PAY_LATER : PAY_NOW;
-    const token = Utilities.getUuid();   // ใช้ยืนยันตอนแนบสลิป (กันคนอื่นแนบมั่ว)
-    const payF = '=IFERROR(VLOOKUP(INDIRECT("A"&ROW()),Orders!A:L,11,FALSE),"")';
-    const statF = '=IFERROR(VLOOKUP(INDIRECT("A"&ROW()),Orders!A:L,12,FALSE),"")';
+    const token = Utilities.getUuid();   // ใช้ยืนยันตอนแนบสลิป/ยกเลิก (กันคนอื่นมาแก้ออเดอร์เรา)
+    // ยอดโอนทั้งออเดอร์ (ไม่นับวันที่ยกเลิก) โชว์ที่แถวแรกของออเดอร์ ไว้เทียบกับยอดในสลิป
+    const sumF = '=SUMIFS(K:K,A:A,"' + base + '",R:R,"<>ยกเลิก")+SUMIFS(K:K,A:A,"' + base + '-*",R:R,"<>ยกเลิก")';
 
+    const rows = [];
     const parts = rounds.map((round, k) => {
       const ls = lines.filter(l => l.round === round);
       const id = rounds.length > 1 ? base + '-' + (k + 1) : base;
-      const food = ls.reduce((s, l) => s + l.total, 0);
+      const total = ls.reduce((s, l) => s + l.total, 0);
       const cups = ls.reduce((s, l) => s + l.qty, 0);
-      const fee = k === 0 ? deliv.fee : 0;
-      const summary = ls.map(l => l.m.name + (l.qty > 1 ? ' x' + l.qty : '')).join(', ');
-      ordSh.appendRow([id, now, name, String(order.contact || '').slice(0, 80), round,
-        deliv.name, fee, food, food + fee, payMethod, PAY_STATUS[0], ORDER_STATUS[0],
-        String(order.note || '').slice(0, 300), summary, cups, '', '', token]);
-      const itemRows = ls.map(l => {
-        const scoop = l.addonCount.SCP || 0, her = l.addonCount.HER || 0;
-        return [id, now, round, name, l.m.name, l.fruits.join(', '), l.excluded.join(', '),
-          scoop, her ? 'ใช่' : '', l.m.price, l.addonPrice, l.unit, l.qty, l.total,
-          remark_(round, l, addonById), payF, statF];
+      ls.forEach(l => {
+        const first = !rows.length;
+        const tops = Object.keys(l.addonCount).filter(a => a !== 'SCP')
+          .map(a => addonById[a].name + (l.addonCount[a] > 1 ? ' x' + l.addonCount[a] : '')).join(', ');
+        rows.push([id, now, name, round, l.m.name, l.fruits.join(', '), l.addonCount.SCP || '', tops,
+          l.qty, l.unit, l.total, first ? note : '', payMethod, first ? sumF : '', PAY_STATUS[0], '', '',
+          ORDER_STATUS[0], token]);
       });
-      itemSh.getRange(itemSh.getLastRow() + 1, 1, itemRows.length, ITEM_HEAD.length).setValues(itemRows);
-      return { orderId: id, round, cups, total: food + fee, summary };
+      return { orderId: id, round, cups, total, summary: ls.map(l => l.m.name + (l.qty > 1 ? ' x' + l.qty : '')).join(', ') };
     });
+    const r0 = ordSh.getLastRow() + 1;
+    ordSh.getRange(r0, COL.DAY, rows.length, 1).setNumberFormat('@');      // "9 Nov" เก็บเป็นข้อความ ไม่ให้กลายเป็นวันที่
+    ordSh.getRange(r0, 1, rows.length, ORD_HEAD.length).setValues(rows);
 
     return { orderId: base, token, payLater: !!order.payLater, parts,
       total: parts.reduce((s, p) => s + p.total, 0), cups: parts.reduce((s, p) => s + p.cups, 0),
@@ -223,12 +224,24 @@ function myOrders(req) {
   asked.forEach(a => {
     const base = String(a.orderId || ''), tok = String(a.token || '');
     if (!base || !tok) return;
-    const rows = vals.filter(r => (String(r[0]) === base || String(r[0]).indexOf(base + '-') === 0) && String(r[17]) === tok);
-    if (rows.length) out[base] = rows.map(r => ({ id: String(r[0]), round: r[4] instanceof Date ? Utilities.formatDate(r[4], 'Asia/Bangkok', 'd MMM') : String(r[4]),
-      total: Number(r[8]) || 0, pay: String(r[10]), status: String(r[11]), slip: !!String(r[15]) }));
+    const parts = {}, order = [];
+    vals.forEach(r => {
+      const id = String(at_(r, COL.ID));
+      if (base_(id) !== base || String(at_(r, COL.TOKEN)) !== tok) return;
+      if (!parts[id]) { parts[id] = { id, round: dayText_(at_(r, COL.DAY)), total: 0, pay: String(at_(r, COL.PAY)), status: '', slip: false, live: [] }; order.push(id); }
+      const p = parts[id], st = String(at_(r, COL.STATUS));
+      if (st !== 'ยกเลิก') { p.total += Number(at_(r, COL.TOTAL)) || 0; p.live.push(st); }
+      if (String(at_(r, COL.SLIP))) p.slip = true;
+    });
+    if (order.length) out[base] = order.map(id => {
+      const p = parts[id];
+      p.status = p.live.length ? (p.live.indexOf('ใหม่') >= 0 ? 'ใหม่' : p.live[0]) : 'ยกเลิก';
+      delete p.live; return p;
+    });
   });
   return out;
 }
+function dayText_(v) { return v instanceof Date ? Utilities.formatDate(v, 'Asia/Bangkok', 'd MMM') : String(v); }
 
 /**
  * ลูกค้ายกเลิกเอง: ได้เฉพาะแถวที่ยังไม่แนบสลิป / ยังไม่จ่าย / ยังไม่รับของ
@@ -244,17 +257,20 @@ function cancelOrder(req) {
     const vals = sh.getRange(2, 1, Math.max(1, sh.getLastRow() - 1), ORD_HEAD.length).getValues();
     const rows = [];
     vals.forEach((r, i) => {
-      const id = String(r[0]);
-      if ((id === base || id.indexOf(base + '-') === 0) && String(r[17]) === tok && (!req.partId || id === String(req.partId))) rows.push({ row: i + 2, r });
+      const id = String(at_(r, COL.ID));
+      if (base_(id) === base && String(at_(r, COL.TOKEN)) === tok && (!req.partId || id === String(req.partId))) rows.push({ row: i + 2, r });
     });
     if (!rows.length) throw new Error('ไม่พบออเดอร์');
-    const blocked = rows.find(x => String(x.r[10]) !== 'ยังไม่จ่าย' || String(x.r[15]) || String(x.r[11]) === 'ส่งแล้ว');
-    if (blocked) throw new Error('ออเดอร์ ' + blocked.r[0] + ' แนบสลิปหรือจ่ายแล้ว ยกเลิกเองไม่ได้ ทักร้านได้เลยนะ');
+    const blocked = rows.find(x => String(at_(x.r, COL.PAY)) !== 'ยังไม่จ่าย' || String(at_(x.r, COL.SLIP)) || String(at_(x.r, COL.STATUS)) === 'ส่งแล้ว');
+    if (blocked) throw new Error('ออเดอร์ ' + at_(blocked.r, COL.ID) + ' แนบสลิปหรือจ่ายแล้ว ยกเลิกเองไม่ได้ ทักร้านได้เลยนะ');
     const stamp = 'ลูกค้ายกเลิกเอง ' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM HH:mm');
+    const stamped = {};
     rows.forEach(x => {
-      if (String(x.r[11]) === 'ยกเลิก') return;
-      sh.getRange(x.row, 12).setValue('ยกเลิก');
-      sh.getRange(x.row, 13).setValue([String(x.r[12] || ''), stamp].filter(Boolean).join(' · '));
+      if (String(at_(x.r, COL.STATUS)) === 'ยกเลิก') return;
+      sh.getRange(x.row, COL.STATUS).setValue('ยกเลิก');
+      const id = String(at_(x.r, COL.ID));
+      if (!stamped[id]) { stamped[id] = true;      // เขียนหมายเหตุครั้งเดียวต่อวันรับ
+        sh.getRange(x.row, COL.NOTE).setValue([String(at_(x.r, COL.NOTE) || ''), stamp].filter(Boolean).join(' · ')); }
     });
   } finally {
     lock.releaseLock();
@@ -293,21 +309,22 @@ function attachSlip(req) {
     const vals = sh.getRange(2, 1, Math.max(1, sh.getLastRow() - 1), ORD_HEAD.length).getValues();
     const base = String(req.orderId);
     const rows = [];
-    vals.forEach((r, i) => { const id = String(r[0]); if (id === base || id.indexOf(base + '-') === 0) rows.push({ row: i + 2, vals: r }); });
+    vals.forEach((r, i) => { if (base_(at_(r, COL.ID)) === base) rows.push({ row: i + 2, vals: r }); });
     if (!rows.length) throw new Error('ไม่พบออเดอร์ ' + base);
-    if (!req.token || rows.some(x => String(x.vals[17]) !== String(req.token))) throw new Error('ลิงก์แนบสลิปไม่ถูกต้อง');
+    if (!req.token || rows.some(x => String(at_(x.vals, COL.TOKEN)) !== String(req.token))) throw new Error('ลิงก์แนบสลิปไม่ถูกต้อง');
 
     const ext = m[2] === 'jpeg' ? 'jpg' : m[2];
     const file = slipFolder_().createFile(
-      Utilities.newBlob(bytes, m[1], base + '_' + rows[0].vals[2] + '_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'MMdd-HHmm') + '.' + ext));
+      Utilities.newBlob(bytes, m[1], base + '_' + at_(rows[0].vals, COL.NAME) + '_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'MMdd-HHmm') + '.' + ext));
     try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
     const id = file.getId();
     rows.forEach(x => {
-      sh.getRange(x.row, 16, 1, 2).setFormulas([[
+      if (String(at_(x.vals, COL.STATUS)) === 'ยกเลิก') return;
+      sh.getRange(x.row, COL.SLIP, 1, 2).setFormulas([[
         '=IMAGE("https://drive.google.com/thumbnail?id=' + id + '&sz=w400")',
         '=HYPERLINK("' + file.getUrl() + '","เปิดสลิป")'
       ]]);
-      if (x.vals[10] !== 'จ่ายแล้ว') sh.getRange(x.row, 11).setValue('ส่งสลิปแล้ว');
+      if (at_(x.vals, COL.PAY) !== 'จ่ายแล้ว') sh.getRange(x.row, COL.PAY).setValue('ส่งสลิปแล้ว');
       sh.setRowHeight(x.row, 80);
     });
     return { orderId: req.orderId };
@@ -330,16 +347,25 @@ function slipFolder_() {
   return folder;
 }
 
-/** Remark แบบเดิมที่เคยจด เช่น "รับ 5 + 1scoop No Shine Muscat" */
-function remark_(round, l, addonById) {
-  const p = [round || ''];
-  if (l.addonCount.SCP) p.push('+' + l.addonCount.SCP + 'scoop');
-  if (l.addonCount.HER) p.push('+hershey');
-  Object.keys(l.addonCount).forEach(id => {
-    if (id !== 'SCP' && id !== 'HER') p.push('+' + addonById[id].name);
+/**
+ * เจ้าของร้านแก้ในแท็บ Orders ช่องเดียว แล้วแถวอื่นของออเดอร์เดียวกันเปลี่ยนตาม
+ *   สถานะจ่าย   → ทุกแถวของออเดอร์ (จ่ายทีเดียวทั้งออเดอร์)
+ *   สถานะออเดอร์ → ทุกแถวของวันรับนั้น (เช่น G0041-2)
+ */
+function onEdit(e) {
+  const r = e && e.range;
+  if (!r || r.getSheet().getName() !== SH.ORD || r.getRow() < 2 || r.getNumRows() !== 1 || r.getNumColumns() !== 1) return;
+  const col = r.getColumn();
+  if (col !== COL.PAY && col !== COL.STATUS) return;
+  const sh = r.getSheet(), v = r.getValue();
+  const id = String(sh.getRange(r.getRow(), COL.ID).getValue());
+  if (!id) return;
+  const ids = sh.getRange(2, COL.ID, sh.getLastRow() - 1, 1).getValues();
+  ids.forEach((x, i) => {
+    const row = i + 2, other = String(x[0]);
+    if (row === r.getRow()) return;
+    if (col === COL.PAY ? base_(other) === base_(id) : other === id) sh.getRange(row, col).setValue(v);
   });
-  if (l.excluded.length) p.push('ไม่เอา ' + l.excluded.join('/'));
-  return p.join(' ').trim();
 }
 
 /* ---------------- Setup ---------------- */
@@ -388,104 +414,101 @@ function setup() {
   });
 
   const ord = sheet_(ss, SH.ORD, ORD_HEAD, []);
-  ord.getRange('K2:K').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(PAY_STATUS).build());
-  ord.getRange('L2:L').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(ORDER_STATUS).build());
-  ord.getRange('B2:B').setNumberFormat('dd/MM HH:mm');
-  ord.getRange('G2:I').setNumberFormat('#,##0');
-  const rules = [
-    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$L2="ยกเลิก"')
-      .setBackground('#e0e0e0').setFontColor('#888888').setStrikethrough(true).setRanges([ord.getRange('A2:O')]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$K2="จ่ายแล้ว"')
-      .setBackground('#b7f5b0').setRanges([ord.getRange('A2:O')]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=AND($A2<>"",$K2="ยังไม่จ่าย")')
-      .setBackground('#fff3cd').setRanges([ord.getRange('A2:O')]).build()
-  ];
-  ord.setConditionalFormatRules(rules);
-
-  const item = sheet_(ss, SH.ITEM, ITEM_HEAD, []);
-  item.getRange('B2:B').setNumberFormat('dd/MM HH:mm');
-  item.setConditionalFormatRules([
-    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$Q2="ยกเลิก"')
-      .setBackground('#e0e0e0').setFontColor('#888888').setRanges([item.getRange('A2:Q')]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$P2="จ่ายแล้ว"')
-      .setBackground('#b7f5b0').setRanges([item.getRange('A2:Q')]).build()
-  ]);
+  formatOrders_(ord);
 
   // หน้า Summary ใช้สูตรอัตโนมัติอยู่แล้ว สร้างใหม่เฉพาะตอนที่ยังไม่มีแท็บนี้
   if (!ss.getSheetByName(SH.SUM)) buildSummary();
   SpreadsheetApp.getActive().toast('ตั้งค่าเสร็จแล้ว ✅ ต่อไป Deploy เป็น Web app', 'Greek Shop', 6);
 }
 
-/** หน้าสรุปต่อรอบ — เลือกรอบที่ช่อง B1 */
+/** หน้าตาแท็บ Orders: dropdown สถานะ, สีตามสถานะ, ซ่อน token */
+function formatOrders_(ord) {
+  const n = ord.getMaxRows() - 1;
+  ord.getRange(2, COL.PAY, n, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(PAY_STATUS).build());
+  ord.getRange(2, COL.STATUS, n, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(ORDER_STATUS).build());
+  ord.getRange(2, COL.TIME, n, 1).setNumberFormat('dd/MM HH:mm');
+  ord.getRange(2, COL.DAY, n, 1).setNumberFormat('@');
+  ord.getRange(2, COL.UNIT, n, 2).setNumberFormat('#,##0');
+  ord.getRange(2, COL.SUM, n, 1).setNumberFormat('#,##0');
+  const all = ord.getRange(2, 1, n, COL.STATUS);
+  ord.setConditionalFormatRules([
+    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$R2="ยกเลิก"')
+      .setBackground('#e0e0e0').setFontColor('#888888').setStrikethrough(true).setRanges([all]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$O2="จ่ายแล้ว"')
+      .setBackground('#b7f5b0').setRanges([all]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$O2="ส่งสลิปแล้ว"')
+      .setBackground('#d6ecff').setRanges([all]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=AND($A2<>"",$O2="ยังไม่จ่าย")')
+      .setBackground('#fff3cd').setRanges([all]).build()
+  ]);
+  ord.hideColumns(COL.TOKEN);
+}
+
+/** สูตรหน้า Summary (อ่านจากแท็บ Orders แท็บเดียว) — เลือกวันรับที่ช่อง B1 */
+function summaryFormulas_() {
+  const R = '((($B$1="ทุกรอบ")+(TO_TEXT(Orders!$D$2:$D)=TO_TEXT($B$1)))>0)';   // วันรับที่เลือก
+  const NC = '(Orders!$R$2:$R<>"ยกเลิก")*(Orders!$A$2:$A<>"")';                // ไม่นับที่ยกเลิก
+  const sp = x => '=SUMPRODUCT(' + R + '*' + NC + '*' + x + ')';
+  const day = '"&IF($B$1="ทุกรอบ",""," and D = \'"&$B$1&"\'")&"';
+  return {
+    menuCups: a => '=IF(' + a + '="","",SUMPRODUCT((Orders!$E$2:$E=' + a + ')*' + R + '*' + NC + '*Orders!$I$2:$I))',
+    menuMoney: a => '=IF(' + a + '="","",SUMPRODUCT((Orders!$E$2:$E=' + a + ')*' + R + '*' + NC + '*Orders!$K$2:$K))',
+    fruit: a => '=IF(' + a + '="","",SUMPRODUCT(ISNUMBER(SEARCH(' + a + ',Orders!$F$2:$F))*' + R + '*' + NC + '*Orders!$I$2:$I))',
+    scoop: sp('Orders!$G$2:$G*Orders!$I$2:$I'),
+    hershey: sp('ISNUMBER(SEARCH("Hershey",Orders!$H$2:$H))*Orders!$I$2:$I'),
+    orders: '=IFERROR(ROWS(UNIQUE(FILTER(ARRAYFORMULA(REGEXEXTRACT(Orders!$A$2:$A&"","^G\\d+")),' + R + ',' + NC + '))),0)',
+    sales: sp('Orders!$K$2:$K'),
+    cups: sp('Orders!$I$2:$I'),
+    paid: sp('(Orders!$O$2:$O="จ่ายแล้ว")*Orders!$K$2:$K'),
+    unpaid: sp('(Orders!$O$2:$O="ยังไม่จ่าย")*Orders!$K$2:$K'),
+    slip: sp('(Orders!$O$2:$O="ส่งสลิปแล้ว")*Orders!$K$2:$K'),
+    unpaidList: '=IFERROR(QUERY(Orders!A2:R,"select C, sum(K), A where A is not null and O = \'ยังไม่จ่าย\' and R <> \'ยกเลิก\'' + day + ' group by C, A label sum(K) \'\'",0),"— ไม่มี —")',
+    khunThong: '=IFERROR(LET(q,QUERY(Orders!A2:R,"select C, sum(K) where A is not null and R <> \'ยกเลิก\' and O <> \'จ่ายแล้ว\' and M = \'' + PAY_LATER + '\'' + day + ' group by C label sum(K) \'\'",0),TEXTJOIN(CHAR(10),TRUE,ARRAYFORMULA(INDEX(q,,1)&" ฿"&INDEX(q,,2)))),"— ไม่มีคนจ่ายตอนรับ —")'
+  };
+}
+
+/** สร้างหน้า Summary ใหม่ทั้งหน้า */
 function buildSummary() {
   const ss = SpreadsheetApp.getActive();
   let sh = ss.getSheetByName(SH.SUM);
   if (!sh) sh = ss.insertSheet(SH.SUM);
   sh.clear(); sh.clearConditionalFormatRules();
+  const f = summaryFormulas_();
+  const put = (a1, v) => { const c = sh.getRange(a1); String(v).charAt(0) === '=' ? c.setFormula(v) : c.setValue(v); return c; };
 
-  const cfg = getConfig();
-  const rounds = ['ทุกรอบ'].concat(cfg.rounds);
-  sh.getRange('A1').setValue('เลือกรอบ ▶').setFontWeight('bold');
-  sh.getRange('B1').setValue(cfg.rounds[cfg.rounds.length - 1] || 'ทุกรอบ')
-    .setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(rounds).build())
+  put('A1', 'เลือกรอบ ▶').setFontWeight('bold');
+  put('F1', 'ทุกรอบ'); put('F2', '=FILTER(Rounds!A2:A,Rounds!A2:A<>"")');
+  put('B1', 'ทุกรอบ').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInRange(sh.getRange('F1:F60')).build())
     .setBackground('#fff59d').setFontWeight('bold');
+  const head = (row, t, b, c) => { sh.getRange(row, 1, 1, 3).setValues([[t, b || '', c || '']]).setFontWeight('bold').setBackground('#c9daf8'); };
 
-  // เงื่อนไขกรองรอบ + ไม่นับออเดอร์ที่ยกเลิก
-  const rI = 'IF($B$1="ทุกรอบ","*",$B$1)';
-  const itemCond = 'OrderItems!$C:$C,' + rI + ',OrderItems!$Q:$Q,"<>ยกเลิก"';
-  const ordCond = 'Orders!$E:$E,' + rI + ',Orders!$L:$L,"<>ยกเลิก"';
+  head(3, '🥣 จำนวนแต่ละเมนู', 'ถ้วย', 'ยอดเงิน');
+  for (let i = 0; i < 10; i++) {
+    const r = 4 + i;
+    put('A' + r, '=IF(Menu!B' + (2 + i) + '="","",Menu!B' + (2 + i) + ')');
+    put('B' + r, f.menuCups('A' + r)); put('C' + r, f.menuMoney('A' + r));
+  }
+  sh.getRange('A14:C14').setValues([['รวม', '=SUM(B4:B13)', '=SUM(C4:C13)']]).setFontWeight('bold');
 
-  let r = 3;
-  const head = (t) => { sh.getRange(r, 1, 1, 3).setValues([[t, '', '']]).setFontWeight('bold').setBackground('#c9daf8'); r++; };
+  head(16, '🍇 ผลไม้ที่ต้องเตรียม', 'ถ้วย');
+  for (let i = 0; i < 10; i++) {
+    const r = 17 + i;
+    put('A' + r, '=IF(Fruits!A' + (2 + i) + '="","",Fruits!A' + (2 + i) + ')'); put('B' + r, f.fruit('A' + r));
+  }
+  head(28, '➕ Add-on');
+  put('A29', 'Scoop เพิ่ม (scoop)'); put('B29', f.scoop);
+  put('A30', 'Hershey (ถ้วย)'); put('B30', f.hershey);
 
-  head('🥣 จำนวนแต่ละเมนู (ถ้วย)');
-  const allMenu = rows_(ss.getSheetByName(SH.MENU)).map(x => String(x[1]));
-  allMenu.forEach(n => {
-    sh.getRange(r, 1, 1, 3).setValues([[n,
-      '=SUMIFS(OrderItems!$M:$M,OrderItems!$E:$E,A' + r + ',' + itemCond + ')',
-      '=SUMIFS(OrderItems!$N:$N,OrderItems!$E:$E,A' + r + ',' + itemCond + ')']]);
-    r++;
-  });
-  sh.getRange(r, 1, 1, 3).setValues([['รวม', '=SUM(B' + (r - allMenu.length) + ':B' + (r - 1) + ')',
-    '=SUM(C' + (r - allMenu.length) + ':C' + (r - 1) + ')']]).setFontWeight('bold');
-  r += 2;
-
-  head('🍇 ผลไม้ที่ต้องเตรียม (ถ้วยที่ใส่)');
-  const rnd = 'IF($B$1="ทุกรอบ",TRUE,OrderItems!$C$2:$C=$B$1)';
-  rows_(ss.getSheetByName(SH.FRUIT)).forEach(f => {
-    sh.getRange(r, 1, 1, 2).setValues([[String(f[0]),
-      '=SUMPRODUCT(ISNUMBER(SEARCH(A' + r + ',OrderItems!$F$2:$F))*(' + rnd + ')*(OrderItems!$Q$2:$Q<>"ยกเลิก")*OrderItems!$M$2:$M)']]);
-    r++;
-  });
-  r++;
-
-  head('➕ Add-on');
-  sh.getRange(r++, 1, 1, 2).setValues([['Scoop เพิ่ม (scoop)',
-    '=SUMPRODUCT((' + rnd + ')*(OrderItems!$Q$2:$Q<>"ยกเลิก")*OrderItems!$H$2:$H*OrderItems!$M$2:$M)']]);
-  sh.getRange(r++, 1, 1, 2).setValues([['Hershey (ถ้วย)',
-    '=SUMPRODUCT((' + rnd + ')*(OrderItems!$Q$2:$Q<>"ยกเลิก")*(OrderItems!$I$2:$I="ใช่")*OrderItems!$M$2:$M)']]);
-  r++;
-
-  head('💰 ยอดเงิน (บาท)');
-  const money = [
-    ['จำนวนออเดอร์', '=COUNTIFS(' + ordCond + ',Orders!$A:$A,"G*")'],
-    ['ยอดขายรวม (รวมค่าส่ง)', '=SUMIFS(Orders!$I:$I,' + ordCond + ')'],
-    ['ค่าส่งรวม', '=SUMIFS(Orders!$G:$G,' + ordCond + ')'],
-    ['✅ จ่ายแล้ว', '=SUMIFS(Orders!$I:$I,' + ordCond + ',Orders!$K:$K,"จ่ายแล้ว")'],
-    ['⏳ ยังไม่จ่าย', '=SUMIFS(Orders!$I:$I,' + ordCond + ',Orders!$K:$K,"ยังไม่จ่าย")']
-  ];
-  sh.getRange(r, 1, money.length, 2).setValues(money);
-  sh.getRange(r, 2, money.length, 1).setNumberFormat('#,##0');
-  r += money.length + 1;
-
-  head('⏳ รายชื่อที่ยังไม่จ่าย');
-  sh.getRange(r, 1).setFormula('=IFERROR(QUERY(Orders!A2:L,"select C, I, A where K = \'ยังไม่จ่าย\' and L <> \'ยกเลิก\'' +
-    '"&IF($B$1="ทุกรอบ",""," and E = \'"&$B$1&"\'"),0),"— ไม่มี —")');
+  head(32, '💰 ยอดเงิน (บาท)');
+  [['จำนวนออเดอร์', f.orders], ['ยอดขายรวม', f.sales], ['จำนวนถ้วยรวม', f.cups], ['✅ จ่ายแล้ว', f.paid],
+   ['⏳ ยังไม่จ่าย', f.unpaid], ['📎 ส่งสลิปแล้ว (รอเช็ค)', f.slip]].forEach((x, i) => { put('A' + (33 + i), x[0]); put('B' + (33 + i), x[1]); });
+  head(39, '⏳ ค้างจ่าย: ชื่อ', 'ยอด', 'OrderID');
+  put('A40', f.unpaidList);
+  put('A42', '📋 ยอดรายคนที่ "จ่ายตอนรับ" (copy ไปสร้างบิลในขุนทอง)').setFontWeight('bold');
+  put('A43', f.khunThong);
 
   sh.setColumnWidth(1, 220); sh.setColumnWidth(2, 120); sh.setColumnWidth(3, 120);
-  sh.getRange('C4:C').setNumberFormat('#,##0');
-  sh.getRange('C3').setValue('ยอดเงิน');
-  sh.getRange('B3').setValue('ถ้วย');
+  sh.getRange('B33:B38').setNumberFormat('#,##0'); sh.getRange('C4:C14').setNumberFormat('#,##0');
 }
 
 /* ---------------- helpers ---------------- */
