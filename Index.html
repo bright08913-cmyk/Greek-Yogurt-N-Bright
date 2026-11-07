@@ -174,6 +174,12 @@
   .total b{font-family:Itim,sans-serif;font-weight:400;font-size:26px;color:var(--pink-dark)}
   .err{color:var(--danger);font-size:14px;margin-top:10px;display:none;font-weight:600}
   .payopts{display:flex;flex-direction:column;gap:8px}
+  .box.need{border:2px dashed var(--pink);animation:nudge 2.6s ease-in-out .6s infinite}
+  .box.need .req{color:var(--pink-dark)}
+  .box.bump{animation:bump .45s ease-in-out}
+  @keyframes nudge{0%,76%,100%{transform:none}80%{transform:translateX(-3px) rotate(-.4deg)}84%{transform:translateX(3px) rotate(.4deg)}88%{transform:translateX(-2px)}92%{transform:translateX(2px)}96%{transform:translateX(-1px)}}
+  @keyframes bump{0%,100%{transform:none}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+  @media (prefers-reduced-motion: reduce){.box.need,.box.bump{animation:none}}
   .payopt{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;border:2px dashed #C9B8CC;background:#fff;text-align:left;cursor:pointer;min-height:60px}
   .payopt .dot{width:24px;height:24px;border-radius:12px;border:2px solid var(--ink);flex:none;position:relative;background:#fff}
   .payopt.on{border:2px solid var(--ink);background:var(--soft)}
@@ -278,7 +284,7 @@ const DEMO_CONFIG = {
 
 let C = null, cart = [], draft = null, editIndex = -1;
 const info = load('greek_form') || {name:''};
-info.round = ''; info.note = ''; info.payLater = false;
+info.round = ''; info.note = ''; info.payLater = null;   // null = not chosen yet (no default, avoids mis-taps)
 
 /* one way to talk to the backend, whether the page runs inside Apps Script, on GitHub Pages, or as a demo */
 function call(fn, arg){
@@ -515,7 +521,7 @@ function openItem(menuId, idx){
         : { menuId, qty:1, addons:{}, fruits: [], round: defaultRound() };   // no fruit picked yet — customer chooses
   if (C.rounds.indexOf(draft.round) < 0) draft.round = defaultRound();
   const fruitsBox = m.fruitPick > 0 ? `
-    <div class="box">
+    <div class="box" id="fruitBox">
       <h3><span>เลือกผลไม้ <span class="req">*</span></span><small id="pickInfo"></small></h3>
       <div class="fchips">
         ${availFruits().map((f,i) => `<button class="fchip" id="fc${i}" onclick="toggleFruit(${i})">${chipIcon(f)}${esc(f.name)}</button>`).join('')}
@@ -536,7 +542,7 @@ function openItem(menuId, idx){
     ${m.desc ? `<div class="sub">${esc(m.desc)}</div>` : ''}
     ${fruitsBox}
     ${addonsFor(m).length ? `<div class="box" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
-    ${C.rounds.length > 1 ? `<div class="box"><h3>รับวันไหน <small>ถ้วยนี้</small></h3><div class="rounds">
+    ${C.rounds.length > 1 ? `<div class="box" id="dayBox"><h3><span>รับวันไหน <span class="req">*</span></span><small>ถ้วยนี้</small></h3><div class="rounds">
       ${C.rounds.map((r,i) => `<button class="round" id="rd${i}" onclick="pickItemRound(${i})"><b>${esc(roundLabel(r))}</b>${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
     </div></div>` : ''}
     <div class="box" style="padding-top:6px;padding-bottom:6px"><div class="row"><div class="lbl">จำนวน<small id="unitTxt"></small></div>
@@ -573,6 +579,7 @@ function refreshItem(){
   const needFruit = m.fruitPick > 0 && !draft.fruits.length;
   const needDay = C.rounds.length && C.rounds.indexOf(draft.round) < 0;
   $('addBtn').disabled = needFruit || needDay;
+  need('fruitBox', needFruit); need('dayBox', needDay);
   $('addLbl').textContent = needFruit ? 'เลือกผลไม้ก่อนนะ' : needDay ? 'เลือกวันรับก่อนนะ' : editIndex >= 0 ? 'บันทึก' : 'ใส่ตะกร้า';
 }
 // a new cup starts on the day picked last time (or the only open day)
@@ -641,17 +648,17 @@ function renderCart(){
       ${g.items.map(itemRow).join('')}
     </div>`).join('')}
     ${C.open ? `<button class="btn soft" style="margin-top:12px" onclick="closeSheets()">+ เพิ่มเมนู / เพิ่มวันรับอื่น</button>` : ''}
-    <div class="box">
+    <div class="box${info.name.trim() ? '' : ' need'}" id="nameBox">
       <label class="f" for="fName">ชื่อ <span class="req">*</span></label>
-      <input id="fName" value="${esc(info.name)}" placeholder="เช่น Ice, Nitcha" autocomplete="name" oninput="info.name=this.value">
+      <input id="fName" value="${esc(info.name)}" placeholder="เช่น Ice, Nitcha" autocomplete="name" oninput="info.name=this.value; need('nameBox', !this.value.trim())">
       <div class="sub" style="font-size:12px;margin-top:6px">ใช้ชื่อเดียวกับใน LINE กลุ่ม จะได้เช็คยอดง่าย</div>
     </div>
     <div class="box"><label class="f" for="fNote">หมายเหตุ <span class="sub" style="font-weight:400;font-size:13px">ไม่บังคับ</span></label>
       <textarea id="fNote" rows="2" placeholder="เช่น ขอช้อน 2 อัน" oninput="info.note=this.value">${esc(info.note)}</textarea></div>
-    <div class="box">
-      <h3>จ่ายเงิน</h3>
+    <div class="box${C.open && info.payLater === null ? ' need' : ''}" id="payBox">
+      <h3><span>จ่ายเงิน <span class="req">*</span></span><small id="payHint">${info.payLater === null ? 'แตะเลือก 1 แบบ' : ''}</small></h3>
       <div class="payopts">
-        <button class="payopt ${info.payLater ? '' : 'on'}" aria-pressed="${!info.payLater}" onclick="pickPay(false)"><span class="dot"></span>
+        <button class="payopt ${info.payLater === false ? 'on' : ''}" aria-pressed="${info.payLater === false}" onclick="pickPay(false)"><span class="dot"></span>
           <span><b>จ่ายเลย</b><small>สแกน QR / โอนกสิกร แล้วแนบสลิปในแอป</small></span></button>
         <button class="payopt ${info.payLater ? 'on' : ''}" aria-pressed="${info.payLater}" onclick="pickPay(true)"><span class="dot"></span>
           <span><b>จ่ายตอนรับของ</b><small>${esc(C.payLaterNote || 'ผ่านขุนทองในกลุ่ม LINE')}</small></span></button>
@@ -661,7 +668,11 @@ function renderCart(){
     <div class="err" id="err" role="alert"></div>
     <div class="sheet-bar"><button class="btn" id="submitBtn" onclick="submit()" ${C.open ? '' : 'disabled'}><span>${C.open ? 'ยืนยันสั่ง' : 'ร้านปิดรับออเดอร์อยู่'}</span><span>${baht(foodTotal())}</span></button></div>`;
 }
-function pickPay(later){ info.payLater = later;
+// required box: dashed pink + a small shake every few seconds until it's filled
+function need(id, on){ const b = $(id); if (b) b.classList.toggle('need', !!on); }
+function bump(id){ const b = $(id); if (!b) return; b.classList.remove('bump'); b.getBoundingClientRect(); b.classList.add('bump');
+  b.scrollIntoView({behavior:'smooth', block:'center'}); setTimeout(() => b.classList.remove('bump'), 500); }
+function pickPay(later){ info.payLater = later; need('payBox', false); $('payHint').textContent = '';
   document.querySelectorAll('.payopt').forEach((b,j) => { const on = (j === 1) === later; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); }
 function editItem(i){ closeSheets({stay: true}); setTimeout(() => openItem(cart[i].menuId, i), 260); }
 function removeItem(i){ cart.splice(i,1); save('greek_cart', cart); render(); renderCart(); }
@@ -670,18 +681,19 @@ function submit(){
   const err = $('err'), fail = msg => { err.textContent = msg; err.style.display = 'block'; };
   err.style.display = 'none';
   if (!C.open) { fail(C.closedMsg); return; }
-  if (!info.name.trim()) { fail('กรุณาใส่ชื่อ'); $('fName').focus(); return; }
+  if (!info.name.trim()) { fail('กรุณาใส่ชื่อ'); bump('nameBox'); $('fName').focus(); return; }
+  if (info.payLater === null) { fail('เลือกวิธีจ่ายเงินก่อนนะ'); bump('payBox'); return; }
   if (cart.some(it => menuOf(it.menuId).fruitPick > 0 && !(it.fruits || []).length)) { fail('มีถ้วยที่ยังไม่ได้เลือกผลไม้ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
   if (C.rounds.length && cart.some(it => C.rounds.indexOf(it.round) < 0)) { fail('มีถ้วยที่ยังไม่ได้เลือกวันรับ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
   const btn = $('submitBtn'); btn.disabled = true; btn.innerHTML = '<span>กำลังส่งออเดอร์…</span><span class="spin"></span>';
   save('greek_form', {name: info.name});
-  const payload = { name: info.name, note: info.note, payLater: info.payLater, items: cart };
+  const payload = { name: info.name, note: info.note, payLater: !!info.payLater, items: cart };
   const itemsText = cart.map(it => menuOf(it.menuId).name + ' x' + it.qty).join(', ');
   call('submitOrder', payload).then(res => {
     const done = Object.assign({}, res, { name: info.name, itemsText, items: JSON.parse(JSON.stringify(cart)) });
     if (!res.payLater) save('greek_pending', done);         // remember until the slip is in
     save('greek_history', [Object.assign({}, done, { at: Date.now(), items: JSON.parse(JSON.stringify(cart)) })].concat(history_()).slice(0, 30));
-    cart = []; save('greek_cart', []); info.note = '';
+    cart = []; save('greek_cart', []); info.note = ''; info.payLater = null;
     closeSheets({stay: true}); renderDone(done);
     setTimeout(() => { try { history.pushState({page:'done'}, ''); } catch(e){} }, 300);
   }).catch(e => { renderCart(); $('err').textContent = (e && e.message) || 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง'; $('err').style.display = 'block'; });
