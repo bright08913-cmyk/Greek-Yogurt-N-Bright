@@ -164,6 +164,25 @@
   .days b{font-family:Itim,sans-serif;font-weight:400;font-size:16px;white-space:nowrap}
   .days span{flex:1;font-size:12px;color:var(--muted);min-width:0}
   .days em{font-style:normal;font-family:Itim,sans-serif;font-size:16px}
+  .hist-btn{display:flex;align-items:center;gap:8px;width:100%;margin-top:14px;background:#fff;border:2px solid var(--ink);border-radius:16px;padding:10px 14px;
+            box-shadow:0 3px 0 var(--ink);cursor:pointer;font-weight:600;font-size:15px;text-align:left}
+  .hist-btn span{flex:1}
+  .hist-btn em{font-style:normal;background:var(--soft);border:2px solid var(--ink);border-radius:12px;min-width:26px;padding:0 6px;text-align:center;font-size:13px}
+  .hcard{padding-top:10px}
+  .hhead{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:6px;border-bottom:2px dashed var(--line)}
+  .hhead b{font-family:Itim,sans-serif;font-weight:400;font-size:19px}
+  .hhead span{font-size:12px;color:var(--muted)}
+  .hrow{display:flex;justify-content:space-between;gap:10px;padding:8px 0}
+  .hrow + .hrow{border-top:2px dashed var(--line)}
+  .hrow b{font-weight:600;font-size:15px;display:block}
+  .hrow small{display:block;font-size:12px;color:var(--muted)}
+  .hrow em{font-style:normal;font-family:Itim,sans-serif;font-size:17px;white-space:nowrap}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .chip{font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;border:1.5px solid var(--ink)}
+  .chip.warn{background:#FFF1C7}.chip.info{background:#E1F0FB}.chip.ok{background:#D8F3E3}.chip.done{background:#ECE6F2}.chip.bad{background:#FFE0E6;color:var(--danger)}
+  .hfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding-top:8px;border-top:2px dashed var(--line);font-size:13px;color:var(--muted)}
+  .mini{border:2px solid var(--ink);background:#fff;border-radius:12px;padding:6px 12px;font-weight:600;font-size:14px;cursor:pointer;min-height:36px}
+  .mini.pink{background:var(--pink)}
   .total{display:flex;justify-content:space-between;align-items:baseline}
   .total span{font-family:Itim,sans-serif;font-size:19px}
   .total b{font-family:Itim,sans-serif;font-weight:400;font-size:26px;color:var(--pink-dark)}
@@ -219,6 +238,7 @@
 <div class="overlay" id="overlay" onclick="closeSheets()"></div>
 <div class="sheet" id="itemSheet" role="dialog" aria-modal="true"><div class="inner" id="itemInner"></div></div>
 <div class="sheet" id="cartSheet" role="dialog" aria-modal="true"><div class="inner" id="cartInner"></div></div>
+<div class="sheet" id="histSheet" role="dialog" aria-modal="true"><div class="inner" id="histInner"></div></div>
 
 <script>
 /* ---------- data ---------- */
@@ -253,7 +273,7 @@ function call(fn, arg){
   return new Promise((resolve, reject) => {
     if (IS_GAS) return google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](arg);
     if (API_URL){
-      const action = {getConfig:'config', submitOrder:'order', attachSlip:'slip'}[fn];
+      const action = {getConfig:'config', submitOrder:'order', attachSlip:'slip', myOrders:'history'}[fn];
       const body = fn === 'submitOrder' ? {action, order: arg} : Object.assign({action}, arg || {});
       fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body), redirect:'follow'})
         .then(r => r.text().then(t => {
@@ -272,11 +292,13 @@ function call(fn, arg){
     }
     setTimeout(() => { // demo
       if (fn === 'getConfig') resolve(DEMO_CONFIG);
-      else if (fn === 'submitOrder') resolve({ orderId:'G0039', token:'demo', payLater: !!arg.payLater, total: foodTotal(), cups: cupCount(),
+      else if (fn === 'submitOrder') { const oid = 'G' + (1000 + Math.floor(Math.random() * 9000)); resolve({ orderId: oid, token:'demo', payLater: !!arg.payLater, total: foodTotal(), cups: cupCount(),
         parts: [...new Set(cart.map(it => it.round))].map((rd,k,a) => { const its = cart.filter(it => it.round === rd);
-          return { orderId: a.length > 1 ? 'G0039-' + (k+1) : 'G0039', round: rd, cups: its.reduce((s,it) => s + it.qty, 0), total: its.reduce((s,it) => s + linePrice(it), 0),
+          return { orderId: a.length > 1 ? oid + '-' + (k+1) : oid, round: rd, cups: its.reduce((s,it) => s + it.qty, 0), total: its.reduce((s,it) => s + linePrice(it), 0),
                    summary: its.map(it => menuOf(it.menuId).name + (it.qty > 1 ? ' x' + it.qty : '')).join(', ') }; }),
-        bankAccount:C.bankAccount, accountName:C.accountName, bankName:C.bankName });
+        bankAccount:C.bankAccount, accountName:C.accountName, bankName:C.bankName }); }
+      else if (fn === 'myOrders') { const out = {}; history_().forEach(h => out[h.orderId] = (h.parts || []).map(p => ({ id: p.orderId, round: p.round, total: p.total,
+          pay: h.payLater ? 'ยังไม่จ่าย' : (h.slip ? 'ส่งสลิปแล้ว' : 'ยังไม่จ่าย'), status: 'ใหม่', slip: !!h.slip }))); resolve(out); }
       else resolve({ orderId: arg.orderId });
     }, 700);
   });
@@ -315,6 +337,7 @@ const ICON = {
   close:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4B3A4F" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   cart:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4B3A4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg>',
   qr:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4B3A4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>',
+  receipt:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4B3A4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
   copy:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B3A4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/></svg>',
   check:'<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   line:'<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6" fill="#06C755"/><path d="M12 5.5c-4 0-7 2.5-7 5.6 0 2.8 2.4 5.1 5.7 5.5.6.1.4.6.3 1.2-.1.5 0 .9.6.6 1.9-1 4.6-3 5.9-4.6.9-1 1.5-1.9 1.5-2.7 0-3.1-3-5.6-7-5.6z" fill="#fff"/></svg>',
@@ -452,6 +475,7 @@ function render(){
     ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}</div>`}
     ${load('greek_pending') ? `<button class="banner" onclick="renderDone(load('greek_pending'))">${ICON.qr}<span>ออเดอร์ ${esc(load('greek_pending').orderId)} ยังไม่ได้แนบสลิป</span>แนบเลย →</button>` : ''}
     ${installCard()}
+    ${history_().length ? `<button class="hist-btn" onclick="openHistory()">${ICON.receipt}<span>ออเดอร์ของฉัน</span><em>${history_().length}</em></button>` : ''}
     <div class="grid">
       ${C.menu.map(m => `
         <button class="menu ${inCart[m.id]?'in-cart':''}" onclick="openItem('${m.id}')" ${C.open?'':'disabled'}>
@@ -629,6 +653,7 @@ function submit(){
   call('submitOrder', payload).then(res => {
     const done = Object.assign({}, res, { name: info.name, itemsText });
     if (!res.payLater) save('greek_pending', done);         // remember until the slip is in
+    save('greek_history', [Object.assign({}, done, { at: Date.now(), items: JSON.parse(JSON.stringify(cart)) })].concat(history_()).slice(0, 30));
     cart = []; save('greek_cart', []); info.note = '';
     closeSheets({stay: true}); renderDone(done);
     setTimeout(() => { try { history.pushState({page:'done'}, ''); } catch(e){} }, 300);
@@ -702,6 +727,7 @@ function pickSlip(input){
     return call('attachSlip', { orderId: r.orderId, token: r.token, image: img }).then(() => img);
   }).then(img => {
     try { localStorage.removeItem('greek_pending'); } catch(e){}
+    save('greek_history', history_().map(h => h.orderId === r.orderId ? Object.assign(h, {slip: true}) : h));
     box.classList.add('ok');
     box.innerHTML = `<img src="${img}" alt="สลิปที่ส่งแล้ว"><span>ร้านได้รับสลิปแล้ว ขอบคุณค่า</span>`;
   }).catch(e => {
@@ -733,6 +759,49 @@ function installCard(){
 }
 function doInstall(){ if (installEvt){ installEvt.prompt(); installEvt = null; render(); } }
 
+/* ---------- order history (kept on this phone; live status from the sheet) ---------- */
+const history_ = () => load('greek_history') || [];
+const PAY_TXT = {'ยังไม่จ่าย':['ยังไม่จ่าย','warn'], 'ส่งสลิปแล้ว':['ส่งสลิปแล้ว รอร้านเช็ค','info'], 'จ่ายแล้ว':['จ่ายแล้ว','ok']};
+const ST_TXT = {'ใหม่':['ร้านได้รับออเดอร์แล้ว','info'], 'ทำแล้ว':['ทำเสร็จแล้ว รอรับ','ok'], 'ส่งแล้ว':['รับของแล้ว','done'], 'ยกเลิก':['ยกเลิก','bad']};
+let histLive = {};
+function openHistory(){
+  histLive = null; renderHistory(); show('histSheet');
+  const list = history_().map(h => ({ orderId: h.orderId, token: h.token }));
+  call('myOrders', { orders: list }).then(m => { histLive = m || {}; renderHistory(); })
+    .catch(() => { histLive = {}; renderHistory('อัปเดตสถานะไม่ได้ตอนนี้ — แสดงข้อมูลที่จำไว้'); });
+}
+function renderHistory(note){
+  const hs = history_(), fmt = t => new Date(t).toLocaleDateString('th-TH', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+  const chip = (map, v) => { const x = map[v]; return x ? `<span class="chip ${x[1]}">${esc(x[0])}</span>` : ''; };
+  $('histInner').innerHTML = `
+    <div style="padding-top:16px"><button class="back-btn" onclick="closeSheets()">${ICON.back}<span>กลับ</span></button></div>
+    <h2 class="h" style="margin:14px 0 0;font-size:26px">ออเดอร์ของฉัน</h2>
+    <div class="sub" style="font-size:13px">${histLive === null ? '<span class="spin"></span> กำลังอัปเดตสถานะ…' : esc(note || 'สถานะล่าสุดจากร้าน')}</div>
+    ${hs.map((h, k) => { const live = histLive && histLive[h.orderId];
+      const rows = live || (h.parts || []).map(p => ({ id: p.orderId, round: p.round, total: p.total }));
+      const needSlip = !h.payLater && !h.slip && !(live && live.every(r => r.slip || r.pay === 'จ่ายแล้ว'));
+      return `<div class="box hcard">
+        <div class="hhead"><b>${esc(h.orderId)}</b><span>${fmt(h.at)}</span></div>
+        ${rows.map(r => { const part = (h.parts || []).find(p => p.orderId === r.id) || {};
+          return `<div class="hrow"><div><b>${esc(roundLabel(r.round || ''))}</b><small>${esc(part.summary || '')}</small>
+            <div class="chips">${live ? chip(ST_TXT, r.status) + chip(PAY_TXT, r.pay) : ''}</div></div><em>${baht(r.total)}</em></div>`; }).join('')}
+        <div class="hfoot"><span>${h.payLater ? 'จ่ายตอนรับของ' : 'จ่ายเลย'} · รวม ${baht(h.total)}</span>
+          <span style="display:flex;gap:8px">${needSlip ? `<button class="mini" onclick="slipFromHistory(${k})">แนบสลิป</button>` : ''}
+          <button class="mini pink" onclick="reorder(${k})">สั่งซ้ำ</button></span></div>
+      </div>`; }).join('')}
+    <div class="sub" style="font-size:12px;text-align:center;margin-top:14px">เก็บไว้ในมือถือเครื่องนี้ · 30 ออเดอร์ล่าสุด</div>`;
+}
+function slipFromHistory(k){ const h = history_()[k]; save('greek_pending', h); closeSheets({stay: true}); renderDone(h); }
+function reorder(k){
+  const h = history_()[k];
+  const add = (h.items || []).filter(it => menuOf(it.menuId)).map(it => Object.assign(JSON.parse(JSON.stringify(it)), {
+    round: C.rounds.indexOf(it.round) >= 0 ? it.round : (C.rounds.length === 1 ? C.rounds[0] : ''),
+    fruits: (it.fruits || []).filter(f => availFruits().some(x => x.name === f)) }));
+  if (!add.length) return;
+  cart = cart.concat(add); save('greek_cart', cart);
+  closeSheets({stay: true}); render(); setTimeout(openCart, 260);
+}
+
 /* ---------- sheets ---------- */
 /* each open sheet is a step in the browser history, so the phone's back button / swipe closes it
    instead of leaving the app; closing a fruit sheet opened from the cart goes back to the cart */
@@ -742,7 +811,7 @@ function show(id){
   const had = !!sheetOpen; sheetOpen = id;
   try { history[had ? 'replaceState' : 'pushState']({sheet: id}, ''); } catch(e){}
 }
-function hideSheets(){ ['itemSheet','cartSheet'].forEach(id => $(id).classList.remove('show')); $('overlay').classList.remove('show'); sheetOpen = null; }
+function hideSheets(){ ['itemSheet','cartSheet','histSheet'].forEach(id => $(id).classList.remove('show')); $('overlay').classList.remove('show'); sheetOpen = null; }
 function closeSheets(opts){
   const toCart = sheetOpen === 'itemSheet' && editIndex >= 0 && !(opts && opts.stay);
   hideSheets();

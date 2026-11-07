@@ -51,6 +51,7 @@ function doPost(e) {
       }
     }
     if (body.action === 'config') return json_({ ok: true, data: getConfig() });
+    if (body.action === 'history') return json_({ ok: true, data: myOrders(body) });
     throw new Error('unknown action');
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err) });
@@ -207,6 +208,26 @@ function submitOrder(order) {
     lock.releaseLock();
   }
 }
+/**
+ * "ออเดอร์ของฉัน": แอปส่งเลขออเดอร์ + token ที่มือถือเครื่องนั้นจำไว้ → ส่งสถานะล่าสุดกลับ
+ * (ต้องมี token ตรง คนอื่นจึงดูออเดอร์ของเราไม่ได้)
+ */
+function myOrders(req) {
+  const asked = (req && req.orders || []).slice(0, 60);
+  const sh = SpreadsheetApp.getActive().getSheetByName(SH.ORD);
+  if (!asked.length || sh.getLastRow() < 2) return {};
+  const vals = sh.getRange(2, 1, sh.getLastRow() - 1, ORD_HEAD.length).getValues();
+  const out = {};
+  asked.forEach(a => {
+    const base = String(a.orderId || ''), tok = String(a.token || '');
+    if (!base || !tok) return;
+    const rows = vals.filter(r => (String(r[0]) === base || String(r[0]).indexOf(base + '-') === 0) && String(r[17]) === tok);
+    if (rows.length) out[base] = rows.map(r => ({ id: String(r[0]), round: r[4] instanceof Date ? Utilities.formatDate(r[4], 'Asia/Bangkok', 'd MMM') : String(r[4]),
+      total: Number(r[8]) || 0, pay: String(r[10]), status: String(r[11]), slip: !!String(r[15]) }));
+  });
+  return out;
+}
+
 /** เลขออเดอร์วิ่งต่อจากเลขสูงสุดในแท็บ Orders */
 function nextOrderNo_(ordSh) {
   const props = PropertiesService.getScriptProperties();
