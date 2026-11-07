@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Bright Greek — สั่ง Greek Yogurt</title>
-<link href="https://fonts.googleapis.com/css2?family=Itim&family=Mali:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Itim&family=Mali:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#FFF6F1; --card:#FFFFFF; --ink:#4B3A4F; --muted:#76667A; --line:#EADCE0;
@@ -207,6 +207,25 @@
   .install b{color:var(--ink);display:block;font-size:14px}
   .install button{border:2px solid var(--ink);background:var(--pink);border-radius:12px;padding:6px 12px;font-weight:600;cursor:pointer;white-space:nowrap}
   .install .x{background:none;border:0;color:var(--muted);padding:8px;font-size:18px;line-height:1}
+  .g-stage{position:relative;align-self:stretch;height:260px;border:2.5px solid var(--ink);border-radius:24px;overflow:hidden;box-shadow:var(--shadow);
+           background:linear-gradient(#FFB3C7 0 16%,#FFC2D1 16% 32%,#FFD3DE 32% 48%,#FFE3EA 48% 64%,#FFF0F3 64% 80%,#FFF8F9 80%)}
+  .g-stage canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+  .g-banner{position:absolute;top:16px;left:0;right:0;text-align:center;font-family:'Press Start 2P',monospace;font-size:14px;color:#fff;
+            text-shadow:2px 2px 0 #C93C63,4px 4px 0 #4B3A4F;animation:gBlink 1.4s steps(2,jump-none) infinite}
+  @keyframes gBlink{0%{opacity:1}50%{opacity:.55}}
+  .g-hero{position:absolute;left:50%;top:52px;transform:translateX(-50%);animation:gFloat 1.8s cubic-bezier(.45,0,.55,1) infinite alternate}
+  @keyframes gFloat{from{transform:translate(-50%,0) rotate(-2deg)}to{transform:translate(-50%,-14px) rotate(2deg)}}
+  .g-shadow{position:absolute;left:50%;top:214px;transform:translateX(-50%);animation:gShadow 1.8s cubic-bezier(.45,0,.55,1) infinite alternate}
+  @keyframes gShadow{from{transform:translateX(-50%) scale(1)}to{transform:translateX(-50%) scale(.72);opacity:.6}}
+  .g-spark{position:absolute;animation:gTw 1.2s steps(3,jump-none) infinite}
+  @keyframes gTw{0%{opacity:0;transform:scale(.5)}50%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.5)}}
+  .g-pop{position:absolute;font-family:'Press Start 2P',monospace;font-size:10px;color:#C93C63;text-shadow:1px 1px 0 #fff;opacity:0;animation:gRise 2.4s linear infinite}
+  @keyframes gRise{0%{transform:translateY(0);opacity:0}10%{opacity:1}80%{opacity:1}100%{transform:translateY(-120px);opacity:0}}
+  .g-hud{position:absolute;bottom:10px;left:12px;right:12px;display:flex;align-items:center;font-family:'Press Start 2P',monospace;font-size:9px;color:var(--ink)}
+  .g-bar{flex:1;margin:0 8px;height:9px;border:2px solid var(--ink);position:relative;background:#fff}
+  .g-bar i{position:absolute;inset:0;width:0;background:linear-gradient(#FF9DB5,#C93C63);animation:gFill 2.6s steps(10,end) forwards}
+  @keyframes gFill{to{width:100%}}
+  @media (prefers-reduced-motion: reduce){ .g-banner,.g-hero,.g-shadow,.g-spark,.g-pop{animation:none} .g-bar i{animation:none;width:100%} }
   .loading{text-align:center;color:var(--muted);padding:80px 0}
   .spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(75,58,79,.25);border-top-color:var(--ink);border-radius:50%;animation:sp 1s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
@@ -661,6 +680,124 @@ function submit(){
   }).catch(e => { renderCart(); $('err').textContent = (e && e.message) || 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง'; $('err').style.display = 'block'; });
 }
 
+/* ---------- 16-bit "order complete" scene: pixel art drawn from the real Original bowl ---------- */
+const Game16 = (() => {
+
+function Grid(w,h){ this.w=w; this.h=h; this.p=new Array(w*h).fill(null); }
+Grid.prototype.set=function(x,y,c){ x=Math.round(x); y=Math.round(y); if(x>=0&&y>=0&&x<this.w&&y<this.h&&c) this.p[y*this.w+x]=c; };
+Grid.prototype.get=function(x,y){ return (x<0||y<0||x>=this.w||y>=this.h)?null:this.p[y*this.w+x]; };
+// light from the top-left; returns 0 (lit) .. ramp.length-1 (shadow)
+function shade(nx,ny,ramp,dither,x,y){
+  let v=(-0.55*nx-0.7*ny+0.25*Math.sqrt(Math.max(0,1-nx*nx-ny*ny)))*0.5+0.5;      // 0..1
+  let t=(1-v)*(ramp.length-1);
+  if(dither){ const b=[[0,.5],[.75,.25]][y&1][x&1]; t=Math.floor(t+b-.25); } else t=Math.round(t);
+  return ramp[Math.max(0,Math.min(ramp.length-1,t))];
+}
+function ball(g,cx,cy,r,ramp,o){ o=o||{};
+  for(let y=Math.floor(cy-r);y<=cy+r;y++) for(let x=Math.floor(cx-r);x<=cx+r;x++){
+    const dx=(x+.5-cx)/r, dy=(y+.5-cy)/r; if(dx*dx+dy*dy>1) continue;
+    g.set(x,y, ramp.length>1? shade(dx,dy,ramp,o.dither,x,y) : ramp[0]);
+  }
+  if(o.spec) g.set(cx-r*.45,cy-r*.45,o.spec);
+}
+function ell(g,cx,cy,rx,ry,ramp,o){ o=o||{};
+  for(let y=Math.floor(cy-ry);y<=cy+ry;y++) for(let x=Math.floor(cx-rx);x<=cx+rx;x++){
+    const dx=(x+.5-cx)/rx, dy=(y+.5-cy)/ry; if(dx*dx+dy*dy>1) continue;
+    g.set(x,y, ramp.length>1? shade(dx,dy,ramp,o.dither,x,y):ramp[0]);
+  }
+}
+function rect(g,x0,y0,x1,y1,c){ for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++) g.set(x,y,typeof c==='function'?c(x,y):c); }
+// trapezoid cup: top y0 from xl0..xr0, bottom y1 from xl1..xr1
+function trap(g,y0,y1,xl0,xr0,xl1,xr1,fill){
+  for(let y=y0;y<=y1;y++){ const t=(y-y0)/Math.max(1,y1-y0), l=Math.round(xl0+(xl1-xl0)*t), r=Math.round(xr0+(xr1-xr0)*t);
+    for(let x=l;x<=r;x++) g.set(x,y,fill(x,y,(x-l)/Math.max(1,r-l),t)); }
+}
+function outline(g,col,selective){
+  const add=[];
+  for(let y=0;y<g.h;y++) for(let x=0;x<g.w;x++){ if(g.get(x,y)) continue;
+    const n=[g.get(x-1,y),g.get(x+1,y),g.get(x,y-1),g.get(x,y+1)].filter(Boolean);
+    if(n.length) add.push([x,y, selective? (selective[n[0]]||col) : col]); }
+  add.forEach(a=>g.set(a[0],a[1],a[2]));
+}
+function draw(g,canvas,scale){
+  canvas.width=g.w*scale; canvas.height=g.h*scale; const c=canvas.getContext('2d'); c.clearRect(0,0,canvas.width,canvas.height);
+  for(let y=0;y<g.h;y++) for(let x=0;x<g.w;x++){ const v=g.p[y*g.w+x]; if(v){ c.fillStyle=v; c.fillRect(x*scale,y*scale,scale,scale);} }
+}
+
+function wedge(g,x,y,len,wid,ang,ramp,flesh,seed){
+  const ca=Math.cos(ang), sa=Math.sin(ang);
+  const paint=(shrink,fn)=>{ for(let v=-wid;v<=wid;v+=.4) for(let u=0;u<=len;u+=.4){
+      const w=wid*Math.pow(u/len,.8); if(Math.abs(v)>w-shrink || u>len-shrink || u<shrink*1.2) continue;
+      g.set(x+u*ca-v*sa, y+u*sa+v*ca, fn(u/len, v/Math.max(.01,w))); } };
+  paint(0,()=>ramp[2]);                                                     // dark edge
+  paint(1,(t,sd)=> sd<-.25 ? flesh : (t<.35 ? ramp[0] : ramp[1]));          // skin + cut face
+  if(seed) [[.45,.3],[.65,.55],[.8,.2],[.6,.05]].forEach(k=>{ const u=len*k[0], v=wid*k[1]*Math.pow(k[0],.8); g.set(x+u*ca-v*sa, y+u*sa+v*ca, seed); });
+}
+function bowlSprite(W,H,s,pal,dither){
+  // everything is laid out on a 72x56 board, then scaled by s (0.5 for the 8-bit one)
+  const g=new Grid(W,H), X=v=>v*s, R=v=>v*s;
+  const cx=X(36), rimY=X(33), rx=X(34.5), ry=X(10.5), baseY=X(51), brx=X(24), bry=X(3.2);
+  // shallow clear bowl body
+  for(let y=Math.floor(rimY);y<=baseY+bry;y++){
+    const t=Math.min(1,(y-rimY)/(baseY-rimY)), half=rx+(brx-rx)*Math.pow(t,1.35);
+    for(let x=Math.ceil(cx-half);x<=cx+half;x++){
+      if(t>=1){ const yb=baseY+bry*Math.sqrt(Math.max(0,1-((x-cx)/brx)**2)); if(y>yb) continue; }
+      const u=(x-(cx-half))/(2*half);
+      g.set(x,y, u<.1?pal.cup[0]: u>.82?pal.cup[2]: u>.62?pal.cup[1]: pal.body);
+    }
+  }
+  if(s>.6) for(let y=Math.floor(rimY+5);y<baseY-2;y++) if(y%3) g.set(cx-rx*.8+(y-rimY)*.35,y,'#FFFFFF');
+  ell(g,cx,rimY,rx,ry,[pal.rim]); ell(g,cx,rimY+.5,rx-R(1.6),ry-R(1.4),pal.surf,{dither});
+  // red grapes, back left
+  [[12,25,6.4],[21,17,5.4],[28,24,5.4]].forEach(a=>ball(g,X(a[0]),X(a[1]),R(a[2]),pal.redg,{spec:pal.spec,dither}));
+  // green grapes, back middle
+  [[35,12,6.6],[48,12,6.6],[43,21,5]].forEach(a=>ball(g,X(a[0]),X(a[1]),R(a[2]),pal.grn,{spec:'#FFFFFF',dither}));
+  // the yogurt scoop
+  ball(g,X(37),X(27),R(7.8),pal.yog,{dither});
+  // strawberry quarters on the right
+  [[49,17,.5,15,6.5],[60,19,1.3,13,6],[47,29,.8,15,7],[60,31,1.7,12,6],[51,39,-.25,17,7]].forEach(a=>wedge(g,X(a[0]),X(a[1]),R(a[3]),R(a[4]),a[2],pal.straw,pal.flesh,s>.6?pal.seed:null));
+  // banana slices fanned along the front-left
+  for(let k=0;k<7;k++){ const t=k/6, x=7+28*t, y=31+13*Math.sin(t*1.5);
+    ell(g,X(x),X(y),R(6.4),R(4.9),[pal.ban[2]]); ell(g,X(x)-.3,X(y)-.3,R(6.4)-1,R(4.9)-1,[pal.ban[0],pal.ban[0],pal.ban[1]],{dither});
+    if(s>.6){ g.set(X(x),X(y),pal.ban[2]); g.set(X(x)+1.5,X(y)-.5,pal.ban[2]); g.set(X(x)-1.5,X(y)-.5,pal.ban[2]); } }
+  // two blueberries in front of the scoop
+  [[25,30,6],[34,39,6.3]].forEach(a=>ball(g,X(a[0]),X(a[1]),R(a[2]),pal.blue,{spec:pal.bluespec,dither}));
+  outline(g,pal.ink);
+  return g;
+}
+const PAL16={ink:'#3B2A40', body:'#F4F0EC', cup:['#FFFFFF','#E2DCE6','#C9C1D3'], rim:'#D3DCE8', surf:['#FBF8F4','#F1ECE6','#E3DCD6'],
+  redg:['#C2557A','#8E2A4C','#561731'], grn:['#E3F5A8','#B5D86A','#7FA83A'], yog:['#FFFFFF','#F3F1F0','#DAD5DA'],
+  straw:['#FF6B6B','#E0303C','#9E1B2A'], flesh:'#FFB3A6', seed:'#FFE08A', ban:['#FFF8D8','#F6E8A8','#D9C27A'],
+  blue:['#6F7FB3','#3A4778','#1E2650'], bluespec:'#AEB8DA', spec:'#FFD6E4'};
+function star(col,big){ const g=new Grid(5,5); g.set(2,0,col);g.set(2,4,col);g.set(0,2,col);g.set(4,2,col);g.set(2,2,'#FFFFFF');
+  if(big){g.set(2,1,col);g.set(2,3,col);g.set(1,2,col);g.set(3,2,col);} return g; }
+function heart(c1){ const rows=['.##.##.','#######','#######','.#####.','..###..','...#...']; const g=new Grid(7,6);
+  rows.forEach((r,y)=>[...r].forEach((ch,x)=>{ if(ch==='#') g.set(x,y,(x<2&&y<2)?'#FFFFFF':c1); })); return g; }
+function coin(){ const g=new Grid(6,7); ell(g,3,3.5,2.6,3.2,['#FFEC27']); for(let y=2;y<=5;y++) g.set(3,y,'#FFA300'); g.set(1,2,'#FFFFFF'); outline(g,'#AB5236'); return g; }
+
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let bowlCache = null;
+  function mount(stage){
+    if (!stage) return;
+    const bowl = bowlCache || (bowlCache = bowlSprite(72,56,1,PAL16,true));
+    const hero = stage.querySelector('.g-hero'), sh = stage.querySelector('.g-shadow');
+    draw(bowl, hero, 3); draw((() => { const g = new Grid(52,6); ell(g,26,3,25,2.4,['rgba(75,58,79,.22)']); return g; })(), sh, 3);
+    if (reduce) return;
+    const W = stage.clientWidth || 340, H = stage.clientHeight || 260;
+    [[.08,.30],[.9,.26],[.16,.72],[.86,.7],[.5,.16],[.04,.52],[.95,.5]].forEach((s,i) => {
+      const c = document.createElement('canvas'); c.className = 'g-spark';
+      draw(star(i%2 ? '#FFFFFF' : '#FF8FAB', i%3 === 0), c, 3);
+      c.style.left = (s[0]*W) + 'px'; c.style.top = (s[1]*H) + 'px'; c.style.animationDelay = (i*.17) + 's'; stage.appendChild(c); });
+    [['+1',.14,0],['♥',.82,.6],['+EXP',.64,1.2],['♥',.24,1.9]].forEach(p => {
+      const el = document.createElement(p[0] === '♥' ? 'canvas' : 'div'); el.className = 'g-pop';
+      if (p[0] === '♥') draw(heart('#FF6F9A'), el, 3); else el.textContent = p[0];
+      el.style.left = (p[1]*W) + 'px'; el.style.top = (H - 70) + 'px'; el.style.animationDelay = p[2] + 's'; stage.appendChild(el); });
+    [.06,.88].forEach((x,i) => { const c = document.createElement('canvas'); c.className = 'g-pop'; draw(coin(), c, 3);
+      c.style.left = (x*W) + 'px'; c.style.top = (H - 60) + 'px'; c.style.animationDelay = (.5 + i*.8) + 's'; stage.appendChild(c); });
+  }
+  return { mount };
+})();
+
 /* ---------- done ---------- */
 function renderDone(r){
   $('bar').style.display = 'none';
@@ -668,7 +805,11 @@ function renderDone(r){
   const payNow = !r.payLater;
   $('app').innerHTML = `
     <div class="done">
-      <div class="tick">${happyCup(88)}</div>
+      <div class="g-stage" id="gStage" aria-hidden="true">
+        <div class="g-banner">ORDER COMPLETE!</div>
+        <canvas class="g-shadow"></canvas><canvas class="g-hero"></canvas>
+        <div class="g-hud"><span>EXP</span><div class="g-bar"><i></i></div><span>+${r.cups} CUP</span></div>
+      </div>
       <h1 class="h" style="margin:14px 0 0;font-size:30px">สั่งเรียบร้อย~ ขอบคุณค่า</h1>
       <div style="display:flex;align-items:center;gap:10px;margin-top:4px"><span class="sub">เลขออเดอร์</span><span class="oid">${esc(r.orderId)}</span></div>
       <div class="sub" style="margin-top:4px">${esc(r.name || '')} · ${r.cups} ถ้วย</div>
@@ -703,6 +844,7 @@ function renderDone(r){
       <button class="btn center" onclick="render()">${payNow ? 'กลับหน้าเมนู' : 'สั่งเพิ่ม'}</button>
     </div>`;
   window.scrollTo(0,0);
+  Game16.mount($('gStage'));
 }
 // shrink the photo on the phone (slips are big), then send it to the shop
 function shrink(file){
