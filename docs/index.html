@@ -20,7 +20,7 @@
 <meta property="og:image" content="https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/og-16bit.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "503bb4dc6d";</script>
+<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "3c521adc3d";</script>
 
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Jersey+10&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -347,6 +347,7 @@ const DEMO_CONFIG = {
     {id:'BAN',name:'Greek Banoffee',price:100,fruitPick:0,desc:'กล้วย + คาราเมล',addons:false},
     {id:'NOF',name:'Greek no fruits',price:40,fruitPick:0,desc:'กรีกเปล่า'}
   ],
+  maxCups:10,
   addons:[{id:'SCP',name:'เพิ่ม Scoop',price:10,type:'count',max:5},{id:'HER',name:'Hershey syrup',price:10,type:'toggle',max:1}],
   fruits:[{name:'กล้วยหอม',available:true},{name:'องุ่น',available:true},{name:'บลูเบอร์รี่',available:true},{name:'ไชน์มัสคัท',available:true}]
 };
@@ -399,6 +400,10 @@ function call(fn, arg){
 const $ = id => document.getElementById(id);
 const baht = n => '฿' + Number(n).toLocaleString('th-TH');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// a random id for this phone (no personal data) so the shop can limit orders per phone
+function deviceId(){ let d = load('greek_device');
+  if (!d) { d = (crypto.randomUUID ? crypto.randomUUID() : 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12)); save('greek_device', d); }
+  return d; }
 function load(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
 function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 // "6 Nov" → "รับวันที่ 6 Nov" (ถ้าพิมพ์ "รับ..." มาเองแล้วก็ใช้ตามนั้น)
@@ -649,7 +654,7 @@ function cupReact(added){
 function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
   const v = d === 0 ? (n ? 0 : 1) : Math.max(0, Math.min(a.max, n + d));
   if (v) draft.addons[id] = v; else delete draft.addons[id]; refreshItem(); }
-function setQty(d){ draft.qty = Math.max(1, Math.min(50, draft.qty + d)); refreshItem(); }
+function setQty(d){ draft.qty = Math.max(1, Math.min(C.maxCups || 50, draft.qty + d)); refreshItem(); }
 function commitItem(){
   if (!C.open) { bump('itemClosed'); return; }      // closed: look around freely, but nothing goes in the cart
   const needFruit = menuOf(draft.menuId).fruitPick > 0 && !draft.fruits.length;
@@ -694,7 +699,7 @@ function renderCart(){
     ${C.open ? `<button class="btn soft" style="margin-top:12px" onclick="closeSheets()">+ เพิ่มเมนู / เพิ่มวันรับอื่น</button>` : ''}
     <div class="box${info.name.trim() ? '' : ' need'}" id="nameBox">
       <label class="f" for="fName">ชื่อ <span class="req">*</span></label>
-      <input id="fName" value="${esc(info.name)}" placeholder="เช่น Ice, Nitcha" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done" oninput="info.name=this.value; need('nameBox', !this.value.trim())">
+      <input id="fName" maxlength="30" value="${esc(info.name)}" placeholder="เช่น Ice, Nitcha" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done" oninput="info.name=this.value; need('nameBox', !this.value.trim())">
       <div class="sub" style="font-size:12px;margin-top:6px">ใช้ชื่อเดียวกับใน LINE กลุ่ม จะได้เช็คยอดง่าย</div>
     </div>
     <div class="box"><label class="f" for="fNote">หมายเหตุ <span class="sub" style="font-weight:400;font-size:13px">ไม่บังคับ</span></label>
@@ -732,11 +737,13 @@ function submit(){
     if (noName){ bump('nameBox'); $('fName').focus({preventScroll: true}); }
     return;
   }
+  if (C.maxCups && cupCount() > C.maxCups) { fail('สั่งได้สูงสุด ' + C.maxCups + ' ถ้วยต่อออเดอร์ ลดจำนวนลง หรือทักร้านถ้าอยากสั่งเยอะนะ'); return; }
+  if ([...info.name.trim()].length < 2) { fail('ชื่อสั้นไป ใส่อย่างน้อย 2 ตัวอักษรนะ'); bump('nameBox'); return; }
   if (cart.some(it => menuOf(it.menuId).fruitPick > 0 && !(it.fruits || []).length)) { fail('มีถ้วยที่ยังไม่ได้เลือกผลไม้ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
   if (C.rounds.length && cart.some(it => C.rounds.indexOf(it.round) < 0)) { fail('มีถ้วยที่ยังไม่ได้เลือกวันรับ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
   const btn = $('submitBtn'); btn.disabled = true; btn.innerHTML = '<span>กำลังส่งออเดอร์…</span><span class="spin"></span>';
   save('greek_form', {name: info.name});
-  const payload = { name: info.name, note: info.note, payLater: !!info.payLater, items: cart };
+  const payload = { name: info.name.trim(), note: info.note, payLater: !!info.payLater, items: cart, device: deviceId() };
   const itemsText = cart.map(it => menuOf(it.menuId).name + ' x' + it.qty).join(', ');
   call('submitOrder', payload).then(res => {
     const done = Object.assign({}, res, { name: info.name, itemsText, items: JSON.parse(JSON.stringify(cart)) });
@@ -1128,7 +1135,7 @@ function askCancel(btn, k, partId){
     return;
   }
   const h = history_()[k]; btn.disabled = true; btn.textContent = 'กำลังยกเลิก…';
-  call('cancelOrder', { orderId: h.orderId, token: h.token, partId: partId || '' }).then(m => {
+  call('cancelOrder', { orderId: h.orderId, token: h.token, partId: partId || '', device: deviceId() }).then(m => {
     histLive = Object.assign(histLive || {}, m || {});
     const rows = (m || {})[h.orderId] || [];
     if (rows.length && rows.every(r => r.status === 'ยกเลิก')){ const p = load('greek_pending'); if (p && p.orderId === h.orderId) { try { localStorage.removeItem('greek_pending'); } catch(e){} } }

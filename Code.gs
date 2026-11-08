@@ -221,6 +221,7 @@ function getConfig() {
     accountName: String(s.account_name || ''),
     bankName: String(s.bank_name || ''),
     salePeriod: String(s.sale_period || '').trim() || period_(rounds),
+    maxCups: limit_(s.max_cups_per_order, 10),
     lineGroupUrl: /^https:\/\/(line\.me|lin\.ee)\//.test(String(s.line_group_url || '').trim()) ? String(s.line_group_url).trim() : '',
     menu, addons, fruits
   };
@@ -236,6 +237,9 @@ function submitOrder(order) {
   if (!cfg.open) throw new Error(cfg.closedMsg);
   if (!order || !String(order.name || '').trim()) throw new Error('กรุณาใส่ชื่อ');
   if (!order.items || !order.items.length) throw new Error('ยังไม่มีรายการในตะกร้า');
+  checkName_(order.name);
+  const cups = order.items.reduce((t, it) => t + Math.max(1, parseInt(it.qty, 10) || 1), 0);
+  if (cfg.maxCups && cups > cfg.maxCups) throw new Error('สั่งได้สูงสุด ' + cfg.maxCups + ' ถ้วยต่อออเดอร์ ถ้าอยากสั่งมากกว่านี้ทักร้านได้เลยนะ');
 
   const menuById = {}; cfg.menu.forEach(m => menuById[m.id] = m);
   const addonById = {}; cfg.addons.forEach(a => addonById[a.id] = a);
@@ -274,6 +278,7 @@ function submitOrder(order) {
   lock.waitLock(20000);
   let result, alert;
   try {
+    const dev = deviceCheck_(order.device);          // per-phone limits (inside the lock so two taps can't race)
     const ss = SpreadsheetApp.getActive();
     const ordSh = ss.getSheetByName(SH.ORD);
     const base = 'G' + ('000' + nextOrderNo_(ordSh)).slice(-4);
@@ -309,6 +314,7 @@ function submitOrder(order) {
       total: parts.reduce((s, p) => s + p.total, 0), cups: parts.reduce((s, p) => s + p.cups, 0),
       bankAccount: cfg.bankAccount, accountName: cfg.accountName, bankName: cfg.bankName };
     alert = { base, name, note, payLater: !!order.payLater, rows, total: result.total, cups: result.cups };
+    deviceRecord_(dev, base);
   } finally {
     lock.releaseLock();
   }
@@ -387,7 +393,59 @@ function cancelOrder(req) {
     lock.releaseLock();
   }
   if (cancelled.length) alertCancel_(base, cancelled);
+  if (!req.partId) deviceForget_(req.device, base);
   return myOrders({ orders: [{ orderId: base, token: tok }] });
+}
+
+/* ---------------- กันสแปม / กันกดซ้ำ ----------------
+ * Settings: max_cups_per_order (10), max_orders_per_phone_per_day (3), order_cooldown_sec (30) · 0 = ไม่จำกัด
+ * "มือถือ" = รหัสสุ่มที่แอปสร้างเก็บไว้ในเครื่อง (ล้างข้อมูลเบราว์เซอร์/เปลี่ยนเครื่อง = เครื่องใหม่) */
+function limit_(v, dflt) { const n = parseInt(v, 10); return isNaN(n) ? dflt : Math.max(0, n); }
+function checkName_(raw) {
+  const name = String(raw).trim();
+  if ([...name].length < 2) throw new Error('ชื่อสั้นไป ใส่อย่างน้อย 2 ตัวอักษรนะ');
+  if ([...name].length > 30) throw new Error('ชื่อยาวไป ใส่ไม่เกิน 30 ตัวอักษรนะ');
+  if (/https?:|www\.|\.(com|net|org|io|co|th|ly|me)\b|line\.me|@\w{3,}/i.test(name)) throw new Error('ชื่อห้ามใส่ลิงก์นะ');
+  if (/[<>{}\[\]\\|=;`$^~*]/.test(name) || /[\u0000-\u001F]/.test(name)) throw new Error('ชื่อมีสัญลักษณ์แปลกๆ ใช้แค่ตัวอักษร/ตัวเลขนะ');
+}
+function deviceKey_(id) {
+  id = String(id || '');
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(id)) throw new Error('แอปเวอร์ชันเก่า ปิดแล้วเปิดใหม่ (หรือรีเฟรช) แล้วกดสั่งอีกครั้งนะ');
+  return 'DEV_' + id;
+}
+const today_ = () => Utilities.formatDate(new Date(Date.now()), 'Asia/Bangkok', 'yyyyMMdd');
+function deviceState_(key) {
+  const raw = PropertiesService.getScriptProperties().getProperty(key);
+  const [day, last, list] = String(raw || '').split('|');
+  return day === today_() ? { last: Number(last) || 0, orders: list ? list.split(',') : [] } : { last: day ? Number(last) || 0 : 0, orders: [] };
+}
+function deviceCheck_(id) {
+  const key = deviceKey_(id), s = settings_(), st = deviceState_(key);
+  const wait = limit_(s.order_cooldown_sec, 30), max = limit_(s.max_orders_per_phone_per_day, 3);
+  const left = Math.ceil((st.last + wait * 1000 - Date.now()) / 1000);
+  if (wait && left > 0) throw new Error('เพิ่งสั่งไปเมื่อกี้ รออีก ' + left + ' วินาทีแล้วค่อยกดใหม่นะ');
+  if (max && st.orders.length >= max) throw new Error('วันนี้มือถือเครื่องนี้สั่งครบ ' + max + ' ออเดอร์แล้ว ถ้าอยากสั่งเพิ่มทักร้านได้เลยนะ');
+  return key;
+}
+// runs after the order is saved: it must never turn a saved order into an error for the customer
+function deviceRecord_(key, base) {
+  try {
+    const props = PropertiesService.getScriptProperties(), st = deviceState_(key);
+    st.orders.push(base);
+    props.setProperty(key, [today_(), Date.now(), st.orders.join(',')].join('|'));
+    if (Math.random() < 0.05) {          // tidy up phones from earlier days now and then
+      const all = props.getProperties(), d = today_();
+      Object.keys(all).forEach(k => { if (k.indexOf('DEV_') === 0 && String(all[k]).split('|')[0] !== d) props.deleteProperty(k); });
+    }
+  } catch (e) { console.error('deviceRecord_: ' + e); }
+}
+function deviceForget_(id, base) {
+  try {
+    const key = deviceKey_(id), st = deviceState_(key);
+    const i = st.orders.indexOf(base); if (i < 0) return;
+    st.orders.splice(i, 1);
+    PropertiesService.getScriptProperties().setProperty(key, [today_(), st.last, st.orders.join(',')].join('|'));
+  } catch (e) {}
 }
 
 /** เลขออเดอร์วิ่งต่อจากเลขสูงสุดในแท็บ Orders */
@@ -588,6 +646,9 @@ function setup() {
     ['pay_later_note', 'ผ่านขุนทองในกลุ่ม LINE', 'ข้อความใต้ตัวเลือก "จ่ายตอนรับ"'],
     ['line_group_url', '', 'ลิงก์เชิญกลุ่ม LINE (https://line.me/...) เว้นว่าง = ให้ลูกค้าเลือกแชทเอง'],
     ['notify_email', '', 'อีเมลรับแจ้งเตือน (เว้นว่าง = อีเมลเจ้าของสคริปต์)'],
+    ['max_cups_per_order', 10, 'สั่งได้สูงสุดกี่ถ้วยต่อออเดอร์ (0 = ไม่จำกัด)'],
+    ['max_orders_per_phone_per_day', 3, 'มือถือเครื่องเดียวสั่งได้กี่ออเดอร์ต่อวัน (ยกเลิกเองไม่นับ · 0 = ไม่จำกัด)'],
+    ['order_cooldown_sec', 30, 'ต้องรอกี่วินาทีก่อนสั่งออเดอร์ถัดไปจากเครื่องเดิม (0 = ไม่ต้องรอ)'],
     ['notify_events', 'order, slip, cancel', 'แจ้งเตือนเมื่อ: order = ออเดอร์ใหม่, slip = แนบสลิป, cancel = ลูกค้ายกเลิก · off = ปิดทั้งหมด']
   ]);
   ['Rounds', 'Menu', 'AddOns', 'Fruits'].forEach(n => {
