@@ -7,12 +7,14 @@
  *   Fruits     รายการผลไม้ + เปิด/ปิด ของหมด
  *   Settings   รอบรับ, วิธีรับ/ค่าส่ง, PromptPay, เปิด/ปิดรับออเดอร์
  *   Orders     แท็บเดียวดูได้ครบ: 1 แถว = 1 รายการในตะกร้า (เมนู ผลไม้ add-on จำนวน วันรับ จ่ายเงิน สลิป สถานะ)
+ *   Orders Archive  ออเดอร์สัปดาห์ก่อนๆ (เมนู 🥣 Greek Shop → เก็บออเดอร์) ลูกค้ายังเห็นในประวัติเหมือนเดิม
+ *   Costs      จดต้นทุน + สรุปกำไรรายสัปดาห์
  *   Summary    สรุปต่อรอบ: จำนวนแต่ละเมนู, ผลไม้ที่ต้องเตรียม, ยอดเงิน จ่ายแล้ว/ค้าง
  */
 
 const SH = {
   ROUND: 'Rounds', MENU: 'Menu', ADDON: 'AddOns', FRUIT: 'Fruits', SET: 'Settings',
-  ORD: 'Orders', SUM: 'Summary'
+  ORD: 'Orders', SUM: 'Summary', ARCH: 'Orders Archive', COST: 'Costs'
 };
 const PAY_STATUS = ['ยังไม่จ่าย', 'ส่งสลิปแล้ว', 'จ่ายแล้ว'];
 const PAY_NOW = 'จ่ายเลย (แนบสลิป)';
@@ -28,6 +30,15 @@ const COL = { ID: 1, TIME: 2, NAME: 3, DAY: 4, MENU: 5, FRUIT: 6, SCOOP: 7, TOP:
   NOTE: 12, METHOD: 13, SUM: 14, PAY: 15, SLIP: 16, LINK: 17, STATUS: 18, TOKEN: 19 };
 const at_ = (r, c) => r[c - 1];          // อ่านค่าจากแถว (array) ตามชื่อคอลัมน์
 const base_ = id => String(id).replace(/-\d+$/, '');
+const ARCH_HEAD = ORD_HEAD.concat(['Week', 'เก็บเมื่อ']);
+const COST_HEAD = ['วันที่ซื้อ', 'Week', 'รายการ', 'หมวด', 'จำนวน', 'หน่วย', 'ราคารวม (บาท)', 'ซื้อที่', 'หมายเหตุ'];
+const COST_CATS = ['โยเกิร์ต/นม', 'ผลไม้', 'ท็อปปิ้ง', 'แพ็กเกจจิ้ง', 'ค่าส่ง/เดินทาง', 'อื่นๆ'];
+// rows of the live Orders tab, then the archive (so customers still see last week's orders)
+function orderSources_() {
+  const ss = SpreadsheetApp.getActive();
+  return [ss.getSheetByName(SH.ORD), ss.getSheetByName(SH.ARCH)].filter(Boolean).map(sh => ({
+    sh, vals: sh.getLastRow() < 2 ? [] : sh.getRange(2, 1, sh.getLastRow() - 1, ORD_HEAD.length).getValues() }));
+}
 
 /* ---------------- Web app ---------------- */
 
@@ -76,8 +87,97 @@ function doGet(e) {
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('🥣 Greek Shop')
+    .addItem('📦 เก็บออเดอร์ (ปิดรอบสัปดาห์นี้)', 'archiveOrders')
+    .addSeparator()
     .addItem('ตั้งค่าครั้งแรก (สร้างชีตที่ยังไม่มี)', 'setup')
     .addToUi();
+}
+
+/* ---------------- ปิดรอบ: ย้ายออเดอร์ไป Orders Archive ---------------- */
+// "9 Nov" → Date (ปีปัจจุบัน; ธ.ค. → ม.ค. ข้ามปีให้)
+function dayDate_(v) {
+  if (v instanceof Date) return v;
+  const EN = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const m = String(v).trim().match(/(\d{1,2})\s*(\S+)/); if (!m) return null;
+  let mi = EN.indexOf(m[2].slice(0, 3).toLowerCase()); if (mi < 0) mi = TH.indexOf(m[2]); if (mi < 0) return null;
+  const now = new Date(); let y = now.getFullYear();
+  if (mi < now.getMonth() - 6) y++; else if (mi > now.getMonth() + 6) y--;
+  return new Date(y, mi, +m[1]);
+}
+// ISO week, same as the sheet's ISOWEEKNUM → "Week 46 2026"
+function weekLabel_(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return 'Week ' + Math.ceil(((t - y0) / 86400000 + 1) / 7) + ' ' + t.getUTCFullYear();
+}
+function archiveOrders() {
+  const ui = SpreadsheetApp.getUi(), ss = SpreadsheetApp.getActive();
+  const ord = ss.getSheetByName(SH.ORD);
+  const n = ord.getLastRow() - 1;
+  if (n < 1) { ui.alert('แท็บ Orders ว่างอยู่แล้ว ไม่มีอะไรต้องเก็บ'); return; }
+  const vals = ord.getRange(2, 1, n, ORD_HEAD.length).getValues().filter(r => String(at_(r, COL.ID)));
+  const live = vals.filter(r => String(at_(r, COL.STATUS)) !== 'ยกเลิก');
+  const ids = {}; live.forEach(r => ids[base_(at_(r, COL.ID))] = 1);
+  const unpaid = {}; live.filter(r => String(at_(r, COL.PAY)) !== 'จ่ายแล้ว').forEach(r => unpaid[base_(at_(r, COL.ID))] = String(at_(r, COL.NAME)));
+  const days = vals.map(r => dayDate_(at_(r, COL.DAY))).filter(Boolean).sort((a, b) => a - b);
+  const week = weekLabel_(days[0] || new Date());
+  const sales = live.reduce((t, r) => t + (Number(at_(r, COL.TOTAL)) || 0), 0);
+  const warn = Object.keys(unpaid).length ? '\n\n⚠️ ยังไม่ขึ้น "จ่ายแล้ว" ' + Object.keys(unpaid).length + ' ออเดอร์: ' +
+    Object.keys(unpaid).slice(0, 8).map(k => k + ' ' + unpaid[k]).join(', ') + (Object.keys(unpaid).length > 8 ? ' …' : '') +
+    '\n(เก็บแล้วยังแก้สถานะได้ในแท็บ Orders Archive)' : '';
+  const ok = ui.alert('📦 เก็บออเดอร์ ' + week,
+    Object.keys(ids).length + ' ออเดอร์ · ' + live.reduce((t, r) => t + (Number(at_(r, COL.QTY)) || 0), 0) + ' ถ้วย · ยอดขาย ฿' + sales.toLocaleString('en-US') +
+    '\n\nย้ายทุกแถวไปแท็บ "Orders Archive" แล้วล้างแท็บ Orders ให้ว่างรอสัปดาห์หน้า\nลูกค้ายังเห็นออเดอร์เดิมใน "ออเดอร์ของฉัน" เหมือนเดิม' + warn, ui.ButtonSet.OK_CANCEL);
+  if (ok !== ui.Button.OK) return;
+
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const arch = archiveSheet_();
+    const at = arch.getLastRow() + 1, rows = ord.getLastRow() - 1;
+    arch.getRange(at, COL.DAY, rows, 1).setNumberFormat('@');
+    ord.getRange(2, 1, rows, ORD_HEAD.length).copyTo(arch.getRange(at, 1));          // keeps slip pictures / links
+    const stamp = new Date();
+    arch.getRange(at, ORD_HEAD.length + 1, rows, 2).setValues(Array.from({ length: rows }, () => [week, stamp]));
+    const slips = ord.getRange(2, COL.SLIP, rows, 1).getFormulas();
+    slips.forEach((f, i) => { if (f[0]) arch.setRowHeight(at + i, 80); });
+    ord.deleteRows(2, rows);
+    // costs bought "this week" before the archive was named
+    const cost = ss.getSheetByName(SH.COST);
+    if (cost && cost.getLastRow() > 1) {
+      const wk = cost.getRange(2, 2, cost.getLastRow() - 1, 1);
+      wk.setValues(wk.getValues().map(x => [x[0] === 'รอบนี้' ? week : x[0]]));
+    }
+  } finally { lock.releaseLock(); }
+  ss.toast('เก็บแล้ว ✅ ' + week + ' — แท็บ Orders พร้อมสำหรับรอบหน้า', 'Greek Shop', 8);
+}
+function archiveSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SH.ARCH);
+  if (sh) return sh;
+  sh = sheet_(ss, SH.ARCH, ARCH_HEAD, []);
+  sh.getRange(2, COL.TIME, sh.getMaxRows() - 1, 1).setNumberFormat('dd/MM HH:mm');
+  sh.getRange(2, ARCH_HEAD.length, sh.getMaxRows() - 1, 1).setNumberFormat('dd/MM/yyyy');
+  sh.hideColumns(COL.TOKEN);
+  return sh;
+}
+
+/* ---------------- ต้นทุน ---------------- */
+// พิมพ์รายการแล้ว วันที่ / Week เติมให้เอง (แก้ได้)
+function costAutofill_(r) {
+  const sh = r.getSheet(), row = r.getRow();
+  if (r.getColumn() !== 3 || !String(r.getValue()).trim()) return;
+  if (!sh.getRange(row, 1).getValue()) sh.getRange(row, 1).setValue(new Date());
+  if (!sh.getRange(row, 2).getValue()) sh.getRange(row, 2).setValue(currentWeek_());
+}
+// Week ของรอบที่ขายอยู่ = วันรับที่เร็วที่สุดในแท็บ Orders (ไม่มีออเดอร์ = รอบที่เปิดในแท็บ Rounds, ไม่มีอีก = วันนี้)
+function currentWeek_() {
+  const ss = SpreadsheetApp.getActive(), ord = ss.getSheetByName(SH.ORD);
+  let days = ord && ord.getLastRow() > 1 ? ord.getRange(2, COL.DAY, ord.getLastRow() - 1, 1).getValues().map(x => dayDate_(x[0])).filter(Boolean) : [];
+  if (!days.length) { try { days = getConfig().rounds.map(dayDate_).filter(Boolean); } catch (e) {} }
+  days.sort((a, b) => a - b);
+  return weekLabel_(days[0] || new Date());
 }
 
 /** ส่งเมนู/ราคา/ตัวเลือกให้หน้าแอป */
@@ -221,10 +321,10 @@ function submitOrder(order) {
  */
 function myOrders(req) {
   const asked = (req && req.orders || []).slice(0, 60);
-  const sh = SpreadsheetApp.getActive().getSheetByName(SH.ORD);
-  // __v บอกแอปว่าเป็นคำตอบเวอร์ชันนี้: ออเดอร์ไหนไม่มีในคำตอบ = ไม่อยู่ในชีตแล้ว แอปจะลบออกจากประวัติในมือถือ
-  if (!asked.length || sh.getLastRow() < 2) return { __v: 2 };
-  const vals = sh.getRange(2, 1, sh.getLastRow() - 1, ORD_HEAD.length).getValues();
+  // __v บอกแอปว่าเป็นคำตอบเวอร์ชันนี้: ออเดอร์ไหนไม่มีในคำตอบ = ไม่อยู่ในชีตแล้ว (ทั้ง Orders และ Orders Archive) แอปจะลบออกจากประวัติในมือถือ
+  if (!asked.length) return { __v: 2 };
+  const vals = [].concat(...orderSources_().map(x => x.vals));
+  if (!vals.length) return { __v: 2 };
   const out = { __v: 2 };
   asked.forEach(a => {
     const base = String(a.orderId || ''), tok = String(a.token || '');
@@ -266,7 +366,11 @@ function cancelOrder(req) {
       const id = String(at_(r, COL.ID));
       if (base_(id) === base && String(at_(r, COL.TOKEN)) === tok && (!req.partId || id === String(req.partId))) rows.push({ row: i + 2, r });
     });
-    if (!rows.length) throw new Error('ไม่พบออเดอร์');
+    if (!rows.length) {
+      const arch = orderSources_().filter(x => x.sh.getName() === SH.ARCH)[0];
+      if (arch && arch.vals.some(r => base_(at_(r, COL.ID)) === base && String(at_(r, COL.TOKEN)) === tok)) throw new Error('ออเดอร์นี้ปิดรอบไปแล้ว ยกเลิกเองไม่ได้ ทักร้านได้เลยนะ');
+      throw new Error('ไม่พบออเดอร์');
+    }
     const blocked = rows.find(x => String(at_(x.r, COL.PAY)) !== 'ยังไม่จ่าย' || String(at_(x.r, COL.SLIP)) || String(at_(x.r, COL.STATUS)) === 'ส่งแล้ว');
     if (blocked) throw new Error('ออเดอร์ ' + at_(blocked.r, COL.ID) + ' แนบสลิปหรือจ่ายแล้ว ยกเลิกเองไม่ได้ ทักร้านได้เลยนะ');
     const stamp = 'ลูกค้ายกเลิกเอง ' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM HH:mm');
@@ -314,11 +418,12 @@ function attachSlip(req) {
   lock.waitLock(20000);
   let slipInfo = null;
   try {
-    const sh = SpreadsheetApp.getActive().getSheetByName(SH.ORD);
-    const vals = sh.getRange(2, 1, Math.max(1, sh.getLastRow() - 1), ORD_HEAD.length).getValues();
     const base = String(req.orderId);
-    const rows = [];
-    vals.forEach((r, i) => { if (base_(at_(r, COL.ID)) === base) rows.push({ row: i + 2, vals: r }); });
+    let sh = null, rows = [];
+    for (const src of orderSources_()) {
+      src.vals.forEach((r, i) => { if (base_(at_(r, COL.ID)) === base) rows.push({ row: i + 2, vals: r }); });
+      if (rows.length) { sh = src.sh; break; }
+    }
     if (!rows.length) throw new Error('ไม่พบออเดอร์ ' + base);
     if (!req.token || rows.some(x => String(at_(x.vals, COL.TOKEN)) !== String(req.token))) throw new Error('ลิงก์แนบสลิปไม่ถูกต้อง');
 
@@ -427,7 +532,10 @@ function slipFolder_() {
  */
 function onEdit(e) {
   const r = e && e.range;
-  if (!r || r.getSheet().getName() !== SH.ORD || r.getRow() < 2 || r.getNumRows() !== 1 || r.getNumColumns() !== 1) return;
+  if (!r || r.getRow() < 2 || r.getNumRows() !== 1 || r.getNumColumns() !== 1) return;
+  const name = r.getSheet().getName();
+  if (name === SH.COST) return costAutofill_(r);
+  if (name !== SH.ORD && name !== SH.ARCH) return;
   const col = r.getColumn();
   if (col !== COL.PAY && col !== COL.STATUS) return;
   const sh = r.getSheet(), v = r.getValue();
