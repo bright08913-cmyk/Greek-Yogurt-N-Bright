@@ -11,8 +11,8 @@ ver = hashlib.sha1((root / "Index.html").read_bytes()).hexdigest()[:10]
 html = (root / 'Index.html').read_text()
 head = f'''<link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#FFF6F1">
-<link rel="icon" type="image/png" href="icon-192.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png?v=16bit">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=16bit">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Bright Greek">
@@ -22,7 +22,7 @@ head = f'''<link rel="manifest" href="manifest.webmanifest">
 <meta property="og:url" content="{SITE}">
 <meta property="og:title" content="Bright Greek — สั่ง Greek Yogurt">
 <meta property="og:description" content="แตะเมนู เลือกผลไม้ แล้วกดสั่งได้เลย">
-<meta property="og:image" content="{SITE}og.png">
+<meta property="og:image" content="{SITE}og-16bit.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <script>window.GREEK_API = {json.dumps(api)}; window.APP_VER = {json.dumps(ver)};</script>
@@ -34,11 +34,11 @@ html = html.replace('</title>', '</title>\n' + head, 1)
 (root / 'docs' / 'manifest.webmanifest').write_text(json.dumps({
   "name": "Bright Greek — สั่ง Greek Yogurt", "short_name": "Bright Greek",
   "start_url": "./", "scope": "./", "display": "standalone",
-  "background_color": "#FFF6F1", "theme_color": "#FFF6F1", "lang": "th",
+  "background_color": "#FFF4EF", "theme_color": "#FFF4EF", "lang": "th",
   "icons": [
-    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
-    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
-    {"src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+    {"src": "icon-192.png?v=16bit", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png?v=16bit", "sizes": "512x512", "type": "image/png"},
+    {"src": "icon-maskable-512.png?v=16bit", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
   ]}, ensure_ascii=False, indent=2))
 
 # network first (always the newest menu/page), cache only as an offline fallback
