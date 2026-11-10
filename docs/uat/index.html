@@ -107,7 +107,7 @@
   #cupBody.wob{animation:wob .4s steps(4,end)}
   @keyframes wob{0%{transform:scale(1,1)}30%{transform:scale(1.06,.92)}60%{transform:scale(.97,1.04)}100%{transform:scale(1,1)}}
   .fw{position:absolute;left:0;top:0;width:0;height:0;z-index:2;transition:transform .4s steps(5,end)}
-  .fr{position:absolute;left:-18px;top:-32px;width:36px;height:36px;image-rendering:pixelated;transform-origin:50% 100%;
+  .fr{filter:drop-shadow(0 3px 0 rgba(59,42,64,.22));position:absolute;left:-18px;top:-32px;width:36px;height:36px;image-rendering:pixelated;transform-origin:50% 100%;
       transition:transform .42s cubic-bezier(.34,1.9,.5,1),opacity .12s steps(2)}
   .fr.off{transform:translateY(-70px) scale(.6);opacity:0;transition:transform .3s cubic-bezier(.55,-.4,.75,.4),opacity .2s steps(2) .1s}
   .rp{position:absolute;left:-14px;top:-4px;width:28px;height:6px;opacity:0;--pw:2px;--ec:#fff;box-shadow:var(--pxs)}
@@ -499,6 +499,9 @@ function layoutFruits(){ fruitSpots(draft.fruits).forEach((t,i) => { const w = $
 // fruit spots on the yogurt of the pixel bowl (hero box is 216 x 200, bowl drawn 3x at the bottom)
 function slotOf(i, n){
   const t = n <= 1 ? .5 : i / (n - 1);
+  // with extra scoops piled in the middle, the fruit sits down on the yogurt in front of them (wider, flatter row)
+  if (typeof draft !== 'undefined' && draft && draft.addons && draft.addons.SCP)
+    return [ (34 + 148 * t).toFixed(1), (136 - 5 * Math.sin(Math.PI * t)).toFixed(1), n > 5 ? .8 : 1 ];
   return [ (40 + 136 * t).toFixed(1), (128 - 20 * Math.sin(Math.PI * t)).toFixed(1), n > 5 ? .8 : 1 ];
 }
 /* cup(m, {size, fruits:[names], live:true, syrup:bool}) — the 16-bit bowl.
@@ -684,6 +687,7 @@ function syncScoops(){
       setTimeout(() => cupReact(false), 380); }
   }
   for (let k = have.length - 1; k >= want; k--){ const im = have[k]; im.classList.add('out'); setTimeout(() => im.remove(), 320); }
+  if (!quiet && want !== have.length) layoutFruits();
 }
 function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
   const v = d === 0 ? (n ? 0 : 1) : Math.max(0, Math.min(a.max, n + d));
