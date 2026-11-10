@@ -63,6 +63,8 @@ function doPost(e) {
       }
     }
     if (body.action === 'config') return json_({ ok: true, data: getConfig() });
+    if (body.action === 'ping') return json_({ ok: true, data: livePing_(body) });
+    if (body.action === 'live') return json_({ ok: true, data: liveList_(body) });
     if (body.action === 'history') return json_({ ok: true, data: myOrders(body) });
     if (body.action === 'cancel') return json_({ ok: true, data: cancelOrder(body) });
     throw new Error('unknown action');
@@ -87,6 +89,8 @@ function doGet(e) {
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('🥣 Greek Shop')
+    .addItem('🔑 ตั้ง PIN หน้า Live', 'setLivePin')
+    .addSeparator()
     .addItem('📅 เรียงตามวันรับ', 'sortByPickupDay')
     .addItem('🕒 เรียงตามเวลาสั่ง', 'sortByOrderTime')
     .addSeparator()
@@ -474,6 +478,54 @@ function cancelOrder(req) {
   if (cancelled.length) alertCancel_(base, cancelled);
   if (!req.partId) deviceForget_(req.device, base);
   return myOrders({ orders: [{ orderId: base, token: tok }] });
+}
+
+/* ---------------- Live: ใครกำลังเปิดแอปอยู่ (หน้า /live/ ของเจ้าของร้าน) ----------------
+ * แอปส่งสัญญาณสั้นๆ ตอนเปลี่ยนหน้า + ทุก 30 วิ → เก็บในหน่วยความจำชั่วคราว (CacheService) ไม่ลงชีต หายเองใน ~2 นาที */
+const LIVE_SCREENS = ['home', 'item', 'cart', 'pay', 'done', 'history'];
+function livePing_(b) {
+  const id = String(b.device || '');
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(id)) return {};
+  const clean = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001F<>]/g, '').trim().slice(0, n);
+  const rec = { id: id.slice(-12), n: clean(b.n, 30), s: LIVE_SCREENS.indexOf(b.s) >= 0 ? b.s : 'home', d: clean(b.d, 30),
+    c: Math.max(0, Math.min(99, parseInt(b.c, 10) || 0)), t: Math.max(0, Math.min(99999, parseInt(b.t, 10) || 0)), at: Date.now() };
+  const cache = CacheService.getScriptCache();
+  cache.put('LV_' + id, JSON.stringify(rec), 150);
+  const idx = JSON.parse(cache.get('LV_IDX') || '[]');
+  if (idx.indexOf(id) < 0) { idx.push(id); cache.put('LV_IDX', JSON.stringify(idx.slice(-300)), 21600); }
+  return {};
+}
+function liveList_(b) {
+  const props = PropertiesService.getScriptProperties(), cache = CacheService.getScriptCache();
+  const saved = props.getProperty('LIVE_PIN');
+  if (!saved) throw new Error('PIN: ยังไม่ได้ตั้ง PIN — เปิดชีต เมนู 🥣 Greek Shop → 🔑 ตั้ง PIN หน้า Live');
+  const bad = Number(cache.get('LV_BAD') || 0);
+  if (bad >= 8) throw new Error('PIN: ใส่ PIN ผิดหลายครั้ง ล็อกไว้ 10 นาที');
+  if (pinHash_(String(b.pin || '')) !== saved) { cache.put('LV_BAD', String(bad + 1), 600); throw new Error('PIN: PIN ไม่ถูกต้อง'); }
+  const idx = JSON.parse(cache.get('LV_IDX') || '[]'), got = idx.length ? cache.getAll(idx.map(i => 'LV_' + i)) : {};
+  const now = Date.now(), list = [], keep = [];
+  idx.forEach(i => { const v = got['LV_' + i]; if (!v) return; const r = JSON.parse(v);
+    if (now - r.at > 150000) return; keep.push(i);
+    list.push({ id: r.id, name: r.n, screen: r.s, detail: r.d, cups: r.c, total: r.t, t: r.at }); });
+  if (keep.length !== idx.length) cache.put('LV_IDX', JSON.stringify(keep), 21600);
+  return { now, list };
+}
+function pinHash_(pin) {
+  const salt = PropertiesService.getScriptProperties().getProperty('LIVE_SALT') || '';
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + ':' + pin).map(x => ((x + 256) % 256).toString(16).padStart(2, '0')).join('');
+}
+/** เมนู 🔑 ตั้ง PIN หน้า Live (6–10 หลัก) */
+function setLivePin() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('🔑 ตั้ง PIN หน้า Live', 'ใส่ตัวเลข 6–10 หลัก (ใช้เปิดหน้า …/Greek-Yogurt-N-Bright/live/)', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  const pin = r.getResponseText().trim();
+  if (!/^\d{6,10}$/.test(pin)) { ui.alert('PIN ต้องเป็นตัวเลข 6–10 หลัก'); return; }
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('LIVE_SALT', Utilities.getUuid());
+  props.setProperty('LIVE_PIN', pinHash_(pin));
+  CacheService.getScriptCache().remove('LV_BAD');
+  ui.alert('ตั้ง PIN แล้ว ✅ เปิดหน้า Live แล้วใส่ PIN นี้ได้เลย');
 }
 
 /* ---------------- กันสแปม / กันกดซ้ำ ----------------

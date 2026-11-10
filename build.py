@@ -57,4 +57,8 @@ self.addEventListener('fetch', e => {
 ''')
 (root / 'docs' / '.nojekyll').write_text('')
 (root / 'docs' / 'version.txt').write_text(ver)
+# owner's Live page (/live/): same backend, PIN protected
+live = (root / 'Live.html').read_text().replace('</title>', '</title>\n<script>window.GREEK_API = ' + json.dumps(api) + ';</script>', 1)
+(root / 'docs' / 'live').mkdir(exist_ok=True)
+(root / 'docs' / 'live' / 'index.html').write_text(live)
 print('built docs/ with API', api)
