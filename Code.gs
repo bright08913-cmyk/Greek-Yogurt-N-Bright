@@ -110,24 +110,31 @@ function sortOrders_(mode) {
   const ss = SpreadsheetApp.getActive(), active = ss.getActiveSheet();
   const sh = active && active.getName() === SH.ARCH ? active : ss.getSheetByName(SH.ORD);
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  let helper = 0, added = false;
   try {
     const n = sh.getLastRow() - 1; if (n < 2) return;
-    const rng = sh.getRange(2, 1, n, sh.getLastColumn());
-    const vals = rng.getValues(), forms = rng.getFormulas();
+    const width = sh.getLastColumn();
+    const vals = sh.getRange(2, 1, n, Math.max(width, ORD_HEAD.length)).getValues();
     const num = id => { const m = String(id).match(/^G(\d+)(?:-(\d+))?/); return m ? [+m[1], +(m[2] || 0)] : [Infinity, 0]; };
     const rows = vals.map((r, i) => {
       const id = String(at_(r, COL.ID)), d = dayDate_(at_(r, COL.DAY)), t = at_(r, COL.TIME);
-      const img = isCellImage_(r[COL.SLIP - 1]);
-      return { i, cells: r.map((v, j) => forms[i][j] || (isCellImage_(v) ? '' : v)), img: img ? r[COL.SLIP - 1] : null,
-        slip: !!forms[i][COL.SLIP - 1] || img, blank: !id,
-        day: d ? d.getTime() : Infinity, time: t instanceof Date ? t.getTime() : Infinity, id: num(id) };
+      return { i, blank: !id, day: d ? d.getTime() : Infinity, time: t instanceof Date ? t.getTime() : Infinity, id: num(id) };
     });
     rows.sort((a, b) => (a.blank - b.blank) ||
       (mode === 'day' ? (a.day - b.day) : 0) || (a.time - b.time) || (a.id[0] - b.id[0]) || (a.id[1] - b.id[1]) || (a.i - b.i));
-    rng.setValues(rows.map(x => x.cells));
-    rows.forEach((x, k) => { if (x.img) sh.getRange(k + 2, COL.SLIP).setValue(x.img); });   // slip previews (pictures in cells) move with their row
-    rows.forEach((x, k) => sh.setRowHeight(k + 2, x.slip ? 80 : 21));
-  } finally { lock.releaseLock(); }
+    // the sheet's own sort moves whole rows (slip pictures, formulas, dropdowns) — we only give it the order
+    const rank = new Array(n); rows.forEach((x, k) => rank[x.i] = [k + 1]);
+    helper = width + 1;
+    if (helper > sh.getMaxColumns()) { sh.insertColumnAfter(sh.getMaxColumns()); added = true; }
+    sh.getRange(2, helper, n, 1).setValues(rank);
+    sh.getRange(2, 1, n, helper).sort({ column: helper, ascending: true });
+    // row heights stay with the row number, so set them again: taller rows where there's a slip
+    const slip = sh.getRange(2, COL.SLIP, n, 1), sv = slip.getValues(), sf = slip.getFormulas();
+    sv.forEach((v, k) => sh.setRowHeight(k + 2, (sf[k][0] || isCellImage_(v[0]) || (String(v[0]) && String(v[0]) !== '')) ? 80 : 21));
+  } finally {
+    try { if (helper) { if (added) sh.deleteColumn(helper); else sh.getRange(2, helper, Math.max(1, sh.getLastRow() - 1), 1).clearContent(); } } catch (e) {}
+    lock.releaseLock();
+  }
   ss.toast(mode === 'day' ? 'เรียงตามวันรับแล้ว 📅' : 'เรียงตามเวลาสั่งแล้ว 🕒', sh.getName(), 4);
 }
 
