@@ -394,7 +394,7 @@ const IS_GAS = typeof google !== 'undefined' && google.script && google.script.r
 const API_URL = window.GREEK_API || '';
 const DEMO_CONFIG = {
   shopName:'Bright Greek', open:true, closedMsg:'',
-  rounds:[0,1,2,3,4].map(k => { const d = new Date(Date.now() + k * 864e5); return d.getDate() + ' ' + d.toLocaleDateString('en-US', { month: 'short' }); }), roundNotes:{}, salePeriod:'5 - 10 Nov 2026', lineGroupUrl:'',
+  rounds:[1,2,3,4,5].map(k => { const d = new Date(Date.now() + k * 864e5); return d.getDate() + ' ' + d.toLocaleDateString('en-US', { month: 'short' }); }), roundNotes:{}, salePeriod:'5 - 10 Nov 2026', lineGroupUrl:'',
   delivery:[], payMethods:[],
   payNowLabel:'จ่ายเลย (แนบสลิป)', payLaterLabel:'จ่ายตอนรับ (ขุนทอง)', payLaterNote:'ผ่านขุนทองในกลุ่ม LINE',
   bankAccount:'235-3-39428-5', accountName:'นาย สหรัฐ กาญจนางกูรพันธุ์', bankName:'ธนาคารกสิกรไทย',
@@ -455,6 +455,14 @@ function call(fn, arg){
 }
 
 /* ---------- helpers ---------- */
+// ids from the sheet are used inside buttons: only plain letters/digits are allowed (anything else is dropped)
+const SAFE_ID = /^[A-Za-z0-9_-]{1,24}$/;
+function cleanConfig(c){
+  c.menu = (c.menu || []).filter(m => SAFE_ID.test(String(m.id)));
+  c.addons = (c.addons || []).filter(a => SAFE_ID.test(String(a.id)));
+  c.rounds = (c.rounds || []).map(String);
+  return c;
+}
 const $ = id => document.getElementById(id);
 const baht = n => '฿' + Number(n).toLocaleString('th-TH');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -480,8 +488,20 @@ function roundDate(r){
   if (mi < t.getMonth() - 6) y++; else if (mi > t.getMonth() + 6) y--;          // Dec ↔ Jan
   return new Date(y, mi, +m[1]);
 }
-const isPastRound = r => { const d = roundDate(r); return !!d && d < todayBKK(); };
 const isTodayRound = r => { const d = roundDate(r); return !!d && d.getTime() === todayBKK().getTime(); };
+/* same-day cutoff: "today" can only be ordered until C.sameDayCutoff (Thai time, default 09:00, '' = no cutoff) */
+function cutoffMin(){
+  const v = (C && C.sameDayCutoff !== undefined) ? String(C.sameDayCutoff).trim() : '09:00';
+  const m = v.match(/^(\d{1,2})(?:[:.](\d{2}))?$/); return m ? +m[1] * 60 + +(m[2] || 0) : null;
+}
+const cutoffText = () => { const c = cutoffMin(); return c === null ? '' : String(Math.floor(c / 60)).padStart(2, '0') + ':' + String(c % 60).padStart(2, '0'); };
+function nowMinBKK(){
+  const o = (IS_GAS || API_URL) ? '' : new URLSearchParams(location.search).get('now');      // demo/UAT: ?now=11:00
+  const hm = /^\d{1,2}:\d{2}$/.test(o || '') ? o : new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour12: false });
+  const [h, m] = hm.split(':'); return +h * 60 + +m;
+}
+const isCutToday = r => isTodayRound(r) && cutoffMin() !== null && nowMinBKK() >= cutoffMin();
+const isPastRound = r => { const d = roundDate(r); return (!!d && d < todayBKK()) || isCutToday(r); };
 const liveRounds = () => C.rounds.filter(r => !isPastRound(r));
 // every pickup day over = nothing left to order
 function allPastClosed(){ if (C.rounds.length && !liveRounds().length && C.open) { C.open = false; C.closedMsg = 'วันรับรอบนี้ผ่านไปหมดแล้ว รอรอบหน้านะ 🙏'; } }
@@ -649,17 +669,18 @@ function uatPanel(){
     ${st.open ? `<div class="uat-body">
       <button class="mini ${C.promo ? 'pink' : ''}" onclick="uatSet({on: !C.promo})">${C.promo ? 'ปิดโปร' : 'เปิดโปร -15%'}</button>
       <div class="sub" style="font-size:12px;margin:8px 0 4px">วันรับที่ลด (ไม่เลือกเลย = ทุกวัน)</div>
-      <div class="uat-days">${C.rounds.map(r => `<button class="mini ${(st.days || []).indexOf(r) >= 0 ? 'pink' : ''}" onclick="uatDay('${esc(r)}')">${esc(r)}</button>`).join('')}</div>
+      <div class="uat-days">${C.rounds.map(r => `<button class="mini ${(st.days || []).indexOf(r) >= 0 ? 'pink' : ''}" onclick="uatDay(${C.rounds.indexOf(r)})">${esc(r)}</button>`).join('')}</div>
     </div>` : ''}</div>`;
 }
 function uatSet(ch){
   const st = Object.assign({ on: !!C.promo, pct: 15, days: (C.promo && C.promo.days) || [] }, load('uat_promo') || {}, ch);
   save('uat_promo', st); demoPromo(); closeSheets({stay: true}); render();
 }
-function uatDay(r){ const st = load('uat_promo') || {}; const d = st.days || []; const k = d.indexOf(r);
+function uatDay(i){ const r = C.rounds[i]; if (r === undefined) return; const st = load('uat_promo') || {}; const d = st.days || []; const k = d.indexOf(r);
   if (k >= 0) d.splice(k, 1); else d.push(r); uatSet({ days: d }); }
 /* ---------- main screen ---------- */
 function render(){
+  liveSoon();
   const inCart = {}; cart.forEach(it => inCart[it.menuId] = (inCart[it.menuId]||0) + it.qty);
   $('app').innerHTML = `${uatPanel()}
     <div class="top">
@@ -670,7 +691,7 @@ function render(){
     <h1 class="hello">วันนี้กินถ้วยไหนดี~</h1>
     ${promoDaysLive().length ? `<div class="promo"><span class="promo-tag">SALE</span><div><b>${esc(C.promo.label)}</b><small>ทุกเมนูลด ${C.promo.pct}% ${promoAll() ? 'ทุกวันรับ' : 'เฉพาะรับวันที่ ' + esc(daysText(promoDaysLive()))} · add-on ราคาเดิม</small></div><span class="promo-pct">-${C.promo.pct}%</span></div>` : ''}
     <div class="sub">แตะเมนู เลือกผลไม้ แล้วกดสั่งได้เลย</div>
-    ${IS_GAS || API_URL ? '' : '<div class="demo">🧪 UAT · โปรตามวันรับ (กดปุ่ม UAT · SALE มุมขวาบนเพื่อเปิด/ปิด) — ไม่ส่งออเดอร์จริง</div>'}
+    ${IS_GAS || API_URL ? '' : '<div class="demo">🧪 UAT · ลองโปรโมชั่น: กดปุ่ม UAT · SALE มุมขวาบน — ไม่ส่งออเดอร์จริง</div>'}
     ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}</div>`}
     ${load('greek_pending') ? `<button class="banner" onclick="renderDone(load('greek_pending'))">${ICON.qr}<span>ออเดอร์ ${esc(load('greek_pending').orderId)} ยังไม่ได้แนบสลิป</span>แนบเลย →</button>` : ''}
     ${installCard()}
@@ -725,7 +746,7 @@ function openItem(menuId, idx){
     ${fruitsBox}
     ${addonsFor(m).length ? `<div class="box" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
     ${C.rounds.length > 1 ? `<div class="box" id="dayBox"><h3><span>รับวันไหน <span class="req">*</span></span><small>${editIndex >= 0 ? 'ถ้วยนี้' : 'เลือกได้หลายวัน'}</small></h3><div class="rounds">
-      ${C.rounds.map((r,i) => `<button class="round${isPastRound(r) ? ' past' : ''}" id="rd${i}" onclick="pickItemRound(${i})" ${isPastRound(r) ? 'disabled aria-disabled="true"' : ''}><b>${esc(roundLabel(r))}</b>${isPastRound(r) ? '<small>ผ่านไปแล้ว</small>' : isTodayRound(r) ? '<small class="today">วันนี้</small>' : ''}${isPromoDay(r) ? `<span class="saletag">SALE -${C.promo.pct}%</span>` : ''}${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
+      ${C.rounds.map((r,i) => `<button class="round${isPastRound(r) ? ' past' : ''}" id="rd${i}" onclick="pickItemRound(${i})" ${isPastRound(r) ? 'disabled aria-disabled="true"' : ''}><b>${esc(roundLabel(r))}</b>${isCutToday(r) ? `<small>ปิดรับแล้ว (สั่งได้ถึง ${cutoffText()})</small>` : isPastRound(r) ? '<small>ผ่านไปแล้ว</small>' : isTodayRound(r) ? `<small class="today">วันนี้${cutoffText() ? ' · สั่งได้ถึง ' + cutoffText() : ''}</small>` : ''}${isPromoDay(r) ? `<span class="saletag">SALE -${C.promo.pct}%</span>` : ''}${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
     </div><div id="dayQty"></div></div>` : ''}
     <div class="box" id="qtyBox" style="padding-top:6px;padding-bottom:6px"><div class="row"><div class="lbl">จำนวน<small id="unitTxt"></small></div>
       <div class="stepper"><button id="qm" aria-label="ลดจำนวน" onclick="setQty(-1)">−</button><span id="qv">1</span><button aria-label="เพิ่มจำนวน" onclick="setQty(1)">+</button></div></div></div>
@@ -769,8 +790,8 @@ function refreshItem(){
   $('qtyBox').style.display = multi ? 'none' : '';
   if ($('dayQty')) $('dayQty').innerHTML = multi ? `<div class="dq-head">จำนวนแต่ละวัน</div>` + draft.days.map(r => `
       <div class="row"><div class="lbl">${esc(roundLabel(r))}<small>${isPromoDay(r) ? `<s>${baht(unitPrice(draft, r) - menuPrice(menuOf(draft.menuId), r) + basePrice(menuOf(draft.menuId)))}</s> <b class="salec">${baht(unitPrice(draft, r))}</b>` : baht(unitPrice(draft, r))} / ถ้วย</small></div>
-        <div class="stepper"><button aria-label="ลด ${esc(r)}" onclick="setDayQty('${esc(r)}',-1)" ${(draft.dq[r] || 1) <= 1 ? 'disabled' : ''}>−</button>
-        <span>${draft.dq[r] || 1}</span><button aria-label="เพิ่ม ${esc(r)}" onclick="setDayQty('${esc(r)}',1)">+</button></div></div>`).join('') : '';
+        <div class="stepper"><button aria-label="ลด ${esc(r)}" onclick="setDayQty(${C.rounds.indexOf(r)},-1)" ${(draft.dq[r] || 1) <= 1 ? 'disabled' : ''}>−</button>
+        <span>${draft.dq[r] || 1}</span><button aria-label="เพิ่ม ${esc(r)}" onclick="setDayQty(${C.rounds.indexOf(r)},1)">+</button></div></div>`).join('') : '';
   C.rounds.forEach((r,i) => { const b = $('rd'+i), on = editIndex >= 0 ? draft.round === r : draft.days.indexOf(r) >= 0;
     if (b){ b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); } });
   const needFruit = m.fruitPick > 0 && !draft.fruits.length;
@@ -796,7 +817,7 @@ function pickItemRound(i){
   draft.round = draft.days[0] || '';
   refreshItem();
 }
-function setDayQty(r, d){ draft.dq[r] = Math.max(1, Math.min(C.maxCups || 50, (draft.dq[r] || 1) + d)); refreshItem(); }
+function setDayQty(i, d){ const r = C.rounds[i]; if (r === undefined) return; draft.dq[r] = Math.max(1, Math.min(C.maxCups || 50, (draft.dq[r] || 1) + d)); refreshItem(); }
 function toggleFruit(i){
   const name = availFruits()[i].name, k = draft.fruits.indexOf(name), m = menuOf(draft.menuId);
   if (k >= 0) draft.fruits.splice(k,1); else if (draft.fruits.length < m.fruitPick) draft.fruits.push(name); else return;
@@ -859,7 +880,7 @@ function openCart(){
 }
 function refreshConfig(){
   return call('getConfig').then(cfg => { if (!IS_GAS) save('greek_cfg', cfg);
-    C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; demoPromo(); allPastClosed();
+    C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; cleanConfig(C); demoPromo(); allPastClosed();
     if (!sheetOpen && !document.querySelector('.done')) render(); });
 }
 function renderCart(){
@@ -1145,6 +1166,7 @@ function coin(){ const g=new Grid(6,7); ell(g,3,3.5,2.6,3.2,['#FFEC27']); for(le
 
 /* ---------- done ---------- */
 function renderDone(r){
+  liveSoon();
   $('bar').style.display = 'none';
   const digits = String(r.bankAccount || '').replace(/[^0-9]/g, '');
   const payNow = !r.payLater;
@@ -1322,6 +1344,14 @@ function slipPopup(r, slip, img){
   setTimeout(() => { const b = w.querySelector('.btn'); if (b) b.focus(); }, 50);
 }
 function closeSlipPopup(){ const w = $('slipPop'); if (!w) return; if (w.dataset.pic) setTimeout(() => URL.revokeObjectURL(w.dataset.pic), 1000); w.remove(); if (!sheetOpen) unlockPage(); }
+// a small copy of an image (data URL) — the preview kept inside the sheet
+function shrinkTo(dataUrl, maxW, q){
+  return new Promise(ok => { const im = new Image(); im.onload = () => {
+    const k = Math.min(1, maxW / im.width), c = document.createElement('canvas');
+    c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); ok(c.toDataURL('image/jpeg', q)); };
+    im.onerror = () => ok(''); im.src = dataUrl; });
+}
 function pickSlip(input){
   const f = input.files && input.files[0]; if (!f) return;
   const box = $('slipBox'), r = load('greek_pending');
@@ -1334,7 +1364,7 @@ function pickSlip(input){
     return shrink(f); }, e => { slipErr(box, e, f); throw null; })
   .then(img => {
     box.innerHTML = `<img src="${img}" alt="สลิปที่เลือก"><span>กำลังส่งสลิป…</span>`;
-    return call('attachSlip', { orderId: r.orderId, token: r.token, image: img, slipRef: slip.ref, slipBank: slip.bankName }).then(() => img);
+    return shrinkTo(img, 360, .7).then(thumb => call('attachSlip', { orderId: r.orderId, token: r.token, image: img, thumb, slipRef: slip.ref, slipBank: slip.bankName })).then(() => img);
   }).then(img => {
     try { localStorage.removeItem('greek_pending'); } catch(e){}
     save('greek_history', history_().map(h => h.orderId === r.orderId ? Object.assign(h, {slip: true}) : h));
@@ -1420,7 +1450,7 @@ function renderHistory(note){
         ${rows.map(r => { const part = (h.parts || []).find(p => p.orderId === r.id) || {};
           return `<div class="hrow"><div><b>${esc(roundLabel(r.round || ''))}</b><small>${esc(part.summary || '')}</small>
             <div class="chips">${live ? chip(ST_TXT, r.status) + (r.status === 'ยกเลิก' ? '' : chip(PAY_TXT, r.pay)) : ''}</div>
-            ${rows.length > 1 && canCancel(r) ? `<button class="link del" onclick="askCancel(this, ${k}, '${esc(r.id)}')">ยกเลิกวันนี้</button>` : ''}</div>
+            ${rows.length > 1 && canCancel(r) && SAFE_ID.test(r.id) ? `<button class="link del" onclick="askCancel(this, ${k}, '${r.id}')">ยกเลิกวันนี้</button>` : ''}</div>
             <em style="${r.status === 'ยกเลิก' ? 'text-decoration:line-through;opacity:.5' : ''}">${baht(r.total)}</em></div>`; }).join('')}
         <div class="hfoot"><span>${h.payLater ? 'จ่ายตอนรับของ' : 'จ่ายเลย'} · ${alive.length ? 'รวม ' + baht(live ? alive.reduce((t,r) => t + r.total, 0) : h.total) : 'ยกเลิกทั้งออเดอร์แล้ว'}</span>
           <span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">${rows.length === 1 && cancellable.length ? `<button class="mini danger" onclick="askCancel(this, ${k}, '')">ยกเลิกออเดอร์</button>` : ''}
@@ -1482,12 +1512,13 @@ function unlockPage(){
   window.scrollTo(0, lockY); lockY = null;
 }
 function show(id){
+  liveSoon();
   lockPage();
   $('overlay').classList.add('show'); $(id).classList.add('show'); $(id).scrollTop = 0;
   const had = !!sheetOpen; sheetOpen = id;
   try { history[had ? 'replaceState' : 'pushState']({sheet: id}, ''); } catch(e){}
 }
-function hideSheets(){ ['itemSheet','cartSheet','histSheet'].forEach(id => $(id).classList.remove('show')); $('overlay').classList.remove('show'); sheetOpen = null; unlockPage(); }
+function hideSheets(){ ['itemSheet','cartSheet','histSheet'].forEach(id => $(id).classList.remove('show')); $('overlay').classList.remove('show'); sheetOpen = null; unlockPage(); liveSoon(); }
 function closeSheets(opts){
   const toCart = sheetOpen === 'itemSheet' && editIndex >= 0 && !(opts && opts.stay);
   hideSheets();
@@ -1502,7 +1533,7 @@ window.addEventListener('popstate', () => {
 
 /* ---------- boot ---------- */
 function boot(cfg){
-  C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; demoPromo(); allPastClosed();
+  C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; cleanConfig(C); demoPromo(); allPastClosed();
   cart = (load('greek_cart') || []).filter(it => menuOf(it.menuId));
   const sheetOpen = $('itemSheet').classList.contains('show') || $('cartSheet').classList.contains('show');
   if (!sheetOpen && !document.querySelector('.done')) render();
@@ -1524,6 +1555,29 @@ function checkUpdate(){
     location.reload();
   }).catch(() => {});
 }
+/* Live: tell the shop "this phone has the app open, on this screen" (owner's /live/ page).
+   Small, fire-and-forget; on every screen change and every 30 s while the app is on screen. Nothing personal beyond the name typed for orders. */
+var liveLast = '', liveSoonT = 0;     // var + function: usable even before this part of the script has run (render runs early)
+function liveState(){
+  const done = document.querySelector('.done');
+  if (sheetOpen === 'itemSheet' && draft) return { s: 'item', d: (menuOf(draft.menuId) || {}).name || '', c: cupCount(), t: foodTotal() };
+  if (sheetOpen === 'cartSheet') return { s: 'cart', d: '', c: cupCount(), t: foodTotal() };
+  if (sheetOpen === 'histSheet') return { s: 'history', d: '', c: 0, t: 0 };
+  if (done) { const p = load('greek_pending'), h = history_()[0] || {};
+    return p ? { s: 'pay', d: p.orderId, c: p.cups || 0, t: p.total || 0 } : { s: 'done', d: h.orderId || '', c: h.cups || 0, t: h.total || 0 }; }
+  return { s: 'home', d: '', c: cupCount(), t: foodTotal() };
+}
+function livePing(force){
+  if (IS_GAS || !API_URL || document.visibilityState !== 'visible' || !C) return;
+  const st = liveState(), key = JSON.stringify(st);
+  if (!force && key === liveLast) return;
+  liveLast = key;
+  try { fetch(API_URL, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ action: 'ping', device: deviceId(), n: (info.name || '').trim() }, st)) }).catch(() => {}); } catch(e){}
+}
+function liveSoon(){ clearTimeout(liveSoonT); liveSoonT = setTimeout(() => livePing(false), 400); }
+setInterval(() => livePing(true), 30000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') livePing(true); });
 /* no accidental zoom on iPhone: Safari ignores "user-scalable=no", so block the pinch gesture here.
    Double-tap zoom is already off through CSS touch-action:manipulation (fast taps on + still all count). */
 (function noZoom(){
