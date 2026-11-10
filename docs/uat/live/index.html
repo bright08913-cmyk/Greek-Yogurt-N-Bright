@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Bright Greek · Live</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Jersey+10&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#FFF4EF;--ink:#3B2A40;--muted:#7A6A7E;--pink:#FF8FAB;--pink-dark:#C93C63;--soft:#FFE3EA;--coin:#FFD34E;--ok:#2E9E6A;--line:#EADCE0;
+        --px:'Jersey 10','Chakra Petch',sans-serif;--arcade:'Press Start 2P',monospace}
+  *{box-sizing:border-box;--ec:var(--ink);--pw:3px;--pxs:0 calc(-1*var(--pw)) 0 0 var(--ec),0 var(--pw) 0 0 var(--ec),calc(-1*var(--pw)) 0 0 0 var(--ec),var(--pw) 0 0 0 var(--ec)}
+  html,body{margin:0;font-synthesis:none;color:var(--ink);font-family:'Chakra Petch',sans-serif;font-weight:500;background:var(--bg);
+    background-image:linear-gradient(rgba(59,42,64,.035) 2px,transparent 2px),linear-gradient(90deg,rgba(59,42,64,.035) 2px,transparent 2px);background-size:24px 24px}
+  button,input{font:inherit;color:inherit}
+  .wrap{max-width:720px;margin:0 auto;padding:16px 16px 40px}
+  .hud{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#2E2238;color:#fff;padding:12px 14px;margin:3px;--ec:#FF8FAB;box-shadow:var(--pxs),0 8px 0 rgba(59,42,64,.25)}
+  .hud h1{margin:0;font-family:var(--arcade);font-size:12px;line-height:1.5;text-shadow:2px 2px 0 #C93C63}
+  .hud .on{font-family:var(--arcade);font-size:11px;color:#8CF2B9;white-space:nowrap}
+  .dot{display:inline-block;width:10px;height:10px;background:#3BE38A;margin-right:6px;box-shadow:0 0 0 2px #1F7A4A;animation:blink 1s steps(2,jump-none) infinite}
+  @keyframes blink{50%{opacity:.3}}
+  .sub{color:var(--muted);font-size:13px}
+  .meta{display:flex;justify-content:space-between;align-items:center;margin:14px 4px 0}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 3px 0}
+  .chip{background:#fff;padding:4px 10px;font-size:13px;font-weight:700;--pw:2px;box-shadow:var(--pxs)}
+  .chip b{font-family:var(--px);font-size:20px;font-weight:400;margin-left:4px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px;margin-top:18px}
+  .p{background:#fff;padding:12px;margin:3px;display:flex;gap:12px;align-items:flex-start;box-shadow:var(--pxs),0 8px 0 rgba(59,42,64,.12);transition:opacity .3s}
+  .p.idle{opacity:.55}
+  .p.new{animation:pop .35s steps(4,end)}
+  @keyframes pop{0%{transform:scale(.7)}70%{transform:scale(1.05)}100%{transform:none}}
+  .av{position:relative;flex:none;width:56px;height:56px;--pw:2px;box-shadow:var(--pxs)}
+  .av canvas{display:block;width:56px;height:56px;image-rendering:pixelated}
+  .av i{position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;background:#3BE38A;--pw:2px;box-shadow:var(--pxs)}
+  .p.idle .av i{background:var(--coin)}
+  .nm{font-family:var(--px);font-size:24px;line-height:1;font-weight:700}
+  .nm small{font-family:'Chakra Petch',sans-serif;font-size:12px;font-weight:500;color:var(--muted)}
+  .st{font-size:13px;margin-top:4px;font-weight:600}
+  .st .ic{display:inline-block;width:18px}
+  .cart{display:inline-block;margin-top:6px;background:var(--soft);font-size:12px;font-weight:700;padding:1px 6px;--pw:2px;box-shadow:var(--pxs)}
+  .cart.done{background:#D8F3E3}
+  .ago{font-size:11px;color:var(--muted);margin-top:6px}
+  .empty{text-align:center;padding:50px 0;color:var(--muted)}
+  .empty .z{font-family:var(--arcade);font-size:12px;color:var(--pink-dark);animation:blink 1.4s steps(2,jump-none) infinite}
+  /* PIN */
+  .lock{max-width:320px;margin:40px auto;text-align:center}
+  .lock h2{font-family:var(--arcade);font-size:12px;color:var(--pink-dark)}
+  .pin{display:flex;justify-content:center;gap:10px;margin:18px 0}
+  .pin span{width:34px;height:42px;background:#fff;font-family:var(--px);font-size:30px;line-height:42px;--pw:2px;box-shadow:var(--pxs)}
+  .keys{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .keys button{border:0;background:#fff;height:54px;font-family:var(--px);font-size:30px;cursor:pointer;box-shadow:var(--pxs),0 6px 0 rgba(59,42,64,.18)}
+  .keys button:active{transform:translateY(3px)}
+  .err{color:var(--pink-dark);font-weight:700;min-height:22px}
+  .demo{display:inline-block;margin-top:10px;font-size:12px;background:#FFF1C7;padding:4px 10px;--pw:2px;box-shadow:var(--pxs)}
+  @media (prefers-reduced-motion: reduce){.dot,.p.new,.empty .z{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+/* Bright Greek · Live — who has the shop app open right now (owner only, PIN protected).
+   Real data comes from the shop's backend (action "live"); with no backend it shows a moving demo. */
+const API = window.GREEK_API || '';
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const baht = n => '฿' + Number(n).toLocaleString('th-TH');
+let pin = sessionStorage.getItem('live_pin') || '', typed = '', timer = 0, seen = {};
+
+/* a little pixel creature per phone: same phone = same face */
+function hash(s){ let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+const COLS = ['#FF8FAB','#7FD8BE','#FFD34E','#9BA7E6','#FFB45C','#C9B6E4','#8CD3F2','#F2A5C0'];
+function avatar(id){
+  const h = hash(id), c = document.createElement('canvas'); c.width = c.height = 12; const x = c.getContext('2d');
+  x.fillStyle = '#FFF8FA'; x.fillRect(0, 0, 12, 12);
+  const col = COLS[h % COLS.length], dark = '#3B2A40';
+  for (let y = 0; y < 8; y++) for (let i = 0; i < 4; i++) {           // mirrored blob
+    const on = ((h >> ((y * 4 + i) % 31)) & 1) || (i >= 2 && y >= 2 && y <= 6);
+    if (on) { x.fillStyle = col; x.fillRect(2 + i, 2 + y, 1, 1); x.fillRect(9 - i, 2 + y, 1, 1); }
+  }
+  x.fillStyle = dark; x.fillRect(4, 5, 1, 2); x.fillRect(7, 5, 1, 2);    // eyes
+  x.fillStyle = '#FFFFFF'; x.fillRect(4, 5, 1, 1); x.fillRect(7, 5, 1, 1);
+  x.fillStyle = '#C93C63'; x.fillRect(5, 8, 2, 1);                       // mouth
+  return c;
+}
+const SCREEN = {
+  home: ['🍽', 'ดูหน้าเมนู'], item: ['🍓', 'กำลังเลือก'], cart: ['🛒', 'อยู่ในตะกร้า'], pay: ['💳', 'หน้าจ่ายเงิน'],
+  done: ['✅', 'สั่งเสร็จแล้ว'], history: ['📜', 'ดูออเดอร์ของฉัน']
+};
+function agoText(s){ return s < 15 ? 'เมื่อกี้' : s < 60 ? s + ' วิที่แล้ว' : Math.floor(s / 60) + ' นาทีที่แล้ว'; }
+
+function renderLive(list, at){
+  const now = at || Date.now();
+  list.sort((a, b) => (b.t - a.t));
+  const count = k => list.filter(p => p.screen === k).length;
+  $('app').innerHTML = `
+    <div class="hud"><h1>BRIGHT GREEK<br>LIVE</h1><div class="on"><span class="dot"></span>${list.length} ONLINE</div></div>
+    ${API ? '' : '<div class="demo">โหมดตัวอย่าง: ข้อมูลจำลอง ขยับทุก 10 วิ</div>'}
+    <div class="chips">
+      <span class="chip">🍽 เมนู<b>${count('home')}</b></span><span class="chip">🍓 เลือกอยู่<b>${count('item')}</b></span>
+      <span class="chip">🛒 ตะกร้า<b>${count('cart')}</b></span><span class="chip">✅ สั่งเสร็จ<b>${count('done') + count('pay')}</b></span>
+    </div>
+    ${list.length ? `<div class="grid">${list.map(p => { const sc = SCREEN[p.screen] || ['👀', p.screen], ago = Math.max(0, Math.round((now - p.t) / 1000));
+      const fresh = !seen[p.id]; seen[p.id] = 1;
+      return `<div class="p${ago > 60 ? ' idle' : ''}${fresh ? ' new' : ''}">
+        <div class="av" data-id="${esc(p.id)}"><i></i></div>
+        <div style="min-width:0">
+          <div class="nm">${p.name ? esc(p.name) : `<small>เครื่อง #${esc(String(p.id).slice(-4))}</small>`}</div>
+          <div class="st"><span class="ic">${sc[0]}</span>${esc(sc[1])}${p.detail ? ' · ' + esc(p.detail) : ''}</div>
+          ${p.cups ? `<span class="cart${p.screen === 'done' ? ' done' : ''}">${p.screen === 'done' ? 'สั่งแล้ว' : 'ตะกร้า'} ${p.cups} ถ้วย · ${baht(p.total || 0)}</span>` : ''}
+          <div class="ago">${agoText(ago)}</div>
+        </div></div>`; }).join('')}</div>`
+      : `<div class="empty"><div class="z">Z z z</div><p>ตอนนี้ยังไม่มีใครเปิดแอป</p></div>`}
+    <div class="meta"><span class="sub">อัปเดตอัตโนมัติทุก 10 วิ · ${new Date(now).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+      <button class="chip" style="border:0;cursor:pointer" onclick="logout()">ล็อก</button></div>`;
+  document.querySelectorAll('.av').forEach(d => d.prepend(avatar(d.dataset.id)));
+}
+
+/* ---- demo: a few pretend customers wandering around the app ---- */
+const DEMO = [
+  { id: 'a1f3', name: 'Ice', path: [['home'], ['item','Original'], ['item','Original'], ['cart'], ['pay','G0031'], ['done','G0031']], cups: 2, total: 170 },
+  { id: 'b7c2', name: 'Mook', path: [['cart'], ['cart'], ['item','Biscoff'], ['cart'], ['cart']], cups: 1, total: 90 },
+  { id: '9d04', name: '', path: [['home'], ['home'], ['item','Greek Banoffee'], ['home']] },
+  { id: 'e55a', name: 'Ning', path: [['history'], ['history'], ['home']] },
+  { id: 'c3b9', name: 'กิมจิ', path: [['home'], ['item','Oreo'], ['item','Oreo'], ['cart'], ['cart'], ['pay','G0032']], cups: 3, total: 260, join: 2 }
+];
+let tick = 0;
+function demoList(){
+  tick++;
+  return DEMO.filter(d => tick >= (d.join || 0)).map((d, i) => { const step = d.path[(tick + i) % d.path.length];
+    return { id: 'dev-' + d.id, name: d.name, screen: step[0], detail: step[1] || '', cups: ['cart','pay','done'].includes(step[0]) || step[0] === 'item' ? d.cups : 0,
+      total: d.total, t: Date.now() - ((i * 17 + tick * 7) % 80) * 1000 }; });
+}
+
+function load(){
+  if (!API) { renderLive(demoList()); return; }
+  fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'live', pin }) })
+    .then(r => r.json()).then(j => { if (!j.ok) throw new Error(j.error); renderLive(j.data.list || [], j.data.now); })
+    .catch(e => { if (/PIN/.test(String(e.message))) { logout(String(e.message)); } });
+}
+function start(){ load(); clearInterval(timer); timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 10000); }
+
+/* ---- PIN screen ---- */
+function lockScreen(msg){
+  $('app').innerHTML = `<div class="lock"><div class="hud" style="justify-content:center"><h1>BRIGHT GREEK · LIVE</h1></div>
+    <h2 style="margin-top:22px">ENTER PIN</h2>
+    <div class="pin">${[0,1,2,3,4,5].map(i => `<span>${typed[i] ? '•' : ''}</span>`).join('')}</div>
+    <div class="err">${esc(msg || '')}</div>
+    <div class="keys">${[1,2,3,4,5,6,7,8,9,'⌫',0,'OK'].map(k => `<button onclick="key('${k}')">${k}</button>`).join('')}</div>
+    ${API ? '' : '<div class="demo">โหมดตัวอย่าง: PIN อะไรก็ได้ 6 หลัก</div>'}</div>`;
+}
+function key(k){
+  if (k === '⌫') typed = typed.slice(0, -1);
+  else if (k === 'OK') { if (typed.length < 4) return lockScreen('PIN อย่างน้อย 4 หลัก'); pin = typed; typed = ''; sessionStorage.setItem('live_pin', pin); start(); return; }
+  else if (typed.length < 6) typed += k;
+  lockScreen();
+}
+function logout(msg){ clearInterval(timer); pin = ''; typed = ''; sessionStorage.removeItem('live_pin'); lockScreen(msg); }
+pin ? start() : lockScreen();
+</script>
+</body>
+</html>
