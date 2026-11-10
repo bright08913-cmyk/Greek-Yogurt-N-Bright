@@ -134,10 +134,16 @@ function demoList(){
 function load(){
   if (!API) { renderLive(demoList()); return; }
   fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'live', pin }) })
-    .then(r => r.json()).then(j => { if (!j.ok) throw new Error(j.error); renderLive(j.data.list || [], j.data.now); })
+    .then(r => r.text()).then(t => { let j; try { j = JSON.parse(t); } catch (e) { throw new Error('NOJSON'); }
+      if (!j.ok) throw new Error(j.error || 'error'); renderLive(j.data.list || [], j.data.now); })
     .catch(e => { const m = String((e && e.message) || e);
-      if (/^PIN:/.test(m)) logout(m.replace(/^PIN:\s*/, ''));
-      else { const el = document.querySelector('.meta .sub'); if (el) el.textContent = 'เชื่อมต่อไม่ได้ชั่วคราว จะลองใหม่ใน 5 วิ'; } });
+      if (/^PIN:/.test(m)) return logout(m.replace(/^PIN:\s*/, ''));
+      // say what's wrong, wherever we are (PIN screen or live screen)
+      const why = /unknown action/i.test(m) ? 'ระบบร้านยังไม่ได้อัปเดต: วาง Code.gs ล่าสุด แล้ว Deploy → New version ก่อนนะ'
+        : m === 'NOJSON' ? 'เซิร์ฟเวอร์ตอบกลับแปลกๆ (Deploy ล่าสุดอาจยังไม่ได้ตั้งเป็น "Anyone")'
+        : 'เชื่อมต่อไม่ได้: ' + m;
+      const el = document.querySelector('.meta .sub') || document.querySelector('.err');
+      if (el) el.textContent = why; });
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && pin) load(); });
 function start(){ load(); clearInterval(timer); timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 5000); }   // every 5 s, only while on screen
