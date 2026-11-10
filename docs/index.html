@@ -20,7 +20,7 @@
 <meta property="og:image" content="https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/og-16bit.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "2256fa79a7";</script>
+<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "83a4fe5730";</script>
 
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Jersey+10&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -118,21 +118,31 @@
   .hero-bowl{position:relative;width:216px;height:200px;margin-bottom:12px;transform-origin:50% 100%}
   .hero-bowl #cupBody{position:absolute;inset:0;transform-origin:50% 100%}
   .hero-bowl .big{position:absolute;left:0;bottom:0;width:216px;height:168px}
+  .hero-bowl .big.drz{z-index:3}
   .bob{animation:bob16 2.4s steps(2,jump-none) infinite}
   @keyframes bob16{50%{transform:translateY(-3px)}}
   #cupBody.wob{animation:wob .4s steps(4,end)}
   @keyframes wob{0%{transform:scale(1,1)}30%{transform:scale(1.06,.92)}60%{transform:scale(.97,1.04)}100%{transform:scale(1,1)}}
-  .fw{position:absolute;left:0;top:0;width:0;height:0;transition:transform .4s steps(5,end)}
-  .fr{position:absolute;left:-18px;top:-32px;width:36px;height:36px;image-rendering:pixelated;transform-origin:50% 100%;
+  .fw{position:absolute;left:0;top:0;width:0;height:0;z-index:2;transition:transform .4s steps(5,end)}
+  .fr{filter:drop-shadow(0 3px 0 rgba(59,42,64,.22));position:absolute;left:-18px;top:-32px;width:36px;height:36px;image-rendering:pixelated;transform-origin:50% 100%;
       transition:transform .42s cubic-bezier(.34,1.9,.5,1),opacity .12s steps(2)}
   .fr.off{transform:translateY(-70px) scale(.6);opacity:0;transition:transform .3s cubic-bezier(.55,-.4,.75,.4),opacity .2s steps(2) .1s}
   .rp{position:absolute;left:-14px;top:-4px;width:28px;height:6px;opacity:0;--pw:2px;--ec:#fff;box-shadow:var(--pxs)}
   .rp.go{animation:ripple .5s steps(4,end)}
   .rp.go.late{animation-delay:.22s}
   @keyframes ripple{0%{transform:scale(.3);opacity:1}100%{transform:scale(1.8);opacity:0}}
+  #scoops{position:absolute;inset:0;pointer-events:none;z-index:1}
+  .sc{position:absolute;width:48px;height:42px;image-rendering:pixelated}
+  .sc.drop{animation:scDrop .6s steps(8,end)}
+  @keyframes scDrop{0%{transform:translateY(-110px);opacity:0}12%{opacity:1}65%{transform:translateY(4px) scale(1.08,.86)}82%{transform:translateY(-4px) scale(.96,1.04)}100%{transform:none}}
+  .sc.out{animation:scOut .3s steps(4,end) forwards}
+  @keyframes scOut{to{transform:translateY(-40px) scale(.4);opacity:0}}
+  .sc-pop{position:absolute;font-family:var(--px-font);font-size:22px;color:var(--pink-dark);text-shadow:2px 2px 0 #fff;animation:scPop .9s steps(6,end) forwards;z-index:30}
+  @keyframes scPop{0%{transform:translateY(8px);opacity:0}20%{opacity:1}100%{transform:translateY(-26px);opacity:0}}
+  @media (prefers-reduced-motion: reduce){.sc.drop,.sc.out,.sc-pop{animation:none}}
   .drz{opacity:0;transition:opacity .35s steps(3,end)}
   .drz.on{opacity:1}
-  .fh{position:absolute;left:94px;top:6px;width:28px;height:24px;image-rendering:pixelated;opacity:0;transition:opacity .1s}
+  .fh{position:absolute;z-index:4;left:94px;top:6px;width:28px;height:24px;image-rendering:pixelated;opacity:0;transition:opacity .1s}
   .cup.happy .fh{opacity:1;animation:heartUp .9s steps(6,end) forwards}
   @keyframes heartUp{from{transform:translateY(10px)}to{transform:translateY(-14px)}}
 
@@ -181,6 +191,7 @@
   input,textarea{width:calc(100% - 6px);margin:0 3px;font-size:16px;padding:11px 14px;border:0;border-radius:0;background:#fff;box-shadow:var(--pxs)}
   textarea{resize:none;height:72px;min-height:72px;max-height:72px;overflow-y:auto;line-height:1.4}   /* fixed size: no drag handle to catch by accident */
   input:focus,textarea:focus{outline:none;--ec:var(--pink-dark);background:#FFFBFC}
+  .dq-head{font-weight:700;font-size:14px;margin:14px 0 2px;padding-top:10px;border-top:3px dotted var(--line)}
   .rounds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .round{min-height:54px;padding:8px 12px;border:0;background:#fff;text-align:left;margin:2px;--pw:2px;--ec:var(--lilac);box-shadow:var(--pxs);
          display:flex;flex-direction:column;justify-content:center;gap:1px;cursor:pointer}
@@ -505,6 +516,9 @@ function layoutFruits(){ fruitSpots(draft.fruits).forEach((t,i) => { const w = $
 // fruit spots on the yogurt of the pixel bowl (hero box is 216 x 200, bowl drawn 3x at the bottom)
 function slotOf(i, n){
   const t = n <= 1 ? .5 : i / (n - 1);
+  // with extra scoops piled in the middle, the fruit sits down on the yogurt in front of them (wider, flatter row)
+  if (typeof draft !== 'undefined' && draft && draft.addons && draft.addons.SCP)
+    return [ (34 + 148 * t).toFixed(1), (136 - 5 * Math.sin(Math.PI * t)).toFixed(1), n > 5 ? .8 : 1 ];
   return [ (40 + 136 * t).toFixed(1), (128 - 20 * Math.sin(Math.PI * t)).toFixed(1), n > 5 ? .8 : 1 ];
 }
 /* cup(m, {size, fruits:[names], live:true, syrup:bool}) — the 16-bit bowl.
@@ -519,6 +533,7 @@ function cup(m, o){
       <img class="fr off" id="fr${i}" src="${Game16.fruitURL(fruitLook(f))}" width="36" height="36" alt=""></div>`).join('') : '';
   return `<div class="cup body hero-bowl" id="cupSvg" aria-hidden="true"><div id="cupBody" class="bob">
       ${pxImg(Game16.bowlURL(m.id, [], bare), 216, 'big')}
+      <div id="scoops"></div>
       ${fr}
       ${pxImg(Game16.drizzleURL(), 216, 'big drz' + (o.syrup ? ' on' : ''), 'id="drz"')}
       <img class="fh" src="${Game16.heartURL()}" width="28" height="24" alt="">
@@ -566,6 +581,7 @@ function openItem(menuId, idx){
   draft = editIndex >= 0 ? JSON.parse(JSON.stringify(cart[editIndex]))
         : { menuId, qty:1, addons:{}, fruits: [], round: defaultRound() };   // no fruit picked yet — customer chooses
   if (C.rounds.indexOf(draft.round) < 0) draft.round = defaultRound();
+  draft.days = draft.round ? [draft.round] : []; draft.dq = {};
   const fruitsBox = m.fruitPick > 0 ? `
     <div class="box" id="fruitBox">
       <h3><span>เลือกผลไม้ <span class="req">*</span></span><small id="pickInfo"></small></h3>
@@ -589,10 +605,10 @@ function openItem(menuId, idx){
     ${C.open ? '' : `<div class="closed" id="itemClosed" style="margin-top:12px">${esc(C.closedMsg)}<div style="font-weight:400;font-size:13px;margin-top:4px">ดูเมนูได้ตามสบาย แต่ยังสั่งไม่ได้จนกว่าร้านจะเปิดรอบใหม่</div></div>`}
     ${fruitsBox}
     ${addonsFor(m).length ? `<div class="box" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
-    ${C.rounds.length > 1 ? `<div class="box" id="dayBox"><h3><span>รับวันไหน <span class="req">*</span></span><small>ถ้วยนี้</small></h3><div class="rounds">
+    ${C.rounds.length > 1 ? `<div class="box" id="dayBox"><h3><span>รับวันไหน <span class="req">*</span></span><small>${editIndex >= 0 ? 'ถ้วยนี้' : 'เลือกได้หลายวัน'}</small></h3><div class="rounds">
       ${C.rounds.map((r,i) => `<button class="round" id="rd${i}" onclick="pickItemRound(${i})"><b>${esc(roundLabel(r))}</b>${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
-    </div></div>` : ''}
-    <div class="box" style="padding-top:6px;padding-bottom:6px"><div class="row"><div class="lbl">จำนวน<small id="unitTxt"></small></div>
+    </div><div id="dayQty"></div></div>` : ''}
+    <div class="box" id="qtyBox" style="padding-top:6px;padding-bottom:6px"><div class="row"><div class="lbl">จำนวน<small id="unitTxt"></small></div>
       <div class="stepper"><button id="qm" aria-label="ลดจำนวน" onclick="setQty(-1)">−</button><span id="qv">1</span><button aria-label="เพิ่มจำนวน" onclick="setQty(1)">+</button></div></div></div>
     <div class="sheet-bar"><button class="btn" id="addBtn" onclick="commitItem()"><span id="addLbl"></span><span id="addPrice"></span></button></div>`;
   show('itemSheet');
@@ -620,22 +636,40 @@ function refreshItem(){
   const syrup = addonsFor(m).find(a => a.type !== 'count');
   $('drz').classList.toggle('on', !!(syrup && draft.addons[syrup.id]));
   $('qv').textContent = draft.qty; $('qm').disabled = draft.qty <= 1;
+  syncScoops();
   $('unitTxt').textContent = baht(unitPrice(draft)) + ' / ถ้วย';
-  $('addPrice').textContent = baht(linePrice(draft));
-  C.rounds.forEach((r,i) => { const b = $('rd'+i); if (b){ b.classList.toggle('on', draft.round === r); b.setAttribute('aria-pressed', draft.round === r); } });
+  const multi = editIndex < 0 && draft.days.length > 1;
+  const cupsAll = multi ? draft.days.reduce((t, r) => t + (draft.dq[r] || 1), 0) : draft.qty;
+  $('addPrice').textContent = baht(unitPrice(draft) * cupsAll);
+  $('qtyBox').style.display = multi ? 'none' : '';
+  if ($('dayQty')) $('dayQty').innerHTML = multi ? `<div class="dq-head">จำนวนแต่ละวัน</div>` + draft.days.map(r => `
+      <div class="row"><div class="lbl">${esc(roundLabel(r))}<small>${baht(unitPrice(draft))} / ถ้วย</small></div>
+        <div class="stepper"><button aria-label="ลด ${esc(r)}" onclick="setDayQty('${esc(r)}',-1)" ${(draft.dq[r] || 1) <= 1 ? 'disabled' : ''}>−</button>
+        <span>${draft.dq[r] || 1}</span><button aria-label="เพิ่ม ${esc(r)}" onclick="setDayQty('${esc(r)}',1)">+</button></div></div>`).join('') : '';
+  C.rounds.forEach((r,i) => { const b = $('rd'+i), on = editIndex >= 0 ? draft.round === r : draft.days.indexOf(r) >= 0;
+    if (b){ b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); } });
   const needFruit = m.fruitPick > 0 && !draft.fruits.length;
   const needDay = C.rounds.length && C.rounds.indexOf(draft.round) < 0;
   $('addBtn').classList.toggle('dim', needFruit || needDay || !C.open);
   if (!C.open){ $('addLbl').textContent = 'ร้านปิดรับอยู่ · ดูได้อย่างเดียว'; need('fruitBox', false); need('dayBox', false); return; }
   need('fruitBox', needFruit); need('dayBox', needDay);
-  $('addLbl').textContent = needFruit ? 'เลือกผลไม้ก่อนนะ' : needDay ? 'เลือกวันรับก่อนนะ' : editIndex >= 0 ? 'บันทึก' : 'ใส่ตะกร้า';
+  $('addLbl').textContent = needFruit ? 'เลือกผลไม้ก่อนนะ' : needDay ? 'เลือกวันรับก่อนนะ' : editIndex >= 0 ? 'บันทึก' : multi ? `ใส่ตะกร้า · ${draft.days.length} วัน ${cupsAll} ถ้วย` : 'ใส่ตะกร้า';
 }
 // a new cup starts on the day picked last time (or the only open day)
 function defaultRound(){
   if (C.rounds.length === 1) return C.rounds[0];
   return C.rounds.indexOf(info.lastRound) >= 0 ? info.lastRound : '';
 }
-function pickItemRound(i){ draft.round = C.rounds[i]; refreshItem(); }
+function pickItemRound(i){
+  const r = C.rounds[i];
+  if (editIndex >= 0) { draft.round = r; refreshItem(); return; }
+  const k = draft.days.indexOf(r);
+  if (k >= 0) draft.days.splice(k, 1); else { draft.days.push(r); draft.dq[r] = draft.dq[r] || draft.qty; }
+  draft.days.sort((a, b) => C.rounds.indexOf(a) - C.rounds.indexOf(b));
+  draft.round = draft.days[0] || '';
+  refreshItem();
+}
+function setDayQty(r, d){ draft.dq[r] = Math.max(1, Math.min(C.maxCups || 50, (draft.dq[r] || 1) + d)); refreshItem(); }
 function toggleFruit(i){
   const name = availFruits()[i].name, k = draft.fruits.indexOf(name), m = menuOf(draft.menuId);
   if (k >= 0) draft.fruits.splice(k,1); else if (draft.fruits.length < m.fruitPick) draft.fruits.push(name); else return;
@@ -652,6 +686,26 @@ function cupReact(added){
   body.classList.remove('wob'); body.getBoundingClientRect(); body.classList.add('wob');
   if (added){ svg.classList.add('happy'); clearTimeout(happyTimer); happyTimer = setTimeout(() => svg.classList.remove('happy'), 900); }
 }
+/* extra scoops drop into the bowl one by one (+ on "เพิ่ม Scoop"), the top one pops off on − */
+// the bowl already has its own scoop in the middle (about x108, y112): extras go beside it, then on top
+const SCOOP_SPOTS = [[78,118],[138,118],[93,98],[123,98],[108,82]];
+function syncScoops(){
+  const box = $('scoops'); if (!box) return;
+  const want = Math.min(5, (draft.addons && draft.addons.SCP) || 0);
+  const have = [...box.querySelectorAll('.sc:not(.out)')];
+  const quiet = !box.dataset.ready; box.dataset.ready = '1';      // opening an item that already has scoops: no drop
+  for (let k = have.length; k < want; k++){
+    const [x, y] = SCOOP_SPOTS[k], im = document.createElement('img');
+    im.src = Game16.scoopURL(); im.className = 'sc' + (quiet ? '' : ' drop'); im.alt = '';
+    im.style.left = (x - 24) + 'px'; im.style.top = (y - 36) + 'px'; im.style.zIndex = k;   // within the scoop layer
+    box.appendChild(im);
+    if (!quiet){ const pop = document.createElement('div'); pop.className = 'sc-pop'; pop.textContent = '+1';
+      pop.style.left = (x + 14) + 'px'; pop.style.top = (y - 52) + 'px'; box.appendChild(pop); setTimeout(() => pop.remove(), 900);
+      setTimeout(() => cupReact(false), 380); }
+  }
+  for (let k = have.length - 1; k >= want; k--){ const im = have[k]; im.classList.add('out'); setTimeout(() => im.remove(), 320); }
+  if (!quiet && want !== have.length) layoutFruits();
+}
 function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
   const v = d === 0 ? (n ? 0 : 1) : Math.max(0, Math.min(a.max, n + d));
   if (v) draft.addons[id] = v; else delete draft.addons[id]; refreshItem(); }
@@ -662,7 +716,10 @@ function commitItem(){
   const needDay = C.rounds.length && C.rounds.indexOf(draft.round) < 0;
   if (needFruit || needDay){ if (needDay) bump('dayBox', !needFruit); if (needFruit) bump('fruitBox', true); return; }
   info.lastRound = draft.round;
-  if (editIndex >= 0) cart[editIndex] = draft; else cart.push(draft);
+  const clean = x => { const c = JSON.parse(JSON.stringify(x)); delete c.days; delete c.dq; return c; };
+  if (editIndex >= 0) cart[editIndex] = clean(draft);
+  else if (draft.days.length > 1) draft.days.forEach(r => cart.push(Object.assign(clean(draft), { round: r, qty: draft.dq[r] || 1 })));   // one cart line per day
+  else cart.push(clean(draft));
   save('greek_cart', cart); closeSheets({stay: true}); render();
   if (editIndex >= 0) setTimeout(openCart, 260);
 }
@@ -951,6 +1008,9 @@ function coin(){ const g=new Grid(6,7); ell(g,3,3.5,2.6,3.2,['#FFEC27']); for(le
     bowlURL: (id, picked, bare) => url('b|' + id + '|' + (bare ? 'bare' : (NAMES[id] ? '' : (picked || []).join(','))), () => menuBowl(id, picked, bare)),
     fruitURL: L => url('f|' + JSON.stringify(L), () => fruitGrid(L)),
     drizzleURL: () => url('drz', drizzle),
+    scoopURL: () => url('scoop', () => { const g = new Grid(16,14); ball(g,8,7.6,6.2,PAL16.yog,{dither:true});
+      for (let k=0;k<10;k++){ const a=k/10*Math.PI*2; g.set(8+Math.cos(a)*3.4,7+Math.sin(a)*2.6,PAL16.yog[2]); }
+      g.set(5,4,'#FFFFFF'); g.set(6,4,'#FFFFFF'); outline(g, PAL16.ink); return g; }),
     heartURL: () => url('heart', () => heart('#FF6F9A')),
     coinURL: () => url('coin', coin),
     starURL: c => url('star|' + c, () => star(c, true)) };
@@ -1023,21 +1083,82 @@ function shrink(file){
     img.src = url;
   });
 }
+/* ---------- is it really a transfer slip? every Thai bank e-slip carries a small verification QR ----------
+   (same format promptparse validates: API "000001" + bank code + transaction ref, CRC at the end; TrueMoney has its own) */
+// what the app will use: is this QR text a Thai transfer-slip QR?
+const BANKS = {'002':'กรุงเทพ','004':'กสิกรไทย','006':'กรุงไทย','011':'ทีทีบี','014':'ไทยพาณิชย์','022':'ซีไอเอ็มบี','024':'ยูโอบี','025':'กรุงศรี','030':'ออมสิน','033':'ธอส.','034':'ธ.ก.ส.','066':'อิสลาม','067':'ทิสโก้','069':'เกียรตินาคินภัทร','071':'ไทยเครดิต','073':'แลนด์ แอนด์ เฮ้าส์'};
+function tlv(s){ const out = {}; let i = 0; while (i + 4 <= s.length){ const t = s.slice(i, i+2), n = parseInt(s.slice(i+2, i+4), 10); if (isNaN(n) || i + 4 + n > s.length) return null; out[t] = s.slice(i+4, i+4+n); i += 4 + n; } return i === s.length ? out : null; }
+function slipCrc16(s){ let c = 0xFFFF; for (let i = 0; i < s.length; i++){ c ^= s.charCodeAt(i) << 8; for (let k = 0; k < 8; k++) c = (c & 0x8000) ? ((c << 1) ^ 0x1021) : (c << 1); c &= 0xFFFF; } return c.toString(16).toUpperCase().padStart(4,'0'); }
+function slipInfo(text){
+  text = String(text || '').trim();
+  if (!/^\d{4}/.test(text) || text.length < 30) return null;
+  const top = tlv(text); if (!top || !top['00']) return null;
+  if (!/^(91|63)04[0-9A-Fa-f]{4}$/.test(text.slice(-8)) || slipCrc16(text.slice(0, -4)) !== text.slice(-4).toUpperCase()) return null;
+  const sub = tlv(top['00']); if (!sub) return null;
+  if (sub['00'] === '000001' && /^\d{3}$/.test(sub['01'] || '') && (sub['02'] || '').length >= 10)
+    return { kind: 'bank', bank: sub['01'], bankName: BANKS[sub['01']] || ('ธนาคาร ' + sub['01']), ref: sub['02'] };
+  if ((sub['00'] === '01' || sub['01'] === '01') && (sub['03'] || '').length >= 10)
+    return { kind: 'truemoney', bankName: 'TrueMoney Wallet', ref: sub['03'] };
+  return null;
+}
+let jsQRload = null;
+function loadJsQR(){ return jsQRload || (jsQRload = new Promise((ok, no) => {
+  if (window.jsQR) return ok(); const sc = document.createElement('script'); sc.src = 'jsqr.min.js'; sc.onload = ok; sc.onerror = () => no(new Error('โหลดตัวตรวจสลิปไม่ได้')); document.head.appendChild(sc); })); }
+// read every QR-ish thing in the picture: try a few sizes, a slip QR is small
+function readQR(file){
+  return loadJsQR().then(() => new Promise((ok, no) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      for (const max of [1400, 900, 2200]){
+        const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, c.width, c.height);
+        const hit = jsQR(x.getImageData(0, 0, c.width, c.height).data, c.width, c.height, { inversionAttempts: 'attemptBoth' });
+        if (hit && hit.data) return ok(hit.data);
+      }
+      ok('');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); no(new Error('อ่านรูปนี้ไม่ได้ ลองเลือกรูปอื่น')); };
+    img.src = url;
+  }));
+}
+function checkSlip(file, orderId){
+  return readQR(file).then(text => {
+    const s = slipInfo(text);
+    if (!text) throw new Error('🚫 รูปนี้ไม่ใช่สลิปโอนเงิน|ต้องเป็นสลิปจากแอปธนาคาร ที่มี QR เล็กๆ อยู่บนสลิป');
+    if (!s && /^000201/.test(text)) throw new Error('🚫 รูปนี้เป็น QR สำหรับจ่ายเงิน ไม่ใช่สลิป|โอนเสร็จแล้ว แอปธนาคารจะบันทึกสลิปไว้ในอัลบั้ม เลือกรูปนั้นนะ');
+    if (!s) throw new Error('🚫 QR ในรูปนี้ไม่ใช่ QR ของสลิปโอนเงิน|ลองเลือกสลิปที่แอปธนาคารบันทึกไว้');
+    // same slip twice? quick check on this phone; the shop's backend checks every phone when it's sent
+    const used = load('greek_slip_refs') || {};
+    if (used[s.ref] && used[s.ref] !== orderId) throw new Error('🚫 สลิปนี้เคยใช้แล้วกับออเดอร์ ' + used[s.ref] + '|ถ้าโอนใหม่แล้ว เลือกสลิปใบใหม่นะ');
+    return s;
+  });
+}
+const slipErr = (box, e) => { const [a, b] = String((e && e.message) || 'ส่งไม่สำเร็จ').split('|');
+  box.classList.add('err');
+  box.innerHTML = `<input type="file" accept="image/*" onchange="pickSlip(this)" aria-label="เลือกรูปสลิปใหม่"><span>${esc(a)}</span>${b ? `<span style="font-weight:500;font-size:13px">${esc(b)}</span>` : ''}<span style="font-weight:500;font-size:13px">แตะเพื่อเลือกรูปใหม่</span>`; };
 function pickSlip(input){
   const f = input.files && input.files[0]; if (!f) return;
   const box = $('slipBox'), r = load('greek_pending');
   if (!r) return;
   box.classList.remove('err','ok');
-  box.innerHTML = '<span class="spin" style="border-color:rgba(37,70,168,.25);border-top-color:#2546A8"></span><span>กำลังส่งสลิป…</span>';
-  shrink(f).then(img => {
+  box.innerHTML = '<span class="spin"></span><span>กำลังตรวจสลิป…</span>';
+  let slip = null;
+  checkSlip(f, r.orderId).then(s => { slip = s;
+    box.innerHTML = `<span class="spin"></span><span>สลิป${esc(s.bankName)} ✓ กำลังส่ง…</span>`;
+    return shrink(f); }, e => { slipErr(box, e); throw null; })
+  .then(img => {
     box.innerHTML = `<img src="${img}" alt="สลิปที่เลือก"><span>กำลังส่งสลิป…</span>`;
-    return call('attachSlip', { orderId: r.orderId, token: r.token, image: img }).then(() => img);
+    return call('attachSlip', { orderId: r.orderId, token: r.token, image: img, slipRef: slip.ref, slipBank: slip.bankName }).then(() => img);
   }).then(img => {
     try { localStorage.removeItem('greek_pending'); } catch(e){}
     save('greek_history', history_().map(h => h.orderId === r.orderId ? Object.assign(h, {slip: true}) : h));
     box.classList.add('ok');
-    box.innerHTML = `<img src="${img}" alt="สลิปที่ส่งแล้ว"><span>ร้านได้รับสลิปแล้ว ขอบคุณค่า</span>`;
-  }).catch(e => {
+    const used = load('greek_slip_refs') || {}; used[slip.ref] = r.orderId; save('greek_slip_refs', used);
+    box.innerHTML = `<img src="${img}" alt="สลิปที่ส่งแล้ว"><span>ร้านได้รับสลิปแล้ว ขอบคุณค่า</span>
+      <span style="font-weight:500;font-size:12px">✓ สลิป${esc(slip.bankName)} · อ้างอิง …${esc(slip.ref.slice(-6))}</span>`;
+  }).catch(e => { if (e === null) return;
     box.classList.add('err');
     box.innerHTML = `<input type="file" accept="image/*" onchange="pickSlip(this)" aria-label="เลือกรูปสลิปใหม่"><span>${esc(e.message || 'ส่งไม่สำเร็จ')}</span><span style="font-weight:400;font-size:13px">แตะเพื่อลองใหม่</span>`;
   });

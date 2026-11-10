@@ -514,6 +514,11 @@ function attachSlip(req) {
     }
     if (!rows.length) throw new Error('ไม่พบออเดอร์ ' + base);
     if (!req.token || rows.some(x => String(at_(x.vals, COL.TOKEN)) !== String(req.token))) throw new Error('ลิงก์แนบสลิปไม่ถูกต้อง');
+    // the app reads the verification QR on the slip; one slip = one order (any phone)
+    const ref = /^[A-Za-z0-9]{8,40}$/.test(String(req.slipRef || '')) ? String(req.slipRef) : '';
+    const refKey = ref && 'SLIP_' + ref, props = PropertiesService.getScriptProperties();
+    const usedBy = refKey && props.getProperty(refKey);
+    if (usedBy && usedBy !== base) throw new Error('สลิปนี้เคยใช้แล้วกับออเดอร์ ' + usedBy + ' ถ้าโอนใหม่แล้ว เลือกสลิปใบใหม่นะ');
 
     slipInfo = { base, name: at_(rows[0].vals, COL.NAME), rows: rows.map(x => x.vals) };
     const ext = m[2] === 'jpeg' ? 'jpg' : m[2];
@@ -522,11 +527,12 @@ function attachSlip(req) {
     try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
     const id = file.getId();
     slipInfo.url = file.getUrl(); slipInfo.fileId = id;
+    if (refKey) props.setProperty(refKey, base);
     rows.forEach(x => {
       if (String(at_(x.vals, COL.STATUS)) === 'ยกเลิก') return;
       sh.getRange(x.row, COL.SLIP, 1, 2).setFormulas([[
         '=IMAGE("https://drive.google.com/thumbnail?id=' + id + '&sz=w400")',
-        '=HYPERLINK("' + file.getUrl() + '","เปิดสลิป")'
+        '=HYPERLINK("' + file.getUrl() + '","' + (ref ? 'เปิดสลิป · ' + String(req.slipBank || '').replace(/["\\]/g, '').slice(0, 20) + ' …' + ref.slice(-6) : 'เปิดสลิป') + '")'
       ]]);
       if (at_(x.vals, COL.PAY) !== 'จ่ายแล้ว') sh.getRange(x.row, COL.PAY).setValue('ส่งสลิปแล้ว');
       sh.setRowHeight(x.row, 80);
