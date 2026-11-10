@@ -3,7 +3,7 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Bright Greek — สั่ง Greek Yogurt</title>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Jersey+10&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -15,7 +15,8 @@
     --px-font:'Jersey 10','Chakra Petch',system-ui,sans-serif;
     --arcade:'Press Start 2P',monospace;
   }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   /* every framed thing gets the same pixel outline: --ec = edge colour, --pw = pixel size, --dp = drop under it */
   *{--ec:var(--ink);--pw:3px;--pxs:0 calc(-1 * var(--pw,3px)) 0 0 var(--ec,var(--ink)), 0 var(--pw,3px) 0 0 var(--ec,var(--ink)), calc(-1 * var(--pw,3px)) 0 0 0 var(--ec,var(--ink)), var(--pw,3px) 0 0 0 var(--ec,var(--ink))}
   html,body{margin:0;font-synthesis:none;color:var(--ink);font-family:'Chakra Petch',system-ui,sans-serif;font-weight:500}
@@ -1203,6 +1204,12 @@ function checkUpdate(){
     location.reload();
   }).catch(() => {});
 }
+/* no accidental zoom on iPhone: Safari ignores "user-scalable=no", so block the pinch gesture here.
+   Double-tap zoom is already off through CSS touch-action:manipulation (fast taps on + still all count). */
+(function noZoom(){
+  ['gesturestart','gesturechange','gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+})();
 /* iPhone (Safari / LINE browser) puts the keyboard OVER the page instead of shrinking it like Android.
    visualViewport tells us how much is still visible: lift the open sheet above the keyboard and keep the field in view. */
 (function keyboardFix(){
