@@ -20,7 +20,7 @@
 <meta property="og:image" content="https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/og-16bit.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "2647aaf295";</script>
+<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "18e5994d6d";</script>
 
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Jersey+10&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -411,7 +411,7 @@ const IS_GAS = typeof google !== 'undefined' && google.script && google.script.r
 const API_URL = window.GREEK_API || '';
 const DEMO_CONFIG = {
   shopName:'Bright Greek', open:true, closedMsg:'',
-  rounds:[0,1,2,3,4].map(k => { const d = new Date(Date.now() + k * 864e5); return d.getDate() + ' ' + d.toLocaleDateString('en-US', { month: 'short' }); }), roundNotes:{}, salePeriod:'5 - 10 Nov 2026', lineGroupUrl:'',
+  rounds:[1,2,3,4,5].map(k => { const d = new Date(Date.now() + k * 864e5); return d.getDate() + ' ' + d.toLocaleDateString('en-US', { month: 'short' }); }), roundNotes:{}, salePeriod:'5 - 10 Nov 2026', lineGroupUrl:'',
   delivery:[], payMethods:[],
   payNowLabel:'จ่ายเลย (แนบสลิป)', payLaterLabel:'จ่ายตอนรับ (ขุนทอง)', payLaterNote:'ผ่านขุนทองในกลุ่ม LINE',
   bankAccount:'235-3-39428-5', accountName:'นาย สหรัฐ กาญจนางกูรพันธุ์', bankName:'ธนาคารกสิกรไทย',
@@ -505,8 +505,20 @@ function roundDate(r){
   if (mi < t.getMonth() - 6) y++; else if (mi > t.getMonth() + 6) y--;          // Dec ↔ Jan
   return new Date(y, mi, +m[1]);
 }
-const isPastRound = r => { const d = roundDate(r); return !!d && d < todayBKK(); };
 const isTodayRound = r => { const d = roundDate(r); return !!d && d.getTime() === todayBKK().getTime(); };
+/* same-day cutoff: "today" can only be ordered until C.sameDayCutoff (Thai time, default 09:00, '' = no cutoff) */
+function cutoffMin(){
+  const v = (C && C.sameDayCutoff !== undefined) ? String(C.sameDayCutoff).trim() : '09:00';
+  const m = v.match(/^(\d{1,2})(?:[:.](\d{2}))?$/); return m ? +m[1] * 60 + +(m[2] || 0) : null;
+}
+const cutoffText = () => { const c = cutoffMin(); return c === null ? '' : String(Math.floor(c / 60)).padStart(2, '0') + ':' + String(c % 60).padStart(2, '0'); };
+function nowMinBKK(){
+  const o = (IS_GAS || API_URL) ? '' : new URLSearchParams(location.search).get('now');      // demo/UAT: ?now=11:00
+  const hm = /^\d{1,2}:\d{2}$/.test(o || '') ? o : new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Bangkok', hour12: false });
+  const [h, m] = hm.split(':'); return +h * 60 + +m;
+}
+const isCutToday = r => isTodayRound(r) && cutoffMin() !== null && nowMinBKK() >= cutoffMin();
+const isPastRound = r => { const d = roundDate(r); return (!!d && d < todayBKK()) || isCutToday(r); };
 const liveRounds = () => C.rounds.filter(r => !isPastRound(r));
 // every pickup day over = nothing left to order
 function allPastClosed(){ if (C.rounds.length && !liveRounds().length && C.open) { C.open = false; C.closedMsg = 'วันรับรอบนี้ผ่านไปหมดแล้ว รอรอบหน้านะ 🙏'; } }
@@ -750,7 +762,7 @@ function openItem(menuId, idx){
     ${fruitsBox}
     ${addonsFor(m).length ? `<div class="box" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
     ${C.rounds.length > 1 ? `<div class="box" id="dayBox"><h3><span>รับวันไหน <span class="req">*</span></span><small>${editIndex >= 0 ? 'ถ้วยนี้' : 'เลือกได้หลายวัน'}</small></h3><div class="rounds">
-      ${C.rounds.map((r,i) => `<button class="round${isPastRound(r) ? ' past' : ''}" id="rd${i}" onclick="pickItemRound(${i})" ${isPastRound(r) ? 'disabled aria-disabled="true"' : ''}><b>${esc(roundLabel(r))}</b>${isPastRound(r) ? '<small>ผ่านไปแล้ว</small>' : isTodayRound(r) ? '<small class="today">วันนี้</small>' : ''}${isPromoDay(r) ? `<span class="saletag">SALE -${C.promo.pct}%</span>` : ''}${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
+      ${C.rounds.map((r,i) => `<button class="round${isPastRound(r) ? ' past' : ''}" id="rd${i}" onclick="pickItemRound(${i})" ${isPastRound(r) ? 'disabled aria-disabled="true"' : ''}><b>${esc(roundLabel(r))}</b>${isCutToday(r) ? `<small>ปิดรับแล้ว (สั่งได้ถึง ${cutoffText()})</small>` : isPastRound(r) ? '<small>ผ่านไปแล้ว</small>' : isTodayRound(r) ? `<small class="today">วันนี้${cutoffText() ? ' · สั่งได้ถึง ' + cutoffText() : ''}</small>` : ''}${isPromoDay(r) ? `<span class="saletag">SALE -${C.promo.pct}%</span>` : ''}${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
     </div><div id="dayQty"></div></div>` : ''}
     <div class="box" id="qtyBox" style="padding-top:6px;padding-bottom:6px"><div class="row"><div class="lbl">จำนวน<small id="unitTxt"></small></div>
       <div class="stepper"><button id="qm" aria-label="ลดจำนวน" onclick="setQty(-1)">−</button><span id="qv">1</span><button aria-label="เพิ่มจำนวน" onclick="setQty(1)">+</button></div></div></div>

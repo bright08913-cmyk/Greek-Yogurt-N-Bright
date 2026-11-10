@@ -160,12 +160,25 @@ function promo_(s, rounds) {
 const isPromoDay_ = (p, r) => !!p && (!p.days.length || p.days.indexOf(r) >= 0);
 const promoPrice_ = (p, price, r) => isPromoDay_(p, r) ? Math.ceil(price * (100 - p.pct) / 100 - 1e-9) : price;
 
-// วันรับที่ผ่านไปแล้ว (นับตามเวลาไทย ตัดเที่ยงคืน) สั่งไม่ได้ — วันนี้ยังสั่งได้
-function isPastDay_(r) {
+// วันรับที่ผ่านไปแล้วสั่งไม่ได้ (เวลาไทย) · ของวันนี้สั่งได้ถึงเวลา cutoff (Settings: same_day_cutoff, ไม่มีแถว = 09:00, เว้นว่าง = ไม่ตัด)
+function cutoffMin_(v) {
+  if (v === undefined || v === null) v = '09:00';
+  if (v instanceof Date) v = Utilities.formatDate(v, SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'HH:mm');   // typed as a time in the sheet
+  const m = String(v).trim().match(/^(\d{1,2})(?:[:.](\d{2}))?$/);
+  return m ? Math.min(24 * 60, +m[1] * 60 + +(m[2] || 0)) : null;      // blank / unreadable = no same-day cutoff
+}
+function isPastDay_(r, cutoff) {
   const d = dayDate_(r); if (!d) return false;
   const key = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-  return key < Number(Utilities.formatDate(new Date(Date.now()), 'Asia/Bangkok', 'yyyyMMdd'));
+  const now = new Date(Date.now()), today = Number(Utilities.formatDate(now, 'Asia/Bangkok', 'yyyyMMdd'));
+  if (key < today) return true;
+  if (key === today && cutoff !== null && cutoff !== undefined) {
+    const hm = Utilities.formatDate(now, 'Asia/Bangkok', 'HH:mm').split(':');
+    return +hm[0] * 60 + +hm[1] >= cutoff;
+  }
+  return false;
 }
+const hhmm_ = m => ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + m % 60).slice(-2);
 // ISO week, same as the sheet's ISOWEEKNUM → "Week 46 2026"
 function weekLabel_(d) {
   const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -269,7 +282,8 @@ function getConfig() {
   return {
     shopName: s.shop_name || 'Greek Yogurt',
     promo: promo_(s, rounds),
-    open: isOn_(s.order_open) && (!roundRows || roundRows.length > 0) && (!rounds.length || rounds.some(r => !isPastDay_(r))),  // ไม่มีรอบเปิด / ผ่านไปหมดแล้ว = ปิดรับ
+    open: isOn_(s.order_open) && (!roundRows || roundRows.length > 0) && (!rounds.length || rounds.some(r => !isPastDay_(r, cutoffMin_(s.same_day_cutoff)))),
+    sameDayCutoff: cutoffMin_(s.same_day_cutoff) === null ? '' : hhmm_(cutoffMin_(s.same_day_cutoff)),  // ไม่มีรอบเปิด / ผ่านไปหมดแล้ว = ปิดรับ
     closedMsg: s.closed_message || 'ตอนนี้ปิดรับออเดอร์ชั่วคราว',
     rounds, roundNotes,
     delivery: list_(s.delivery_options).map(x => {
@@ -313,7 +327,8 @@ function submitOrder(order) {
     if (!m) throw new Error('ไม่พบเมนู ' + it.menuId);
     const round = String(it.round || order.round || '');
     if (cfg.rounds.length && cfg.rounds.indexOf(round) < 0) throw new Error(m.name + ': กรุณาเลือกวันรับ (วันที่เลือกอาจปิดรับไปแล้ว)');
-    if (isPastDay_(round)) throw new Error(m.name + ': วันรับ ' + round + ' ผ่านไปแล้ว เลือกวันใหม่นะ');
+    if (isPastDay_(round, cfg.sameDayCutoff ? cutoffMin_(cfg.sameDayCutoff) : null))
+      throw new Error(m.name + ': วันรับ ' + round + ' ปิดรับแล้ว' + (cfg.sameDayCutoff ? ' (ของวันเดียวกันสั่งได้ถึง ' + cfg.sameDayCutoff + ')' : '') + ' เลือกวันใหม่นะ');
     const qty = Math.max(1, Math.min(50, parseInt(it.qty, 10) || 1));
     const fruits = (it.fruits || []).filter(f => fruitOk[f]);
     if (fruits.length > m.fruitPick) throw new Error(m.name + ' เลือกผลไม้ได้สูงสุด ' + m.fruitPick + ' อย่าง');
@@ -731,6 +746,7 @@ function setup() {
     ['pay_later_note', 'ผ่านขุนทองในกลุ่ม LINE', 'ข้อความใต้ตัวเลือก "จ่ายตอนรับ"'],
     ['line_group_url', '', 'ลิงก์เชิญกลุ่ม LINE (https://line.me/...) เว้นว่าง = ให้ลูกค้าเลือกแชทเอง'],
     ['notify_email', '', 'อีเมลรับแจ้งเตือน (เว้นว่าง = อีเมลเจ้าของสคริปต์)'],
+    ['same_day_cutoff', '09:00', 'สั่งของ "วันนี้" ได้ถึงกี่โมง (เวลาไทย) · เว้นว่าง = ไม่ตัด'],
     ['promo_on', false, 'ติ๊ก = เปิดโปรโมชั่น (ทุกเมนูลดราคา, add-on ราคาเดิม)'],
     ['promo_percent', 15, 'ลดกี่ % (ปัดขึ้นเป็นบาทเต็ม เช่น 90 ลด 15% = 77)'],
     ['promo_label', 'Friday Clearance', 'ชื่อโปรที่โชว์ในแอป'],
