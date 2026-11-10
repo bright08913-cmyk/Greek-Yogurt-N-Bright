@@ -666,7 +666,8 @@ function cupReact(added){
   if (added){ svg.classList.add('happy'); clearTimeout(happyTimer); happyTimer = setTimeout(() => svg.classList.remove('happy'), 900); }
 }
 /* extra scoops drop into the bowl one by one (+ on "เพิ่ม Scoop"), the top one pops off on − */
-const SCOOP_SPOTS = [[108,112],[80,118],[136,118],[94,100],[122,100]];
+// the bowl already has its own scoop in the middle (about x108, y112): extras go beside it, then on top
+const SCOOP_SPOTS = [[78,118],[138,118],[93,98],[123,98],[108,82]];
 function syncScoops(){
   const box = $('scoops'); if (!box) return;
   const want = Math.min(5, (draft.addons && draft.addons.SCP) || 0);
