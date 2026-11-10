@@ -135,6 +135,27 @@ function dayDate_(v) {
   if (mi < now.getMonth() - 6) y++; else if (mi > now.getMonth() + 6) y--;
   return new Date(y, mi, +m[1]);
 }
+/* ---------------- โปรโมชั่นตามวันรับ ----------------
+ * Settings: promo_on (ติ๊ก), promo_percent (เช่น 15), promo_label, promo_days
+ * promo_days: "Fri" / "ศุกร์" = ทุกวันศุกร์ที่เปิดรับ · "13 Nov, 14 Nov" = เฉพาะวันนั้น · เว้นว่าง = ทุกวันรับ
+ * ลดเฉพาะราคาเมนู ปัดขึ้นเป็นบาทเต็ม · add-on ราคาเดิม */
+function promo_(s, rounds) {
+  const pct = isOn_(s.promo_on) ? Math.min(90, Math.max(0, Number(s.promo_percent) || 0)) : 0;
+  if (!pct) return null;
+  const WD = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, 'อาทิตย์': 0, 'จันทร์': 1, 'อังคาร': 2, 'พุธ': 3, 'พฤหัส': 4, 'ศุกร์': 5, 'เสาร์': 6 };
+  const toks = String(s.promo_days || '').split(/[,\n]+/).map(t => t.trim()).filter(Boolean);
+  let days = [];
+  if (toks.length) days = rounds.filter(r => toks.some(t => {
+    const k = t.toLowerCase().replace(/^วัน/, '').replace(/บดี$/, ''), wd = WD[k.slice(0, 3)] !== undefined ? WD[k.slice(0, 3)] : WD[k];
+    if (wd !== undefined) { const d = dayDate_(r); return d && d.getDay() === wd; }
+    const a = dayDate_(t), b = dayDate_(r); return a && b && a.getTime() === b.getTime();
+  }));
+  if (toks.length && !days.length) return null;          // the sale days aren't open this round
+  return { pct, label: String(s.promo_label || '').trim() || ('ลดทุกเมนู ' + pct + '%'), days };
+}
+const isPromoDay_ = (p, r) => !!p && (!p.days.length || p.days.indexOf(r) >= 0);
+const promoPrice_ = (p, price, r) => isPromoDay_(p, r) ? Math.ceil(price * (100 - p.pct) / 100 - 1e-9) : price;
+
 // วันรับที่ผ่านไปแล้ว (นับตามเวลาไทย ตัดเที่ยงคืน) สั่งไม่ได้ — วันนี้ยังสั่งได้
 function isPastDay_(r) {
   const d = dayDate_(r); if (!d) return false;
@@ -219,12 +240,8 @@ function currentWeek_() {
 /** ส่งเมนู/ราคา/ตัวเลือกให้หน้าแอป */
 function getConfig() {
   const ss = SpreadsheetApp.getActive();
-  const s0 = settings_();
-  // โปรโมชั่น: ติ๊ก promo_on ใน Settings → ทุกเมนูลด promo_percent% ปัดขึ้นเป็นบาทเต็ม (add-on ราคาเดิม)
-  const promoPct = isOn_(s0.promo_on) ? Math.min(90, Math.max(0, Number(s0.promo_percent) || 0)) : 0;
-  const sale = p => promoPct ? Math.ceil(p * (100 - promoPct) / 100 - 1e-9) : p;
   const menu = rows_(ss.getSheetByName(SH.MENU)).filter(r => isOn_(r[6])).map(r => ({
-    id: String(r[0]), name: String(r[1]), price: sale(Number(r[2]) || 0), fullPrice: Number(r[2]) || 0,
+    id: String(r[0]), name: String(r[1]), price: Number(r[2]) || 0, fullPrice: Number(r[2]) || 0,
     fruitPick: Number(r[3]) || 0, desc: String(r[4] || ''), emoji: String(r[5] || '🥣'),
     addons: r[7] === '' || r[7] === undefined ? true : isOn_(r[7])   // คอลัมน์ H "ใส่ Add-on ได้"
   }));
@@ -247,7 +264,7 @@ function getConfig() {
   if (roundRows) roundRows.forEach(r => { if (r[2]) roundNotes[roundName(r[0])] = String(r[2]); });
   return {
     shopName: s.shop_name || 'Greek Yogurt',
-    promo: promoPct ? { pct: promoPct, label: String(s.promo_label || '').trim() || ('ลดทุกเมนู ' + promoPct + '%') } : null,
+    promo: promo_(s, rounds),
     open: isOn_(s.order_open) && (!roundRows || roundRows.length > 0) && (!rounds.length || rounds.some(r => !isPastDay_(r))),  // ไม่มีรอบเปิด / ผ่านไปหมดแล้ว = ปิดรับ
     closedMsg: s.closed_message || 'ตอนนี้ปิดรับออเดอร์ชั่วคราว',
     rounds, roundNotes,
@@ -307,7 +324,7 @@ function submitOrder(order) {
       const n = Math.max(0, Math.min(a.max, parseInt(it.addons[id], 10) || 0));
       if (n) { addonCount[id] = n; addonPrice += n * a.price; }
     });
-    const unit = m.price + addonPrice;
+    const unit = promoPrice_(cfg.promo, m.price, round) + addonPrice;   // sale only on the promotion's pickup days
     return { m, round, qty, fruits, excluded, addonCount, addonPrice, unit, total: unit * qty };
   });
 
@@ -326,7 +343,8 @@ function submitOrder(order) {
     const base = 'G' + ('000' + nextOrderNo_(ordSh)).slice(-4);
     const now = new Date();
     const name = String(order.name).trim().slice(0, 60);
-    const note = (cfg.promo ? '[โปร -' + cfg.promo.pct + '%] ' : '') + String(order.note || '').slice(0, 300);
+    const saleDays = cfg.promo ? rounds.filter(r => isPromoDay_(cfg.promo, r)) : [];
+    const note = (saleDays.length ? '[โปร -' + cfg.promo.pct + '% รับ ' + saleDays.join(', ') + '] ' : '') + String(order.note || '').slice(0, 300);
     const payMethod = order.payLater ? PAY_LATER : PAY_NOW;
     const token = Utilities.getUuid();   // ใช้ยืนยันตอนแนบสลิป/ยกเลิก (กันคนอื่นมาแก้ออเดอร์เรา)
     // ยอดโอนทั้งออเดอร์ (ไม่นับวันที่ยกเลิก) โชว์ที่แถวแรกของออเดอร์ ไว้เทียบกับยอดในสลิป
@@ -697,6 +715,7 @@ function setup() {
     ['promo_on', false, 'ติ๊ก = เปิดโปรโมชั่น (ทุกเมนูลดราคา, add-on ราคาเดิม)'],
     ['promo_percent', 15, 'ลดกี่ % (ปัดขึ้นเป็นบาทเต็ม เช่น 90 ลด 15% = 77)'],
     ['promo_label', 'Friday Clearance', 'ชื่อโปรที่โชว์ในแอป'],
+    ['promo_days', 'Fri', 'ลดเฉพาะวันรับไหน: Fri / ศุกร์ = ทุกศุกร์ · 13 Nov = วันนั้น · คั่นด้วย , ได้ · เว้นว่าง = ทุกวัน'],
     ['max_cups_per_order', 10, 'สั่งได้สูงสุดกี่ถ้วยต่อออเดอร์ (0 = ไม่จำกัด)'],
     ['max_orders_per_phone_per_day', 3, 'มือถือเครื่องเดียวสั่งได้กี่ออเดอร์ต่อวัน (ยกเลิกเองไม่นับ · 0 = ไม่จำกัด)'],
     ['order_cooldown_sec', 30, 'ต้องรอกี่วินาทีก่อนสั่งออเดอร์ถัดไปจากเครื่องเดิม (0 = ไม่ต้องรอ)'],
