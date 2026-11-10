@@ -99,6 +99,7 @@ function onOpen() {
 /* ---------------- เรียงแถว ----------------
  * "9 Nov" เป็นข้อความ ถ้าใช้ sort A→Z ของชีต "10 Nov" จะมาก่อน "9 Nov" — ปุ่มนี้เรียงตามวันจริง
  * แถวของออเดอร์เดียวกันอยู่ติดกันเสมอ · ใช้กับแท็บที่เปิดอยู่ (Orders หรือ Orders Archive) */
+function isCellImage_(v) { return !!v && typeof v === 'object' && typeof v.getContentUrl === 'function'; }
 function sortByPickupDay() { sortOrders_('day'); }
 function sortByOrderTime() { sortOrders_('time'); }
 function sortOrders_(mode) {
@@ -112,12 +113,15 @@ function sortOrders_(mode) {
     const num = id => { const m = String(id).match(/^G(\d+)(?:-(\d+))?/); return m ? [+m[1], +(m[2] || 0)] : [Infinity, 0]; };
     const rows = vals.map((r, i) => {
       const id = String(at_(r, COL.ID)), d = dayDate_(at_(r, COL.DAY)), t = at_(r, COL.TIME);
-      return { i, cells: r.map((v, j) => forms[i][j] || v), slip: !!forms[i][COL.SLIP - 1], blank: !id,
+      const img = isCellImage_(r[COL.SLIP - 1]);
+      return { i, cells: r.map((v, j) => forms[i][j] || (isCellImage_(v) ? '' : v)), img: img ? r[COL.SLIP - 1] : null,
+        slip: !!forms[i][COL.SLIP - 1] || img, blank: !id,
         day: d ? d.getTime() : Infinity, time: t instanceof Date ? t.getTime() : Infinity, id: num(id) };
     });
     rows.sort((a, b) => (a.blank - b.blank) ||
       (mode === 'day' ? (a.day - b.day) : 0) || (a.time - b.time) || (a.id[0] - b.id[0]) || (a.id[1] - b.id[1]) || (a.i - b.i));
     rng.setValues(rows.map(x => x.cells));
+    rows.forEach((x, k) => { if (x.img) sh.getRange(k + 2, COL.SLIP).setValue(x.img); });   // slip previews (pictures in cells) move with their row
     rows.forEach((x, k) => sh.setRowHeight(k + 2, x.slip ? 80 : 21));
   } finally { lock.releaseLock(); }
   ss.toast(mode === 'day' ? 'เรียงตามวันรับแล้ว 📅' : 'เรียงตามเวลาสั่งแล้ว 🕒', sh.getName(), 4);
@@ -342,9 +346,9 @@ function submitOrder(order) {
     const ordSh = ss.getSheetByName(SH.ORD);
     const base = 'G' + ('000' + nextOrderNo_(ordSh)).slice(-4);
     const now = new Date();
-    const name = String(order.name).trim().slice(0, 60);
+    const name = safeText_(String(order.name).trim().slice(0, 60));
     const saleDays = cfg.promo ? rounds.filter(r => isPromoDay_(cfg.promo, r)) : [];
-    const note = (saleDays.length ? '[โปร -' + cfg.promo.pct + '% รับ ' + saleDays.join(', ') + '] ' : '') + String(order.note || '').slice(0, 300);
+    const note = safeText_((saleDays.length ? '[โปร -' + cfg.promo.pct + '% รับ ' + saleDays.join(', ') + '] ' : '') + String(order.note || '').replace(/[\u0000-\u0008\u000B-\u001F]/g, '').slice(0, 300));
     const payMethod = order.payLater ? PAY_LATER : PAY_NOW;
     const token = Utilities.getUuid();   // ใช้ยืนยันตอนแนบสลิป/ยกเลิก (กันคนอื่นมาแก้ออเดอร์เรา)
     // ยอดโอนทั้งออเดอร์ (ไม่นับวันที่ยกเลิก) โชว์ที่แถวแรกของออเดอร์ ไว้เทียบกับยอดในสลิป
@@ -373,7 +377,7 @@ function submitOrder(order) {
     result = { orderId: base, token, payLater: !!order.payLater, parts,
       total: parts.reduce((s, p) => s + p.total, 0), cups: parts.reduce((s, p) => s + p.cups, 0),
       bankAccount: cfg.bankAccount, accountName: cfg.accountName, bankName: cfg.bankName };
-    alert = { base, name, note, payLater: !!order.payLater, rows, total: result.total, cups: result.cups };
+    alert = { base, name: name.replace(/^'/, ''), note: note.replace(/^'/, ''), payLater: !!order.payLater, rows, total: result.total, cups: result.cups };
     deviceRecord_(dev, base);
   } finally {
     lock.releaseLock();
@@ -460,6 +464,9 @@ function cancelOrder(req) {
 /* ---------------- กันสแปม / กันกดซ้ำ ----------------
  * Settings: max_cups_per_order (10), max_orders_per_phone_per_day (3), order_cooldown_sec (30) · 0 = ไม่จำกัด
  * "มือถือ" = รหัสสุ่มที่แอปสร้างเก็บไว้ในเครื่อง (ล้างข้อมูลเบราว์เซอร์/เปลี่ยนเครื่อง = เครื่องใหม่) */
+// a name/note starting with = + - @ would be read by Sheets as a formula (could send sheet data to an outside site)
+// → store it as plain text instead (a leading ' is hidden by Sheets)
+function safeText_(v) { v = String(v == null ? '' : v); return /^[=+\-@\t\r]/.test(v) ? "'" + v : v; }
 function limit_(v, dflt) { const n = parseInt(v, 10); return isNaN(n) ? dflt : Math.max(0, n); }
 function checkName_(raw) {
   const name = String(raw).trim();
@@ -554,16 +561,19 @@ function attachSlip(req) {
     const ext = m[2] === 'jpeg' ? 'jpg' : m[2];
     const file = slipFolder_().createFile(
       Utilities.newBlob(bytes, m[1], base + '_' + at_(rows[0].vals, COL.NAME) + '_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'MMdd-HHmm') + '.' + ext));
-    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
-    const id = file.getId();
+    const id = file.getId();          // the file stays private (only the shop's account can open it)
+    const thumb = /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(String(req.thumb || '')) && String(req.thumb).length < 300000 ? String(req.thumb) : '';
+    slipInfo.thumb = thumb;
+    let preview = null;
+    if (thumb) try { preview = SpreadsheetApp.newCellImage().setSourceUrl(thumb).setAltTextTitle('สลิป ' + base).build(); } catch (e) { preview = null; }
     slipInfo.url = file.getUrl(); slipInfo.fileId = id;
     if (refKey) props.setProperty(refKey, base);
     rows.forEach(x => {
       if (String(at_(x.vals, COL.STATUS)) === 'ยกเลิก') return;
-      sh.getRange(x.row, COL.SLIP, 1, 2).setFormulas([[
-        '=IMAGE("https://drive.google.com/thumbnail?id=' + id + '&sz=w400")',
-        '=HYPERLINK("' + file.getUrl() + '","' + (ref ? 'เปิดสลิป · ' + String(req.slipBank || '').replace(/["\\]/g, '').slice(0, 20) + ' …' + ref.slice(-6) : 'เปิดสลิป') + '")'
-      ]]);
+      const cell = sh.getRange(x.row, COL.SLIP);
+      try { if (preview) cell.setValue(preview); else cell.setValue('📎 มีสลิป'); } catch (e) { cell.setValue('📎 มีสลิป'); }
+      sh.getRange(x.row, COL.LINK).setFormula(
+        '=HYPERLINK("' + file.getUrl() + '","' + (ref ? 'เปิดสลิป · ' + String(req.slipBank || '').replace(/["\\]/g, '').slice(0, 20) + ' …' + ref.slice(-6) : 'เปิดสลิป') + '")');
       if (at_(x.vals, COL.PAY) !== 'จ่ายแล้ว') sh.getRange(x.row, COL.PAY).setValue('ส่งสลิปแล้ว');
       sh.setRowHeight(x.row, 80);
     });
@@ -590,14 +600,14 @@ function alertTo_() {
   const s = settings_(), to = String(s.notify_email || '').trim();
   return to || Session.getEffectiveUser().getEmail();
 }
-function sendAlert_(event, subject, html) {
+function sendAlert_(event, subject, html, inlineImages) {
   try {
     const s = settings_(), ev = String(s.notify_events || '').toLowerCase().trim();
     if (ev === 'off' || (ev && ev.split(/[\s,]+/).indexOf(event) < 0)) return;
     const to = alertTo_(); if (!to) return;
     const ss = SpreadsheetApp.getActive(), sh = ss.getSheetByName(SH.ORD);
     const link = ss.getUrl() + '#gid=' + sh.getSheetId();
-    MailApp.sendEmail({ to, subject, name: 'Bright Greek', htmlBody:
+    MailApp.sendEmail({ to, subject, name: 'Bright Greek', inlineImages: inlineImages || {}, htmlBody:
       '<div style="font-family:sans-serif;font-size:15px;color:#3B2A40;max-width:520px">' + html +
       '<p style="margin-top:18px"><a href="' + link + '" style="background:#FF8FAB;color:#3B2A40;padding:10px 16px;text-decoration:none;font-weight:bold;border:2px solid #3B2A40">เปิดแท็บ Orders</a></p></div>' });
   } catch (err) {
@@ -630,14 +640,23 @@ function alertSlip_(x) {
   sendAlert_('slip', '📎 สลิปเข้า ' + x.base + ' · ' + x.name + ' · ' + baht_(total),
     '<h2 style="margin:0 0 6px">📎 ลูกค้าแนบสลิปแล้ว ' + h_(x.base) + '</h2>' +
     '<p style="margin:0">👤 <b>' + h_(x.name) + '</b> · ยอดที่ต้องได้ <b>' + baht_(total) + '</b></p>' +
-    '<p><a href="' + x.url + '"><img src="https://drive.google.com/thumbnail?id=' + x.fileId + '&sz=w400" alt="สลิป" style="max-width:240px;border:2px solid #3B2A40"></a></p>' +
-    '<p style="color:#7A6A7E">เช็คยอดในสลิปแล้วเปลี่ยน "สถานะจ่าย" เป็น "จ่ายแล้ว" ในแท็บ Orders</p>');
+    (x.thumb ? '<p><a href="' + x.url + '"><img src="cid:slip" alt="สลิป" style="max-width:240px;border:2px solid #3B2A40"></a></p>' : '<p><a href="' + x.url + '">เปิดสลิป</a></p>') +
+    '<p style="color:#7A6A7E">เช็คยอดในแอปธนาคารก่อน แล้วเปลี่ยน "สถานะจ่าย" เป็น "จ่ายแล้ว" ในแท็บ Orders</p>',
+    x.thumb ? { slip: Utilities.newBlob(Utilities.base64Decode(x.thumb.split(',')[1]), 'image/jpeg', 'slip.jpg') } : null);
 }
 function alertCancel_(base, rows) {
   const name = at_(rows[0], COL.NAME);
   sendAlert_('cancel', '❌ ยกเลิก ' + base + ' · ' + name,
     '<h2 style="margin:0 0 6px">❌ ลูกค้ายกเลิกเอง ' + h_(base) + '</h2><p style="margin:0">👤 <b>' + h_(name) + '</b></p>' + itemLines_(rows) +
     '<p style="color:#7A6A7E">ไม่ต้องเตรียมรายการนี้แล้ว</p>');
+}
+/** กด Run ครั้งเดียว: ปิดลิงก์สาธารณะของสลิปเก่าทุกใบในโฟลเดอร์ "Bright Greek Slips" (ให้เปิดได้แค่บัญชีร้าน) */
+function lockSlips() {
+  const folder = slipFolder_(), it = folder.getFiles(); let n = 0;
+  try { folder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE); } catch (e) {}
+  while (it.hasNext()) { const f = it.next();
+    if (f.getSharingAccess() !== DriveApp.Access.PRIVATE) { f.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE); n++; } }
+  Logger.log('ปิดลิงก์สาธารณะแล้ว ' + n + ' ไฟล์ · โฟลเดอร์สลิป: ' + folder.getUrl());
 }
 function slipFolder_() {
   const props = PropertiesService.getScriptProperties();
