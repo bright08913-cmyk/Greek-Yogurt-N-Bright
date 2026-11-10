@@ -180,6 +180,9 @@
          display:flex;flex-direction:column;justify-content:center;gap:1px;cursor:pointer}
   .round b{font-weight:700;font-size:15px}
   .round small{font-size:12px;color:var(--muted)}
+  .round.past{background:#F3EEF1;color:#A99AAD;--ec:#E2D8E5;cursor:not-allowed;box-shadow:var(--pxs)}
+  .round.past b{text-decoration:line-through;text-decoration-thickness:2px}
+  .round small.today{color:var(--pink-dark);font-weight:700}
   .round.on{--ec:var(--ink);background:var(--soft);box-shadow:var(--pxs),inset 0 -3px 0 rgba(201,60,99,.18)}
   .dayhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:700;font-size:17px;padding-bottom:8px;border-bottom:3px dotted var(--line)}
   .dayhead span{font-weight:500;font-size:13px;color:var(--muted)}
@@ -370,7 +373,7 @@ const IS_GAS = typeof google !== 'undefined' && google.script && google.script.r
 const API_URL = window.GREEK_API || '';
 const DEMO_CONFIG = {
   shopName:'Bright Greek', open:true, closedMsg:'',
-  rounds:['6 Nov','9 Nov','10 Nov'], roundNotes:{}, salePeriod:'5 - 10 Nov 2026', lineGroupUrl:'',
+  rounds:[0,1,2,3].map(k => { const d = new Date(Date.now() + k * 864e5); return d.getDate() + ' ' + d.toLocaleDateString('en-US', { month: 'short' }); }), roundNotes:{}, salePeriod:'5 - 10 Nov 2026', lineGroupUrl:'',
   delivery:[], payMethods:[],
   payNowLabel:'จ่ายเลย (แนบสลิป)', payLaterLabel:'จ่ายตอนรับ (ขุนทอง)', payLaterNote:'ผ่านขุนทองในกลุ่ม LINE',
   bankAccount:'235-3-39428-5', accountName:'นาย สหรัฐ กาญจนางกูรพันธุ์', bankName:'ธนาคารกสิกรไทย',
@@ -440,6 +443,28 @@ function deviceId(){ let d = load('greek_device');
   return d; }
 function load(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
 function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+/* pickup days that are already over can't be chosen any more (shown grey).  "today" is Bangkok time;
+   ?today=2026-11-11 in the link pretends another day — demo/UAT only, the real shop always uses the real date */
+const MON_EN = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+const MON_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function todayBKK(){
+  const o = (IS_GAS || API_URL) ? '' : new URLSearchParams(location.search).get('today');   // test date only in demo/UAT
+  const ymd = /^\d{4}-\d{2}-\d{2}$/.test(o || '') ? o : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+  return new Date(ymd + 'T00:00:00');
+}
+function roundDate(r){
+  const m = String(r || '').match(/(\d{1,2})\s*([^\s\d]+)/); if (!m) return null;
+  let mi = MON_EN.indexOf(m[2].slice(0, 3).toLowerCase()); if (mi < 0) mi = MON_TH.indexOf(m[2]); if (mi < 0) return null;
+  const t = todayBKK(); let y = t.getFullYear();
+  if (mi < t.getMonth() - 6) y++; else if (mi > t.getMonth() + 6) y--;          // Dec ↔ Jan
+  return new Date(y, mi, +m[1]);
+}
+const isPastRound = r => { const d = roundDate(r); return !!d && d < todayBKK(); };
+const isTodayRound = r => { const d = roundDate(r); return !!d && d.getTime() === todayBKK().getTime(); };
+const liveRounds = () => C.rounds.filter(r => !isPastRound(r));
+// every pickup day over = nothing left to order
+function allPastClosed(){ if (C.rounds.length && !liveRounds().length && C.open) { C.open = false; C.closedMsg = 'วันรับรอบนี้ผ่านไปหมดแล้ว รอรอบหน้านะ 🙏'; } }
+const okRound = r => C.rounds.indexOf(r) >= 0 && !isPastRound(r);
 // "6 Nov" → "รับวันที่ 6 Nov" (ถ้าพิมพ์ "รับ..." มาเองแล้วก็ใช้ตามนั้น)
 const roundLabel = r => /^รับ/.test(r) ? r : 'รับวันที่ ' + r;
 const menuOf = id => C.menu.find(m => m.id === id);
@@ -602,7 +627,7 @@ function openItem(menuId, idx){
   editIndex = (idx === undefined) ? -1 : idx;
   draft = editIndex >= 0 ? JSON.parse(JSON.stringify(cart[editIndex]))
         : { menuId, qty:1, addons:{}, fruits: [], round: defaultRound() };   // no fruit picked yet — customer chooses
-  if (C.rounds.indexOf(draft.round) < 0) draft.round = defaultRound();
+  if (!okRound(draft.round)) draft.round = defaultRound();
   draft.days = draft.round ? [draft.round] : []; draft.dq = {};
   const fruitsBox = m.fruitPick > 0 ? `
     <div class="box" id="fruitBox">
@@ -628,7 +653,7 @@ function openItem(menuId, idx){
     ${fruitsBox}
     ${addonsFor(m).length ? `<div class="box" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
     ${C.rounds.length > 1 ? `<div class="box" id="dayBox"><h3><span>รับวันไหน <span class="req">*</span></span><small>${editIndex >= 0 ? 'ถ้วยนี้' : 'เลือกได้หลายวัน'}</small></h3><div class="rounds">
-      ${C.rounds.map((r,i) => `<button class="round" id="rd${i}" onclick="pickItemRound(${i})"><b>${esc(roundLabel(r))}</b>${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
+      ${C.rounds.map((r,i) => `<button class="round${isPastRound(r) ? ' past' : ''}" id="rd${i}" onclick="pickItemRound(${i})" ${isPastRound(r) ? 'disabled aria-disabled="true"' : ''}><b>${esc(roundLabel(r))}</b>${isPastRound(r) ? '<small>ผ่านไปแล้ว</small>' : isTodayRound(r) ? '<small class="today">วันนี้</small>' : ''}${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
     </div><div id="dayQty"></div></div>` : ''}
     <div class="box" id="qtyBox" style="padding-top:6px;padding-bottom:6px"><div class="row"><div class="lbl">จำนวน<small id="unitTxt"></small></div>
       <div class="stepper"><button id="qm" aria-label="ลดจำนวน" onclick="setQty(-1)">−</button><span id="qv">1</span><button aria-label="เพิ่มจำนวน" onclick="setQty(1)">+</button></div></div></div>
@@ -671,7 +696,7 @@ function refreshItem(){
   C.rounds.forEach((r,i) => { const b = $('rd'+i), on = editIndex >= 0 ? draft.round === r : draft.days.indexOf(r) >= 0;
     if (b){ b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); } });
   const needFruit = m.fruitPick > 0 && !draft.fruits.length;
-  const needDay = C.rounds.length && C.rounds.indexOf(draft.round) < 0;
+  const needDay = C.rounds.length && !okRound(draft.round);
   $('addBtn').classList.toggle('dim', needFruit || needDay || !C.open);
   if (!C.open){ $('addLbl').textContent = 'ร้านปิดรับอยู่ · ดูได้อย่างเดียว'; need('fruitBox', false); need('dayBox', false); return; }
   need('fruitBox', needFruit); need('dayBox', needDay);
@@ -679,11 +704,13 @@ function refreshItem(){
 }
 // a new cup starts on the day picked last time (or the only open day)
 function defaultRound(){
-  if (C.rounds.length === 1) return C.rounds[0];
-  return C.rounds.indexOf(info.lastRound) >= 0 ? info.lastRound : '';
+  const live = liveRounds();
+  if (live.length === 1) return live[0];
+  return okRound(info.lastRound) ? info.lastRound : '';
 }
 function pickItemRound(i){
   const r = C.rounds[i];
+  if (isPastRound(r)) return;
   if (editIndex >= 0) { draft.round = r; refreshItem(); return; }
   const k = draft.days.indexOf(r);
   if (k >= 0) draft.days.splice(k, 1); else { draft.days.push(r); draft.dq[r] = draft.dq[r] || draft.qty; }
@@ -735,7 +762,7 @@ function setQty(d){ draft.qty = Math.max(1, Math.min(C.maxCups || 50, draft.qty 
 function commitItem(){
   if (!C.open) { bump('itemClosed'); return; }      // closed: look around freely, but nothing goes in the cart
   const needFruit = menuOf(draft.menuId).fruitPick > 0 && !draft.fruits.length;
-  const needDay = C.rounds.length && C.rounds.indexOf(draft.round) < 0;
+  const needDay = C.rounds.length && !okRound(draft.round);
   if (needFruit || needDay){ if (needDay) bump('dayBox', !needFruit); if (needFruit) bump('fruitBox', true); return; }
   info.lastRound = draft.round;
   const clean = x => { const c = JSON.parse(JSON.stringify(x)); delete c.days; delete c.dq; return c; };
@@ -754,13 +781,13 @@ function openCart(){
 }
 function refreshConfig(){
   return call('getConfig').then(cfg => { if (!IS_GAS) save('greek_cfg', cfg);
-    C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || [];
+    C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; allPastClosed();
     if (!sheetOpen && !document.querySelector('.done')) render(); });
 }
 function renderCart(){
   if (!cart.length){ closeSheets(); render(); return; }
-  cart.forEach(it => { if (C.rounds.indexOf(it.round) < 0) it.round = C.rounds.length === 1 ? C.rounds[0] : (it.round && C.rounds.indexOf(it.round) >= 0 ? it.round : ''); });
-  const groups = (C.rounds.length ? C.rounds.concat(['']) : ['']).map(r => ({ r, items: cart.map((it,i) => ({it, i})).filter(x => (x.it.round || '') === r) })).filter(g => g.items.length);
+  cart.forEach(it => { if (!okRound(it.round)) { const live = liveRounds(); it.round = live.length === 1 ? live[0] : ''; } });   // a day that has passed needs a new day
+  const groups = (C.rounds.length ? liveRounds().concat(['']) : ['']).map(r => ({ r, items: cart.map((it,i) => ({it, i})).filter(x => (x.it.round || '') === r) })).filter(g => g.items.length);
   const itemRow = ({it, i}) => { const m = menuOf(it.menuId); return `
         <div class="ci"><div class="thumb" style="background:${tintOf(m)}">${cup(m, {size:44, fruits: it.fruits, syrup: !!(it.addons && it.addons.HER)})}</div>
           <div class="info"><div class="nm">${esc(m.name)} × ${it.qty}</div>
@@ -820,7 +847,7 @@ function submit(){
   if (C.maxCups && cupCount() > C.maxCups) { fail('สั่งได้สูงสุด ' + C.maxCups + ' ถ้วยต่อออเดอร์ ลดจำนวนลง หรือทักร้านถ้าอยากสั่งเยอะนะ'); return; }
   if ([...info.name.trim()].length < 2) { fail('ชื่อสั้นไป ใส่อย่างน้อย 2 ตัวอักษรนะ'); bump('nameBox'); return; }
   if (cart.some(it => menuOf(it.menuId).fruitPick > 0 && !(it.fruits || []).length)) { fail('มีถ้วยที่ยังไม่ได้เลือกผลไม้ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
-  if (C.rounds.length && cart.some(it => C.rounds.indexOf(it.round) < 0)) { fail('มีถ้วยที่ยังไม่ได้เลือกวันรับ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
+  if (C.rounds.length && cart.some(it => !okRound(it.round))) { fail('มีถ้วยที่ยังไม่ได้เลือกวันรับ แตะ "แก้ไข" ที่ถ้วยนั้น'); return; }
   const btn = $('submitBtn'); btn.disabled = true; btn.innerHTML = '<span>กำลังส่งออเดอร์…</span><span class="spin"></span>';
   save('greek_form', {name: info.name});
   const payload = { name: info.name.trim(), note: info.note, payLater: !!info.payLater, items: cart, device: deviceId() };
@@ -1351,7 +1378,7 @@ function reorder(k){
   if (!C.open) return;
   const h = history_()[k];
   const add = (h.items || []).filter(it => menuOf(it.menuId)).map(it => Object.assign(JSON.parse(JSON.stringify(it)), {
-    round: C.rounds.indexOf(it.round) >= 0 ? it.round : (C.rounds.length === 1 ? C.rounds[0] : ''),
+    round: okRound(it.round) ? it.round : (liveRounds().length === 1 ? liveRounds()[0] : ''),
     fruits: (it.fruits || []).filter(f => availFruits().some(x => x.name === f)) }));
   if (!add.length) return;
   cart = cart.concat(add); save('greek_cart', cart);
@@ -1397,7 +1424,7 @@ window.addEventListener('popstate', () => {
 
 /* ---------- boot ---------- */
 function boot(cfg){
-  C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || [];
+  C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; allPastClosed();
   cart = (load('greek_cart') || []).filter(it => menuOf(it.menuId));
   const sheetOpen = $('itemSheet').classList.contains('show') || $('cartSheet').classList.contains('show');
   if (!sheetOpen && !document.querySelector('.done')) render();

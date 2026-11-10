@@ -135,6 +135,12 @@ function dayDate_(v) {
   if (mi < now.getMonth() - 6) y++; else if (mi > now.getMonth() + 6) y--;
   return new Date(y, mi, +m[1]);
 }
+// วันรับที่ผ่านไปแล้ว (นับตามเวลาไทย ตัดเที่ยงคืน) สั่งไม่ได้ — วันนี้ยังสั่งได้
+function isPastDay_(r) {
+  const d = dayDate_(r); if (!d) return false;
+  const key = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  return key < Number(Utilities.formatDate(new Date(Date.now()), 'Asia/Bangkok', 'yyyyMMdd'));
+}
 // ISO week, same as the sheet's ISOWEEKNUM → "Week 46 2026"
 function weekLabel_(d) {
   const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -237,7 +243,7 @@ function getConfig() {
   if (roundRows) roundRows.forEach(r => { if (r[2]) roundNotes[roundName(r[0])] = String(r[2]); });
   return {
     shopName: s.shop_name || 'Greek Yogurt',
-    open: isOn_(s.order_open) && (!roundRows || roundRows.length > 0),  // ไม่มีรอบเปิด = ปิดรับ
+    open: isOn_(s.order_open) && (!roundRows || roundRows.length > 0) && (!rounds.length || rounds.some(r => !isPastDay_(r))),  // ไม่มีรอบเปิด / ผ่านไปหมดแล้ว = ปิดรับ
     closedMsg: s.closed_message || 'ตอนนี้ปิดรับออเดอร์ชั่วคราว',
     rounds, roundNotes,
     delivery: list_(s.delivery_options).map(x => {
@@ -281,6 +287,7 @@ function submitOrder(order) {
     if (!m) throw new Error('ไม่พบเมนู ' + it.menuId);
     const round = String(it.round || order.round || '');
     if (cfg.rounds.length && cfg.rounds.indexOf(round) < 0) throw new Error(m.name + ': กรุณาเลือกวันรับ (วันที่เลือกอาจปิดรับไปแล้ว)');
+    if (isPastDay_(round)) throw new Error(m.name + ': วันรับ ' + round + ' ผ่านไปแล้ว เลือกวันใหม่นะ');
     const qty = Math.max(1, Math.min(50, parseInt(it.qty, 10) || 1));
     const fruits = (it.fruits || []).filter(f => fruitOk[f]);
     if (fruits.length > m.fruitPick) throw new Error(m.name + ' เลือกผลไม้ได้สูงสุด ' + m.fruitPick + ' อย่าง');
