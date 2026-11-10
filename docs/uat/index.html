@@ -93,6 +93,27 @@
   .back-btn{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 14px 0 12px;background:#fff;border:0;margin:3px;
             box-shadow:var(--pxs),0 7px 0 rgba(59,42,64,.2);cursor:pointer;font-weight:600;font-size:15px;flex:none}
   .back-btn:active{transform:translateY(3px);box-shadow:var(--pxs),0 4px 0 rgba(59,42,64,.2)}
+  .prs{display:flex;align-items:baseline;gap:6px}
+  .was{font-family:var(--px-font);font-size:17px;color:var(--muted);text-decoration-thickness:2px}
+  .title-row .was{font-size:22px}
+  .off{position:absolute;top:-9px;left:-9px;z-index:1;background:var(--danger);color:#fff;font-family:var(--px-font);font-size:17px;padding:1px 6px;--pw:2px;box-shadow:var(--pxs)}
+  .promo{display:flex;align-items:center;gap:12px;margin:16px 3px 0;padding:10px 14px;background:#FFF1C7;box-shadow:var(--pxs),0 7px 0 rgba(59,42,64,.14)}
+  .promo div{flex:1;min-width:0}
+  .promo b{display:block;font-family:var(--px-font);font-size:24px;font-weight:700;font-synthesis:none;line-height:1}
+  .promo small{display:block;font-size:13px;color:var(--muted)}
+  .promo-tag{font-family:var(--arcade);font-size:10px;color:#fff;background:var(--danger);padding:6px 6px;--pw:2px;box-shadow:var(--pxs);animation:tw 1s steps(2,jump-none) infinite}
+  .promo-pct{font-family:var(--px-font);font-size:34px;font-weight:700;font-synthesis:none;color:var(--danger);line-height:1}
+  @media (prefers-reduced-motion: reduce){.promo-tag{animation:none}}
+  .saleline{font-size:12px;color:var(--danger);margin-top:2px}
+  .saleline b{font-family:var(--px-font);font-size:17px;font-synthesis:none}
+  .saletag{display:inline-block;background:var(--danger);color:#fff;font-family:var(--px-font);font-weight:700;font-synthesis:none;font-size:14px;line-height:1.2;padding:1px 5px;--pw:2px;box-shadow:var(--pxs);margin:3px 2px 0}
+  .round .saletag{align-self:flex-start}
+  .salehint{margin-top:8px;font-size:13px;color:var(--danger);font-weight:600}
+  .salec{color:var(--danger)}
+  .uat{position:fixed;top:10px;right:10px;z-index:9;max-width:260px}
+  .uat-btn{border:0;background:#2E2238;color:#fff;font-family:var(--arcade);font-size:9px;padding:8px 10px;cursor:pointer;--pw:2px;--ec:#FFD34E;box-shadow:var(--pxs)}
+  .uat-body{margin-top:8px;background:#fff;padding:10px;--pw:2px;box-shadow:var(--pxs),0 6px 0 rgba(59,42,64,.2)}
+  .uat-days{display:flex;flex-wrap:wrap;gap:6px}
   .title-row{display:flex;align-items:baseline;justify-content:space-between;margin-top:18px}
   .title-row h2{margin:0;font-size:38px;line-height:1}
   .title-row .pr{font-size:34px;color:var(--pink-dark)}
@@ -373,7 +394,7 @@ const IS_GAS = typeof google !== 'undefined' && google.script && google.script.r
 const API_URL = window.GREEK_API || '';
 const DEMO_CONFIG = {
   shopName:'Bright Greek', open:true, closedMsg:'',
-  rounds:['9 Nov','10 Nov','11 Nov','12 Nov'], roundNotes:{}, salePeriod:'5 - 10 Nov 2026', lineGroupUrl:'',
+  rounds:[0,1,2,3,4].map(k => { const d = new Date(Date.now() + k * 864e5); return d.getDate() + ' ' + d.toLocaleDateString('en-US', { month: 'short' }); }), roundNotes:{}, salePeriod:'5 - 10 Nov 2026', lineGroupUrl:'',
   delivery:[], payMethods:[],
   payNowLabel:'จ่ายเลย (แนบสลิป)', payLaterLabel:'จ่ายตอนรับ (ขุนทอง)', payLaterNote:'ผ่านขุนทองในกลุ่ม LINE',
   bankAccount:'235-3-39428-5', accountName:'นาย สหรัฐ กาญจนางกูรพันธุ์', bankName:'ธนาคารกสิกรไทย',
@@ -444,11 +465,11 @@ function deviceId(){ let d = load('greek_device');
 function load(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
 function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 /* pickup days that are already over can't be chosen any more (shown grey).  "today" is Bangkok time;
-   ?today=2026-11-11 in the link pretends another day (for trying it out) */
+   ?today=2026-11-11 in the link pretends another day — demo/UAT only, the real shop always uses the real date */
 const MON_EN = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 const MON_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 function todayBKK(){
-  const o = new URLSearchParams(location.search).get('today');
+  const o = (IS_GAS || API_URL) ? '' : new URLSearchParams(location.search).get('today');   // test date only in demo/UAT
   const ymd = /^\d{4}-\d{2}-\d{2}$/.test(o || '') ? o : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
   return new Date(ymd + 'T00:00:00');
 }
@@ -471,7 +492,7 @@ const menuOf = id => C.menu.find(m => m.id === id);
 const addonOf = id => C.addons.find(a => a.id === id);
 const addonsFor = m => m.addons === false ? [] : C.addons;   // บางเมนู (เช่น Banoffee) ใส่ Add-on ไม่ได้
 const availFruits = () => C.fruits.filter(f => f.available);
-function unitPrice(it){ const m = menuOf(it.menuId); let p = m ? m.price : 0;
+function unitPrice(it, day){ const m = menuOf(it.menuId); let p = m ? menuPrice(m, day === undefined ? it.round : day) : 0;
   Object.keys(it.addons||{}).forEach(id => { const a = addonOf(id); if (a) p += a.price * (it.addons[id]||0); }); return p; }
 const linePrice = it => unitPrice(it) * it.qty;
 const foodTotal = () => cart.reduce((s,it) => s + linePrice(it), 0);
@@ -590,18 +611,66 @@ const chipIcon = f => `<img class="pxi" src="${Game16.fruitURL(fruitLook(f))}" w
 // the little bowl used as the logo
 const happyCup = size => pxImg(Game16.bowlURL('ORI', [], false), size, 'logo-bowl');
 
+/* promotion: the shop's backend already sends the sale price; fullPrice is what it was */
+/* promotion by PICKUP DAY: only cups picked up on a sale day are discounted (add-ons never).
+   C.promo = { pct, label, days:[pickup days on sale] }  (no days listed = every day) */
+const promoOn = () => !!(C && C.promo && C.promo.pct > 0);
+const promoAll = () => promoOn() && !(C.promo.days && C.promo.days.length);
+const isPromoDay = r => promoOn() && !isPastRound(r) && (promoAll() || C.promo.days.indexOf(r) >= 0);
+const promoDaysLive = () => promoOn() ? (promoAll() ? liveRounds() : C.promo.days.filter(r => okRound(r))) : [];
+const basePrice = m => m.fullPrice || m.price;
+const salePrice = p => Math.ceil(p * (100 - C.promo.pct) / 100 - 1e-9);
+const menuPrice = (m, day) => isPromoDay(day) ? salePrice(basePrice(m)) : basePrice(m);
+const daysText = ds => ds.map(r => r.replace(/^รับ(วันที่)?\s*/, '')).join(', ');
+// on the card: normal price, plus the sale price for the sale day(s)
+const cardPriceHTML = m => {
+  const ds = promoDaysLive(); if (!ds.length) return `<div class="pr h">${baht(basePrice(m))}</div>`;
+  if (promoAll()) return `<s class="was">${baht(basePrice(m))}</s><div class="pr h">${baht(salePrice(basePrice(m)))}</div>`;
+  return `<div class="pr h">${baht(basePrice(m))}</div>`;
+};
+const cardSaleLine = m => { const ds = promoDaysLive(); return ds.length && !promoAll()
+  ? `<div class="saleline">รับ ${esc(daysText(ds))} เหลือ <b>${baht(salePrice(basePrice(m)))}</b></div>` : ''; };
+// demo / UAT: the sale is switched from the little test panel (or ?promo=15&days=Fri)
+function demoPromo(){
+  if (IS_GAS || API_URL) return;
+  const q = new URLSearchParams(location.search), st = load('uat_promo');
+  let on = st ? st.on : !!q.get('promo'), pct = (st && st.pct) || parseInt(q.get('promo'), 10) || 15;
+  let days = st ? st.days : null;
+  if (!days) { const want = (q.get('days') || 'Fri').toLowerCase().slice(0, 3);
+    days = C.rounds.filter(r => { const d = roundDate(r); return d && ['sun','mon','tue','wed','thu','fri','sat'][d.getDay()] === want; }); }
+  C.promo = on ? { pct, label: 'Friday Clearance', days } : null;
+}
+/* UAT test panel: switch the sale on/off and pick sale days (demo only, never in the real shop) */
+function uatPanel(){
+  if (IS_GAS || API_URL) return '';
+  const st = load('uat_promo') || { on: !!C.promo, pct: 15, days: (C.promo && C.promo.days) || [] };
+  return `<div class="uat${st.open ? ' open' : ''}">
+    <button class="uat-btn" onclick="uatSet({open: !(load('uat_promo')||{}).open})">UAT · SALE: <b>${C.promo ? 'ON' : 'OFF'}</b></button>
+    ${st.open ? `<div class="uat-body">
+      <button class="mini ${C.promo ? 'pink' : ''}" onclick="uatSet({on: !C.promo})">${C.promo ? 'ปิดโปร' : 'เปิดโปร -15%'}</button>
+      <div class="sub" style="font-size:12px;margin:8px 0 4px">วันรับที่ลด (ไม่เลือกเลย = ทุกวัน)</div>
+      <div class="uat-days">${C.rounds.map(r => `<button class="mini ${(st.days || []).indexOf(r) >= 0 ? 'pink' : ''}" onclick="uatDay('${esc(r)}')">${esc(r)}</button>`).join('')}</div>
+    </div>` : ''}</div>`;
+}
+function uatSet(ch){
+  const st = Object.assign({ on: !!C.promo, pct: 15, days: (C.promo && C.promo.days) || [] }, load('uat_promo') || {}, ch);
+  save('uat_promo', st); demoPromo(); closeSheets({stay: true}); render();
+}
+function uatDay(r){ const st = load('uat_promo') || {}; const d = st.days || []; const k = d.indexOf(r);
+  if (k >= 0) d.splice(k, 1); else d.push(r); uatSet({ days: d }); }
 /* ---------- main screen ---------- */
 function render(){
   const inCart = {}; cart.forEach(it => inCart[it.menuId] = (inCart[it.menuId]||0) + it.qty);
-  $('app').innerHTML = `
+  $('app').innerHTML = `${uatPanel()}
     <div class="top">
       <div class="logo h">${happyCup(48)}${esc(C.shopName)}</div>
       ${C.salePeriod ? `<div class="pill">รอบส่ง ${esc(C.salePeriod)}</div>` : ''}
     </div>
     <div class="kicker">▶ SELECT YOUR BOWL</div>
     <h1 class="hello">วันนี้กินถ้วยไหนดี~</h1>
+    ${promoDaysLive().length ? `<div class="promo"><span class="promo-tag">SALE</span><div><b>${esc(C.promo.label)}</b><small>ทุกเมนูลด ${C.promo.pct}% ${promoAll() ? 'ทุกวันรับ' : 'เฉพาะรับวันที่ ' + esc(daysText(promoDaysLive()))} · add-on ราคาเดิม</small></div><span class="promo-pct">-${C.promo.pct}%</span></div>` : ''}
     <div class="sub">แตะเมนู เลือกผลไม้ แล้วกดสั่งได้เลย</div>
-    ${IS_GAS || API_URL ? '' : '<div class="demo">🧪 UAT · วันรับที่ผ่านไปแล้วเป็นสีเทา (วันรับตัวอย่าง 9–12 Nov) — ไม่ส่งออเดอร์จริง</div>'}
+    ${IS_GAS || API_URL ? '' : '<div class="demo">🧪 UAT · โปรตามวันรับ (กดปุ่ม UAT · SALE มุมขวาบนเพื่อเปิด/ปิด) — ไม่ส่งออเดอร์จริง</div>'}
     ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}</div>`}
     ${load('greek_pending') ? `<button class="banner" onclick="renderDone(load('greek_pending'))">${ICON.qr}<span>ออเดอร์ ${esc(load('greek_pending').orderId)} ยังไม่ได้แนบสลิป</span>แนบเลย →</button>` : ''}
     ${installCard()}
@@ -613,7 +682,9 @@ function render(){
           <div class="art" style="background:${tintOf(m)}">${cup(m, {fruits: availFruits().slice(0, m.fruitPick).map(f => f.name)})}</div>
           <div class="nm h">${esc(m.name)}</div>
           <div class="ds">${esc(m.desc)}</div>
-          <div class="prow"><div class="pr h">${baht(m.price)}</div><span class="plus" aria-hidden="true">+</span></div>
+          ${promoDaysLive().length ? `<span class="off">-${C.promo.pct}%</span>` : ''}
+          <div class="prow"><div class="prs">${cardPriceHTML(m)}</div><span class="plus" aria-hidden="true">+</span></div>
+          ${cardSaleLine(m)}
         </button>`).join('')}
     </div>`;
   const n = cupCount();
@@ -647,13 +718,14 @@ function openItem(menuId, idx){
       <button class="back-btn" onclick="closeSheets()">${ICON.back}<span>${editIndex >= 0 ? 'กลับไปตะกร้า' : 'กลับ'}</span></button>
       ${cup(m, {size: 216, live: true, fruits: draft.fruits})}
     </div>
-    <div class="title-row"><h2 class="h">${esc(m.name)}</h2><div class="pr h">${baht(m.price)}</div></div>
+    <div class="title-row"><h2 class="h">${esc(m.name)}</h2><div class="prs" id="titlePrice"></div></div>
+    <div id="saleHint"></div>
     ${m.desc ? `<div class="sub">${esc(m.desc)}</div>` : ''}
     ${C.open ? '' : `<div class="closed" id="itemClosed" style="margin-top:12px">${esc(C.closedMsg)}<div style="font-weight:400;font-size:13px;margin-top:4px">ดูเมนูได้ตามสบาย แต่ยังสั่งไม่ได้จนกว่าร้านจะเปิดรอบใหม่</div></div>`}
     ${fruitsBox}
     ${addonsFor(m).length ? `<div class="box" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
     ${C.rounds.length > 1 ? `<div class="box" id="dayBox"><h3><span>รับวันไหน <span class="req">*</span></span><small>${editIndex >= 0 ? 'ถ้วยนี้' : 'เลือกได้หลายวัน'}</small></h3><div class="rounds">
-      ${C.rounds.map((r,i) => `<button class="round${isPastRound(r) ? ' past' : ''}" id="rd${i}" onclick="pickItemRound(${i})" ${isPastRound(r) ? 'disabled aria-disabled="true"' : ''}><b>${esc(roundLabel(r))}</b>${isPastRound(r) ? '<small>ผ่านไปแล้ว</small>' : isTodayRound(r) ? '<small class="today">วันนี้</small>' : ''}${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
+      ${C.rounds.map((r,i) => `<button class="round${isPastRound(r) ? ' past' : ''}" id="rd${i}" onclick="pickItemRound(${i})" ${isPastRound(r) ? 'disabled aria-disabled="true"' : ''}><b>${esc(roundLabel(r))}</b>${isPastRound(r) ? '<small>ผ่านไปแล้ว</small>' : isTodayRound(r) ? '<small class="today">วันนี้</small>' : ''}${isPromoDay(r) ? `<span class="saletag">SALE -${C.promo.pct}%</span>` : ''}${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
     </div><div id="dayQty"></div></div>` : ''}
     <div class="box" id="qtyBox" style="padding-top:6px;padding-bottom:6px"><div class="row"><div class="lbl">จำนวน<small id="unitTxt"></small></div>
       <div class="stepper"><button id="qm" aria-label="ลดจำนวน" onclick="setQty(-1)">−</button><span id="qv">1</span><button aria-label="เพิ่มจำนวน" onclick="setQty(1)">+</button></div></div></div>
@@ -684,13 +756,19 @@ function refreshItem(){
   $('drz').classList.toggle('on', !!(syrup && draft.addons[syrup.id]));
   $('qv').textContent = draft.qty; $('qm').disabled = draft.qty <= 1;
   syncScoops();
+  { // title price for the chosen day (first chosen when several)
+    const day = (editIndex < 0 && draft.days && draft.days.length) ? draft.days[0] : draft.round, b = basePrice(m);
+    $('titlePrice').innerHTML = isPromoDay(day) ? `<s class="was">${baht(b)}</s><div class="pr h">${baht(salePrice(b))}</div>` : `<div class="pr h">${baht(b)}</div>`;
+    const ds = promoDaysLive();
+    $('saleHint').innerHTML = ds.length && !promoAll() ? `<div class="salehint"><span class="saletag">SALE</span> รับวันที่ ${esc(daysText(ds))} ลด ${C.promo.pct}% เหลือ ${baht(salePrice(b))}${isPromoDay(day) ? ' ✓' : ' · เลือกวันนั้นด้านล่างได้เลย'}</div>` : '';
+  }
   $('unitTxt').textContent = baht(unitPrice(draft)) + ' / ถ้วย';
   const multi = editIndex < 0 && draft.days.length > 1;
   const cupsAll = multi ? draft.days.reduce((t, r) => t + (draft.dq[r] || 1), 0) : draft.qty;
-  $('addPrice').textContent = baht(unitPrice(draft) * cupsAll);
+  $('addPrice').textContent = baht(multi ? draft.days.reduce((t, r) => t + unitPrice(draft, r) * (draft.dq[r] || 1), 0) : unitPrice(draft) * draft.qty);
   $('qtyBox').style.display = multi ? 'none' : '';
   if ($('dayQty')) $('dayQty').innerHTML = multi ? `<div class="dq-head">จำนวนแต่ละวัน</div>` + draft.days.map(r => `
-      <div class="row"><div class="lbl">${esc(roundLabel(r))}<small>${baht(unitPrice(draft))} / ถ้วย</small></div>
+      <div class="row"><div class="lbl">${esc(roundLabel(r))}<small>${isPromoDay(r) ? `<s>${baht(unitPrice(draft, r) - menuPrice(menuOf(draft.menuId), r) + basePrice(menuOf(draft.menuId)))}</s> <b class="salec">${baht(unitPrice(draft, r))}</b>` : baht(unitPrice(draft, r))} / ถ้วย</small></div>
         <div class="stepper"><button aria-label="ลด ${esc(r)}" onclick="setDayQty('${esc(r)}',-1)" ${(draft.dq[r] || 1) <= 1 ? 'disabled' : ''}>−</button>
         <span>${draft.dq[r] || 1}</span><button aria-label="เพิ่ม ${esc(r)}" onclick="setDayQty('${esc(r)}',1)">+</button></div></div>`).join('') : '';
   C.rounds.forEach((r,i) => { const b = $('rd'+i), on = editIndex >= 0 ? draft.round === r : draft.days.indexOf(r) >= 0;
@@ -781,7 +859,7 @@ function openCart(){
 }
 function refreshConfig(){
   return call('getConfig').then(cfg => { if (!IS_GAS) save('greek_cfg', cfg);
-    C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; allPastClosed();
+    C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; demoPromo(); allPastClosed();
     if (!sheetOpen && !document.querySelector('.done')) render(); });
 }
 function renderCart(){
@@ -793,13 +871,13 @@ function renderCart(){
           <div class="info"><div class="nm">${esc(m.name)} × ${it.qty}</div>
             <div class="opt">${esc(describe(it)) || '—'}</div>
             <div><button class="link" onclick="editItem(${i})">แก้ไข</button><button class="link del" onclick="removeItem(${i})">ลบ</button></div></div>
-          <div class="pr">${baht(linePrice(it))}</div></div>`; };
+          <div class="pr">${baht(linePrice(it))}${isPromoDay(it.round) ? `<span class="saletag" style="display:block;margin-top:4px">-${C.promo.pct}%</span>` : ''}</div></div>`; };
   $('cartInner').innerHTML = `
     <div style="padding-top:16px"><button class="back-btn" onclick="closeSheets()">${ICON.back}<span>กลับไปเลือกเมนู</span></button></div>
     ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}<div style="font-weight:400;font-size:13px;margin-top:4px">ของในตะกร้ายังเก็บไว้ให้ เปิดรอบหน้ากดสั่งต่อได้เลย</div></div>`}
     <h2 class="h" style="margin:14px 0 0;font-size:26px">ตะกร้าของคุณ</h2><div class="sub" style="font-size:13px">${cupCount()} ถ้วย · แตะ "แก้ไข" เพื่อเปลี่ยนผลไม้ จำนวน หรือวันรับ</div>
     ${groups.map(g => `<div class="box" style="padding-top:10px">
-      <div class="dayhead">${g.r ? `รับวันที่ ${esc(g.r.replace(/^รับ(วันที่)?\s*/, ''))}` : '<span style="color:var(--danger)">ยังไม่ได้เลือกวันรับ — แตะ "แก้ไข"</span>'}
+      <div class="dayhead">${g.r ? `รับวันที่ ${esc(g.r.replace(/^รับ(วันที่)?\s*/, ''))}${isPromoDay(g.r) ? ` <span class="saletag">SALE -${C.promo.pct}%</span>` : ''}` : '<span style="color:var(--danger)">ยังไม่ได้เลือกวันรับ — แตะ "แก้ไข"</span>'}
         <span>${g.items.reduce((s,x) => s + x.it.qty, 0)} ถ้วย · ${baht(g.items.reduce((s,x) => s + linePrice(x.it), 0))}</span></div>
       ${g.items.map(itemRow).join('')}
     </div>`).join('')}
@@ -1424,7 +1502,7 @@ window.addEventListener('popstate', () => {
 
 /* ---------- boot ---------- */
 function boot(cfg){
-  C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; allPastClosed();
+  C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; demoPromo(); allPastClosed();
   cart = (load('greek_cart') || []).filter(it => menuOf(it.menuId));
   const sheetOpen = $('itemSheet').classList.contains('show') || $('cartSheet').classList.contains('show');
   if (!sheetOpen && !document.querySelector('.done')) render();
