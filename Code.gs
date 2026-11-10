@@ -87,10 +87,40 @@ function doGet(e) {
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('🥣 Greek Shop')
+    .addItem('📅 เรียงตามวันรับ', 'sortByPickupDay')
+    .addItem('🕒 เรียงตามเวลาสั่ง', 'sortByOrderTime')
+    .addSeparator()
     .addItem('📦 เก็บออเดอร์ (ปิดรอบสัปดาห์นี้)', 'archiveOrders')
     .addSeparator()
     .addItem('ตั้งค่าครั้งแรก (สร้างชีตที่ยังไม่มี)', 'setup')
     .addToUi();
+}
+
+/* ---------------- เรียงแถว ----------------
+ * "9 Nov" เป็นข้อความ ถ้าใช้ sort A→Z ของชีต "10 Nov" จะมาก่อน "9 Nov" — ปุ่มนี้เรียงตามวันจริง
+ * แถวของออเดอร์เดียวกันอยู่ติดกันเสมอ · ใช้กับแท็บที่เปิดอยู่ (Orders หรือ Orders Archive) */
+function sortByPickupDay() { sortOrders_('day'); }
+function sortByOrderTime() { sortOrders_('time'); }
+function sortOrders_(mode) {
+  const ss = SpreadsheetApp.getActive(), active = ss.getActiveSheet();
+  const sh = active && active.getName() === SH.ARCH ? active : ss.getSheetByName(SH.ORD);
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const n = sh.getLastRow() - 1; if (n < 2) return;
+    const rng = sh.getRange(2, 1, n, sh.getLastColumn());
+    const vals = rng.getValues(), forms = rng.getFormulas();
+    const num = id => { const m = String(id).match(/^G(\d+)(?:-(\d+))?/); return m ? [+m[1], +(m[2] || 0)] : [Infinity, 0]; };
+    const rows = vals.map((r, i) => {
+      const id = String(at_(r, COL.ID)), d = dayDate_(at_(r, COL.DAY)), t = at_(r, COL.TIME);
+      return { i, cells: r.map((v, j) => forms[i][j] || v), slip: !!forms[i][COL.SLIP - 1], blank: !id,
+        day: d ? d.getTime() : Infinity, time: t instanceof Date ? t.getTime() : Infinity, id: num(id) };
+    });
+    rows.sort((a, b) => (a.blank - b.blank) ||
+      (mode === 'day' ? (a.day - b.day) : 0) || (a.time - b.time) || (a.id[0] - b.id[0]) || (a.id[1] - b.id[1]) || (a.i - b.i));
+    rng.setValues(rows.map(x => x.cells));
+    rows.forEach((x, k) => sh.setRowHeight(k + 2, x.slip ? 80 : 21));
+  } finally { lock.releaseLock(); }
+  ss.toast(mode === 'day' ? 'เรียงตามวันรับแล้ว 📅' : 'เรียงตามเวลาสั่งแล้ว 🕒', sh.getName(), 4);
 }
 
 /* ---------------- ปิดรอบ: ย้ายออเดอร์ไป Orders Archive ---------------- */
