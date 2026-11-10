@@ -113,6 +113,15 @@
   .rp.go{animation:ripple .5s steps(4,end)}
   .rp.go.late{animation-delay:.22s}
   @keyframes ripple{0%{transform:scale(.3);opacity:1}100%{transform:scale(1.8);opacity:0}}
+  #scoops{position:absolute;inset:0;pointer-events:none}
+  .sc{position:absolute;width:48px;height:42px;image-rendering:pixelated}
+  .sc.drop{animation:scDrop .6s steps(8,end)}
+  @keyframes scDrop{0%{transform:translateY(-110px);opacity:0}12%{opacity:1}65%{transform:translateY(4px) scale(1.08,.86)}82%{transform:translateY(-4px) scale(.96,1.04)}100%{transform:none}}
+  .sc.out{animation:scOut .3s steps(4,end) forwards}
+  @keyframes scOut{to{transform:translateY(-40px) scale(.4);opacity:0}}
+  .sc-pop{position:absolute;font-family:var(--px-font);font-size:22px;color:var(--pink-dark);text-shadow:2px 2px 0 #fff;animation:scPop .9s steps(6,end) forwards;z-index:30}
+  @keyframes scPop{0%{transform:translateY(8px);opacity:0}20%{opacity:1}100%{transform:translateY(-26px);opacity:0}}
+  @media (prefers-reduced-motion: reduce){.sc.drop,.sc.out,.sc-pop{animation:none}}
   .drz{opacity:0;transition:opacity .35s steps(3,end)}
   .drz.on{opacity:1}
   .fh{position:absolute;left:94px;top:6px;width:28px;height:24px;image-rendering:pixelated;opacity:0;transition:opacity .1s}
@@ -503,6 +512,7 @@ function cup(m, o){
       <img class="fr off" id="fr${i}" src="${Game16.fruitURL(fruitLook(f))}" width="36" height="36" alt=""></div>`).join('') : '';
   return `<div class="cup body hero-bowl" id="cupSvg" aria-hidden="true"><div id="cupBody" class="bob">
       ${pxImg(Game16.bowlURL(m.id, [], bare), 216, 'big')}
+      <div id="scoops"></div>
       ${fr}
       ${pxImg(Game16.drizzleURL(), 216, 'big drz' + (o.syrup ? ' on' : ''), 'id="drz"')}
       <img class="fh" src="${Game16.heartURL()}" width="28" height="24" alt="">
@@ -523,7 +533,7 @@ function render(){
     <div class="kicker">▶ SELECT YOUR BOWL</div>
     <h1 class="hello">วันนี้กินถ้วยไหนดี~</h1>
     <div class="sub">แตะเมนู เลือกผลไม้ แล้วกดสั่งได้เลย</div>
-    ${IS_GAS || API_URL ? '' : '<div class="demo">🧪 UAT · เวอร์ชันทดลอง สั่งได้หลายวันในครั้งเดียว — ไม่ส่งออเดอร์จริง</div>'}
+    ${IS_GAS || API_URL ? '' : '<div class="demo">🧪 UAT · เวอร์ชันทดลอง: สั่งหลายวันในครั้งเดียว + scoop เด้งลงถ้วย — ไม่ส่งออเดอร์จริง</div>'}
     ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}</div>`}
     ${load('greek_pending') ? `<button class="banner" onclick="renderDone(load('greek_pending'))">${ICON.qr}<span>ออเดอร์ ${esc(load('greek_pending').orderId)} ยังไม่ได้แนบสลิป</span>แนบเลย →</button>` : ''}
     ${installCard()}
@@ -605,6 +615,7 @@ function refreshItem(){
   const syrup = addonsFor(m).find(a => a.type !== 'count');
   $('drz').classList.toggle('on', !!(syrup && draft.addons[syrup.id]));
   $('qv').textContent = draft.qty; $('qm').disabled = draft.qty <= 1;
+  syncScoops();
   $('unitTxt').textContent = baht(unitPrice(draft)) + ' / ถ้วย';
   const multi = editIndex < 0 && draft.days.length > 1;
   const cupsAll = multi ? draft.days.reduce((t, r) => t + (draft.dq[r] || 1), 0) : draft.qty;
@@ -653,6 +664,24 @@ function cupReact(added){
   const body = $('cupBody'), svg = $('cupSvg'); if (!body) return;
   body.classList.remove('wob'); body.getBoundingClientRect(); body.classList.add('wob');
   if (added){ svg.classList.add('happy'); clearTimeout(happyTimer); happyTimer = setTimeout(() => svg.classList.remove('happy'), 900); }
+}
+/* extra scoops drop into the bowl one by one (+ on "เพิ่ม Scoop"), the top one pops off on − */
+const SCOOP_SPOTS = [[108,112],[80,118],[136,118],[94,100],[122,100]];
+function syncScoops(){
+  const box = $('scoops'); if (!box) return;
+  const want = Math.min(5, (draft.addons && draft.addons.SCP) || 0);
+  const have = [...box.querySelectorAll('.sc:not(.out)')];
+  const quiet = !box.dataset.ready; box.dataset.ready = '1';      // opening an item that already has scoops: no drop
+  for (let k = have.length; k < want; k++){
+    const [x, y] = SCOOP_SPOTS[k], im = document.createElement('img');
+    im.src = Game16.scoopURL(); im.className = 'sc' + (quiet ? '' : ' drop'); im.alt = '';
+    im.style.left = (x - 24) + 'px'; im.style.top = (y - 36) + 'px'; im.style.zIndex = 10 + k;
+    box.appendChild(im);
+    if (!quiet){ const pop = document.createElement('div'); pop.className = 'sc-pop'; pop.textContent = '+1';
+      pop.style.left = (x + 14) + 'px'; pop.style.top = (y - 52) + 'px'; box.appendChild(pop); setTimeout(() => pop.remove(), 900);
+      setTimeout(() => cupReact(false), 380); }
+  }
+  for (let k = have.length - 1; k >= want; k--){ const im = have[k]; im.classList.add('out'); setTimeout(() => im.remove(), 320); }
 }
 function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
   const v = d === 0 ? (n ? 0 : 1) : Math.max(0, Math.min(a.max, n + d));
@@ -956,6 +985,9 @@ function coin(){ const g=new Grid(6,7); ell(g,3,3.5,2.6,3.2,['#FFEC27']); for(le
     bowlURL: (id, picked, bare) => url('b|' + id + '|' + (bare ? 'bare' : (NAMES[id] ? '' : (picked || []).join(','))), () => menuBowl(id, picked, bare)),
     fruitURL: L => url('f|' + JSON.stringify(L), () => fruitGrid(L)),
     drizzleURL: () => url('drz', drizzle),
+    scoopURL: () => url('scoop', () => { const g = new Grid(16,14); ball(g,8,7.6,6.2,PAL16.yog,{dither:true});
+      for (let k=0;k<10;k++){ const a=k/10*Math.PI*2; g.set(8+Math.cos(a)*3.4,7+Math.sin(a)*2.6,PAL16.yog[2]); }
+      g.set(5,4,'#FFFFFF'); g.set(6,4,'#FFFFFF'); outline(g, PAL16.ink); return g; }),
     heartURL: () => url('heart', () => heart('#FF6F9A')),
     coinURL: () => url('coin', coin),
     starURL: c => url('star|' + c, () => star(c, true)) };
