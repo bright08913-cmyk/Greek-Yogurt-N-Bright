@@ -20,7 +20,7 @@
 <meta property="og:image" content="https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/og-16bit.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "18bd059c27";</script>
+<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "1ca1db868e";</script>
 
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Jersey+10&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -110,6 +110,17 @@
   .back-btn{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 14px 0 12px;background:#fff;border:0;margin:3px;
             box-shadow:var(--pxs),0 7px 0 rgba(59,42,64,.2);cursor:pointer;font-weight:600;font-size:15px;flex:none}
   .back-btn:active{transform:translateY(3px);box-shadow:var(--pxs),0 4px 0 rgba(59,42,64,.2)}
+  .prs{display:flex;align-items:baseline;gap:6px}
+  .was{font-family:var(--px-font);font-size:17px;color:var(--muted);text-decoration-thickness:2px}
+  .title-row .was{font-size:22px}
+  .off{position:absolute;top:-9px;left:-9px;z-index:1;background:var(--danger);color:#fff;font-family:var(--px-font);font-size:17px;padding:1px 6px;--pw:2px;box-shadow:var(--pxs)}
+  .promo{display:flex;align-items:center;gap:12px;margin:16px 3px 0;padding:10px 14px;background:#FFF1C7;box-shadow:var(--pxs),0 7px 0 rgba(59,42,64,.14)}
+  .promo div{flex:1;min-width:0}
+  .promo b{display:block;font-family:var(--px-font);font-size:24px;font-weight:700;font-synthesis:none;line-height:1}
+  .promo small{display:block;font-size:13px;color:var(--muted)}
+  .promo-tag{font-family:var(--arcade);font-size:10px;color:#fff;background:var(--danger);padding:6px 6px;--pw:2px;box-shadow:var(--pxs);animation:tw 1s steps(2,jump-none) infinite}
+  .promo-pct{font-family:var(--px-font);font-size:34px;font-weight:700;font-synthesis:none;color:var(--danger);line-height:1}
+  @media (prefers-reduced-motion: reduce){.promo-tag{animation:none}}
   .title-row{display:flex;align-items:baseline;justify-content:space-between;margin-top:18px}
   .title-row h2{margin:0;font-size:38px;line-height:1}
   .title-row .pr{font-size:34px;color:var(--pink-dark)}
@@ -607,6 +618,16 @@ const chipIcon = f => `<img class="pxi" src="${Game16.fruitURL(fruitLook(f))}" w
 // the little bowl used as the logo
 const happyCup = size => pxImg(Game16.bowlURL('ORI', [], false), size, 'logo-bowl');
 
+/* promotion: the shop's backend already sends the sale price; fullPrice is what it was */
+const onSale = m => C.promo && m.fullPrice > m.price;
+const priceHTML = m => (onSale(m) ? `<s class="was">${baht(m.fullPrice)}</s>` : '') + `<div class="pr h">${baht(m.price)}</div>`;
+/* demo / UAT only: ?promo=15 in the link pretends the promotion is on */
+function demoPromo(){
+  if (IS_GAS || API_URL || C.promo) return;
+  const pct = parseInt(new URLSearchParams(location.search).get('promo'), 10); if (!(pct > 0 && pct < 91)) return;
+  C.promo = { pct, label: 'Friday Clearance' };
+  C.menu.forEach(m => { m.fullPrice = m.price; m.price = Math.ceil(m.price * (100 - pct) / 100 - 1e-9); });
+}
 /* ---------- main screen ---------- */
 function render(){
   const inCart = {}; cart.forEach(it => inCart[it.menuId] = (inCart[it.menuId]||0) + it.qty);
@@ -617,6 +638,7 @@ function render(){
     </div>
     <div class="kicker">▶ SELECT YOUR BOWL</div>
     <h1 class="hello">วันนี้กินถ้วยไหนดี~</h1>
+    ${C.promo ? `<div class="promo"><span class="promo-tag">SALE</span><div><b>${esc(C.promo.label)}</b><small>ทุกเมนูลด ${C.promo.pct}% · add-on ราคาเดิม</small></div><span class="promo-pct">-${C.promo.pct}%</span></div>` : ''}
     <div class="sub">แตะเมนู เลือกผลไม้ แล้วกดสั่งได้เลย</div>
     ${IS_GAS || API_URL ? '' : '<div class="demo">โหมดตัวอย่าง (ยังไม่ต่อ Google Sheet)</div>'}
     ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}</div>`}
@@ -630,7 +652,8 @@ function render(){
           <div class="art" style="background:${tintOf(m)}">${cup(m, {fruits: availFruits().slice(0, m.fruitPick).map(f => f.name)})}</div>
           <div class="nm h">${esc(m.name)}</div>
           <div class="ds">${esc(m.desc)}</div>
-          <div class="prow"><div class="pr h">${baht(m.price)}</div><span class="plus" aria-hidden="true">+</span></div>
+          ${onSale(m) ? `<span class="off">-${C.promo.pct}%</span>` : ''}
+          <div class="prow"><div class="prs">${priceHTML(m)}</div><span class="plus" aria-hidden="true">+</span></div>
         </button>`).join('')}
     </div>`;
   const n = cupCount();
@@ -664,7 +687,7 @@ function openItem(menuId, idx){
       <button class="back-btn" onclick="closeSheets()">${ICON.back}<span>${editIndex >= 0 ? 'กลับไปตะกร้า' : 'กลับ'}</span></button>
       ${cup(m, {size: 216, live: true, fruits: draft.fruits})}
     </div>
-    <div class="title-row"><h2 class="h">${esc(m.name)}</h2><div class="pr h">${baht(m.price)}</div></div>
+    <div class="title-row"><h2 class="h">${esc(m.name)}</h2><div class="prs">${priceHTML(m)}</div></div>
     ${m.desc ? `<div class="sub">${esc(m.desc)}</div>` : ''}
     ${C.open ? '' : `<div class="closed" id="itemClosed" style="margin-top:12px">${esc(C.closedMsg)}<div style="font-weight:400;font-size:13px;margin-top:4px">ดูเมนูได้ตามสบาย แต่ยังสั่งไม่ได้จนกว่าร้านจะเปิดรอบใหม่</div></div>`}
     ${fruitsBox}
@@ -798,7 +821,7 @@ function openCart(){
 }
 function refreshConfig(){
   return call('getConfig').then(cfg => { if (!IS_GAS) save('greek_cfg', cfg);
-    C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; allPastClosed();
+    C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; demoPromo(); allPastClosed();
     if (!sheetOpen && !document.querySelector('.done')) render(); });
 }
 function renderCart(){
@@ -1441,7 +1464,7 @@ window.addEventListener('popstate', () => {
 
 /* ---------- boot ---------- */
 function boot(cfg){
-  C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; allPastClosed();
+  C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; demoPromo(); allPastClosed();
   cart = (load('greek_cart') || []).filter(it => menuOf(it.menuId));
   const sheetOpen = $('itemSheet').classList.contains('show') || $('cartSheet').classList.contains('show');
   if (!sheetOpen && !document.querySelector('.done')) render();

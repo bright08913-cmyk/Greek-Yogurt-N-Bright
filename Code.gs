@@ -219,8 +219,12 @@ function currentWeek_() {
 /** ส่งเมนู/ราคา/ตัวเลือกให้หน้าแอป */
 function getConfig() {
   const ss = SpreadsheetApp.getActive();
+  const s0 = settings_();
+  // โปรโมชั่น: ติ๊ก promo_on ใน Settings → ทุกเมนูลด promo_percent% ปัดขึ้นเป็นบาทเต็ม (add-on ราคาเดิม)
+  const promoPct = isOn_(s0.promo_on) ? Math.min(90, Math.max(0, Number(s0.promo_percent) || 0)) : 0;
+  const sale = p => promoPct ? Math.ceil(p * (100 - promoPct) / 100 - 1e-9) : p;
   const menu = rows_(ss.getSheetByName(SH.MENU)).filter(r => isOn_(r[6])).map(r => ({
-    id: String(r[0]), name: String(r[1]), price: Number(r[2]) || 0,
+    id: String(r[0]), name: String(r[1]), price: sale(Number(r[2]) || 0), fullPrice: Number(r[2]) || 0,
     fruitPick: Number(r[3]) || 0, desc: String(r[4] || ''), emoji: String(r[5] || '🥣'),
     addons: r[7] === '' || r[7] === undefined ? true : isOn_(r[7])   // คอลัมน์ H "ใส่ Add-on ได้"
   }));
@@ -243,6 +247,7 @@ function getConfig() {
   if (roundRows) roundRows.forEach(r => { if (r[2]) roundNotes[roundName(r[0])] = String(r[2]); });
   return {
     shopName: s.shop_name || 'Greek Yogurt',
+    promo: promoPct ? { pct: promoPct, label: String(s.promo_label || '').trim() || ('ลดทุกเมนู ' + promoPct + '%') } : null,
     open: isOn_(s.order_open) && (!roundRows || roundRows.length > 0) && (!rounds.length || rounds.some(r => !isPastDay_(r))),  // ไม่มีรอบเปิด / ผ่านไปหมดแล้ว = ปิดรับ
     closedMsg: s.closed_message || 'ตอนนี้ปิดรับออเดอร์ชั่วคราว',
     rounds, roundNotes,
@@ -321,7 +326,7 @@ function submitOrder(order) {
     const base = 'G' + ('000' + nextOrderNo_(ordSh)).slice(-4);
     const now = new Date();
     const name = String(order.name).trim().slice(0, 60);
-    const note = String(order.note || '').slice(0, 300);
+    const note = (cfg.promo ? '[โปร -' + cfg.promo.pct + '%] ' : '') + String(order.note || '').slice(0, 300);
     const payMethod = order.payLater ? PAY_LATER : PAY_NOW;
     const token = Utilities.getUuid();   // ใช้ยืนยันตอนแนบสลิป/ยกเลิก (กันคนอื่นมาแก้ออเดอร์เรา)
     // ยอดโอนทั้งออเดอร์ (ไม่นับวันที่ยกเลิก) โชว์ที่แถวแรกของออเดอร์ ไว้เทียบกับยอดในสลิป
@@ -689,6 +694,9 @@ function setup() {
     ['pay_later_note', 'ผ่านขุนทองในกลุ่ม LINE', 'ข้อความใต้ตัวเลือก "จ่ายตอนรับ"'],
     ['line_group_url', '', 'ลิงก์เชิญกลุ่ม LINE (https://line.me/...) เว้นว่าง = ให้ลูกค้าเลือกแชทเอง'],
     ['notify_email', '', 'อีเมลรับแจ้งเตือน (เว้นว่าง = อีเมลเจ้าของสคริปต์)'],
+    ['promo_on', false, 'ติ๊ก = เปิดโปรโมชั่น (ทุกเมนูลดราคา, add-on ราคาเดิม)'],
+    ['promo_percent', 15, 'ลดกี่ % (ปัดขึ้นเป็นบาทเต็ม เช่น 90 ลด 15% = 77)'],
+    ['promo_label', 'Friday Clearance', 'ชื่อโปรที่โชว์ในแอป'],
     ['max_cups_per_order', 10, 'สั่งได้สูงสุดกี่ถ้วยต่อออเดอร์ (0 = ไม่จำกัด)'],
     ['max_orders_per_phone_per_day', 3, 'มือถือเครื่องเดียวสั่งได้กี่ออเดอร์ต่อวัน (ยกเลิกเองไม่นับ · 0 = ไม่จำกัด)'],
     ['order_cooldown_sec', 30, 'ต้องรอกี่วินาทีก่อนสั่งออเดอร์ถัดไปจากเครื่องเดิม (0 = ไม่ต้องรอ)'],
