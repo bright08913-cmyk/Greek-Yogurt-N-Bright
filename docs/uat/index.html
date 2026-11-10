@@ -101,11 +101,12 @@
   .hero-bowl{position:relative;width:216px;height:200px;margin-bottom:12px;transform-origin:50% 100%}
   .hero-bowl #cupBody{position:absolute;inset:0;transform-origin:50% 100%}
   .hero-bowl .big{position:absolute;left:0;bottom:0;width:216px;height:168px}
+  .hero-bowl .big.drz{z-index:3}
   .bob{animation:bob16 2.4s steps(2,jump-none) infinite}
   @keyframes bob16{50%{transform:translateY(-3px)}}
   #cupBody.wob{animation:wob .4s steps(4,end)}
   @keyframes wob{0%{transform:scale(1,1)}30%{transform:scale(1.06,.92)}60%{transform:scale(.97,1.04)}100%{transform:scale(1,1)}}
-  .fw{position:absolute;left:0;top:0;width:0;height:0;transition:transform .4s steps(5,end)}
+  .fw{position:absolute;left:0;top:0;width:0;height:0;z-index:2;transition:transform .4s steps(5,end)}
   .fr{position:absolute;left:-18px;top:-32px;width:36px;height:36px;image-rendering:pixelated;transform-origin:50% 100%;
       transition:transform .42s cubic-bezier(.34,1.9,.5,1),opacity .12s steps(2)}
   .fr.off{transform:translateY(-70px) scale(.6);opacity:0;transition:transform .3s cubic-bezier(.55,-.4,.75,.4),opacity .2s steps(2) .1s}
@@ -113,7 +114,7 @@
   .rp.go{animation:ripple .5s steps(4,end)}
   .rp.go.late{animation-delay:.22s}
   @keyframes ripple{0%{transform:scale(.3);opacity:1}100%{transform:scale(1.8);opacity:0}}
-  #scoops{position:absolute;inset:0;pointer-events:none}
+  #scoops{position:absolute;inset:0;pointer-events:none;z-index:1}
   .sc{position:absolute;width:48px;height:42px;image-rendering:pixelated}
   .sc.drop{animation:scDrop .6s steps(8,end)}
   @keyframes scDrop{0%{transform:translateY(-110px);opacity:0}12%{opacity:1}65%{transform:translateY(4px) scale(1.08,.86)}82%{transform:translateY(-4px) scale(.96,1.04)}100%{transform:none}}
@@ -124,7 +125,7 @@
   @media (prefers-reduced-motion: reduce){.sc.drop,.sc.out,.sc-pop{animation:none}}
   .drz{opacity:0;transition:opacity .35s steps(3,end)}
   .drz.on{opacity:1}
-  .fh{position:absolute;left:94px;top:6px;width:28px;height:24px;image-rendering:pixelated;opacity:0;transition:opacity .1s}
+  .fh{position:absolute;z-index:4;left:94px;top:6px;width:28px;height:24px;image-rendering:pixelated;opacity:0;transition:opacity .1s}
   .cup.happy .fh{opacity:1;animation:heartUp .9s steps(6,end) forwards}
   @keyframes heartUp{from{transform:translateY(10px)}to{transform:translateY(-14px)}}
 
@@ -676,7 +677,7 @@ function syncScoops(){
   for (let k = have.length; k < want; k++){
     const [x, y] = SCOOP_SPOTS[k], im = document.createElement('img');
     im.src = Game16.scoopURL(); im.className = 'sc' + (quiet ? '' : ' drop'); im.alt = '';
-    im.style.left = (x - 24) + 'px'; im.style.top = (y - 36) + 'px'; im.style.zIndex = 10 + k;
+    im.style.left = (x - 24) + 'px'; im.style.top = (y - 36) + 'px'; im.style.zIndex = k;   // within the scoop layer
     box.appendChild(im);
     if (!quiet){ const pop = document.createElement('div'); pop.className = 'sc-pop'; pop.textContent = '+1';
       pop.style.left = (x + 14) + 'px'; pop.style.top = (y - 52) + 'px'; box.appendChild(pop); setTimeout(() => pop.remove(), 900);
