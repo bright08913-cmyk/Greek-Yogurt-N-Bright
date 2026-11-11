@@ -91,6 +91,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('🥣 Greek Shop')
     .addItem('🔑 ตั้ง PIN หน้า Live', 'setLivePin')
     .addItem('🧾 เช็คการเชื่อม EasySlip', 'testEasySlip')
+    .addItem('📊 นับออเดอร์ต่อสัปดาห์', 'orderStats')
     .addSeparator()
     .addItem('📅 เรียงตามวันรับ', 'sortByPickupDay')
     .addItem('🕒 เรียงตามเวลาสั่ง', 'sortByOrderTime')
@@ -1104,3 +1105,40 @@ function period_(rounds) {
 }
 function list_(v) { return String(v || '').split(',').map(s => s.trim()).filter(Boolean); }
 function isOn_(v) { return v === true || String(v).toUpperCase() === 'TRUE'; }
+
+/* ---------------- นับออเดอร์ต่อสัปดาห์ (ไว้เลือกแพ็กเกจ EasySlip) ----------------
+ * อ่านทุกแท็บที่ชื่อขึ้นต้นด้วย "Orders" (รวม Archive และแท็บเก่าที่ซ่อนไว้) · นับ 1 ออเดอร์ = 1 OrderID */
+function orderStats() {
+  const ss = SpreadsheetApp.getActive(), seen = {}, weeks = {};
+  ss.getSheets().filter(sh => /^Orders/i.test(sh.getName()) && sh.getLastRow() > 1).forEach(sh => {
+    const vals = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getValues();
+    const head = vals[0].map(h => String(h).trim());
+    const col = re => head.findIndex(h => re.test(h));
+    const cId = col(/^order\s*id$/i), cTime = col(/เวลาสั่ง|timestamp|^เวลา|^time/i),
+          cPay = col(/วิธีจ่าย|payment|method/i), cSt = col(/สถานะออเดอร์|^status$/i);
+    if (cId < 0 || cTime < 0) return;
+    vals.slice(1).forEach(r => {
+      const id = base_(r[cId]); if (!id || seen[id]) return;
+      if (cSt >= 0 && String(r[cSt]) === 'ยกเลิก') return;
+      const t = r[cTime] instanceof Date ? r[cTime] : new Date(r[cTime]); if (isNaN(t)) return;
+      seen[id] = 1;
+      const wk = weekLabel_(t), w = weeks[wk] || (weeks[wk] = { orders: 0, slip: 0, from: t, to: t });
+      w.orders++; if (!(cPay >= 0 && /ขุนทอง|ตอนรับ/.test(String(r[cPay])))) w.slip++;
+      if (t < w.from) w.from = t; if (t > w.to) w.to = t;
+    });
+  });
+  const list = Object.keys(weeks).map(k => Object.assign({ wk: k }, weeks[k])).sort((a, b) => a.from - b.from);
+  const ui = SpreadsheetApp.getUi();
+  if (!list.length) return ui.alert('ยังไม่พบออเดอร์ในแท็บ Orders / Orders Archive');
+  const f = d => Utilities.formatDate(d, 'Asia/Bangkok', 'd MMM');
+  const sum = list.reduce((a, w) => ({ o: a.o + w.orders, s: a.s + w.slip }), { o: 0, s: 0 });
+  const maxS = Math.max.apply(null, list.map(w => w.slip)), avgS = sum.s / list.length;
+  const perMonth = Math.ceil(avgS * 4.35), peakMonth = Math.ceil(maxS * 4.35);
+  ui.alert('📊 ออเดอร์ต่อสัปดาห์',
+    list.map(w => w.wk + ' (' + f(w.from) + '–' + f(w.to) + '): ' + w.orders + ' ออเดอร์ · จ่ายโอน ' + w.slip).join('\n') +
+    '\n\nรวม ' + sum.o + ' ออเดอร์ใน ' + list.length + ' สัปดาห์ · จ่ายโอน (ต้องตรวจสลิป) ' + sum.s +
+    '\nเฉลี่ยตรวจสลิป ~' + avgS.toFixed(1) + ' ครั้ง/สัปดาห์ · สูงสุด ' + maxS +
+    '\n\nประมาณต่อเดือน: ~' + perMonth + ' สลิป (ถ้าขายดีเท่าสัปดาห์ที่สูงสุด ~' + peakMonth + ')' +
+    '\nเผื่อสลิปที่ส่งผิดแล้วส่งใหม่ ~30% → ควรมีโควต้าอย่างน้อย ~' + Math.ceil(peakMonth * 1.3) + ' ครั้ง/เดือน',
+    ui.ButtonSet.OK);
+}
