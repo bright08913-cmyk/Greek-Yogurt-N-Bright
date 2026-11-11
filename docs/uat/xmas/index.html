@@ -383,11 +383,10 @@
   .logo{position:relative}
   .xhat{position:absolute;left:4px;top:-17px;width:44px;height:auto;pointer-events:none}
   /* falling pixel snow (behind the cards) */
-  #snow{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+  #snow{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden}   /* on top of every page and popup, never catches taps */
   #snow i{position:absolute;top:-12px;width:6px;height:6px;background:#fff;box-shadow:0 0 0 2px #C9D7E4;animation:fall linear infinite}
   #snow i.s{width:4px;height:4px;box-shadow:0 0 0 1px #C9D7E4}
   @keyframes fall{to{transform:translate3d(var(--dx,20px),110vh,0)}}
-  body.xmas #app{position:relative;z-index:1}
   @media (prefers-reduced-motion: reduce){#snow{display:none}.lights i{animation:none}}
 </style>
 </head>
@@ -726,7 +725,7 @@ function render(){
       ${C.salePeriod ? `<div class="pill">รอบส่ง ${esc(C.salePeriod)}</div>` : ''}
     </div>
     ${xmas() ? `<div class="xdeco" aria-hidden="true"><div class="lights">${'<i></i>'.repeat(10)}</div><img class="xtree pxi" src="${XSPR.tree}" alt=""><img class="xgifts pxi" src="${XSPR.gifts}" alt=""></div>` : ''}
-    <div class="kicker">${xmas() ? '▶ MERRY XMAS · SELECT YOUR BOWL' : '▶ SELECT YOUR BOWL'}</div>
+    <div class="kicker">▶ SELECT YOUR BOWL</div>
     <h1 class="hello">${xmas() ? 'คริสต์มาสนี้ กินถ้วยไหนดี~' : 'วันนี้กินถ้วยไหนดี~'}</h1>
     ${promoDaysLive().length ? `<div class="promo"><span class="promo-tag">SALE</span><div><b>${esc(C.promo.label)}</b><small>ทุกเมนูลด ${C.promo.pct}% ${promoAll() ? 'ทุกวันรับ' : 'เฉพาะรับวันที่ ' + esc(daysText(promoDaysLive()))} · add-on ราคาเดิม</small></div><span class="promo-pct">-${C.promo.pct}%</span></div>` : ''}
     <div class="sub">แตะเมนู เลือกผลไม้ แล้วกดสั่งได้เลย</div>
