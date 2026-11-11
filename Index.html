@@ -351,6 +351,34 @@
   @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
   .tick{animation:bob 1.6s steps(2,jump-none) infinite}
   @media (prefers-reduced-motion: reduce){ .fr,.fr.off,.fw,.drz,.sheet{transition:none} .rp.go,.pop,.tick,#cupBody.wob,.bob,.hero::before,.hero::after,.cup.happy .fh,.loading::before{animation:none} }
+
+  /* ---------- seasonal theme: Christmas (body.xmas) — same layout, new colours + a little snow ---------- */
+  body.xmas{--bg:#F3F7F1;--pink:#F26B6B;--pink-dark:#B4232F;--soft:#FBE0DF;--mint:#C3E6CB;--coin:#F7C948;--ok:#1E7B4C;--lilac:#CFE3D4;
+    background-image:linear-gradient(rgba(30,123,76,.05) 2px,transparent 2px),linear-gradient(90deg,rgba(30,123,76,.05) 2px,transparent 2px)}
+  body.xmas .bar{background:linear-gradient(to top,var(--bg) 75%,rgba(243,247,241,0))}
+  body.xmas .menu.in-cart{background:#FFF7F6}
+  body.xmas .kicker{color:var(--ok)}
+  /* snow sitting on every menu card */
+  body.xmas .menu::before{content:'';position:absolute;left:-4px;right:-4px;top:-12px;height:16px;pointer-events:none;z-index:1;
+    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='16' shape-rendering='crispEdges'%3E%3Cpath fill='%23C9D7E4' d='M0 8h4V5h4V3h8v2h4v3h4V6h4V4h4v12H0z'/%3E%3Cpath fill='%23fff' d='M0 9h4V6h4V4h8v2h4v3h4V7h4V5h4v7h-4v2h-6v-2h-8v2H6v-2H0z'/%3E%3C/svg%3E") repeat-x left top/32px 16px}
+  /* string of lights under the header */
+  .lights{display:flex;justify-content:space-between;align-items:flex-start;height:22px;margin:6px 2px 0;position:relative}
+  .lights::before{content:'';position:absolute;left:0;right:0;top:3px;height:3px;background:#2F5D3A}
+  .lights i{width:9px;height:12px;margin-top:5px;position:relative;--pw:2px;box-shadow:var(--pxs);animation:blink 1.6s steps(1) infinite}
+  .lights i::before{content:'';position:absolute;left:2px;top:-4px;width:5px;height:4px;background:#2F5D3A}
+  .lights i:nth-child(4n+1){background:#E8434F}.lights i:nth-child(4n+2){background:#F7C948;animation-delay:.8s}
+  .lights i:nth-child(4n+3){background:#3BAF6A}.lights i:nth-child(4n){background:#5AA7E8;animation-delay:.8s}
+  @keyframes blink{50%{filter:brightness(.55) saturate(.6)}}
+  /* santa hat on the logo bowl */
+  .logo{position:relative}
+  .xhat{position:absolute;left:4px;top:-17px;width:44px;height:auto;pointer-events:none}
+  /* falling pixel snow (behind the cards) */
+  #snow{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+  #snow i{position:absolute;top:-12px;width:6px;height:6px;background:#fff;box-shadow:0 0 0 2px #C9D7E4;animation:fall linear infinite}
+  #snow i.s{width:4px;height:4px;box-shadow:0 0 0 1px #C9D7E4}
+  @keyframes fall{to{transform:translate3d(var(--dx,20px),110vh,0)}}
+  body.xmas #app{position:relative;z-index:1}
+  @media (prefers-reduced-motion: reduce){#snow{display:none}.lights i{animation:none}}
 </style>
 </head>
 <body>
@@ -684,11 +712,12 @@ function render(){
   const inCart = {}; cart.forEach(it => inCart[it.menuId] = (inCart[it.menuId]||0) + it.qty);
   $('app').innerHTML = `${uatPanel()}
     <div class="top">
-      <div class="logo h">${happyCup(48)}${esc(C.shopName)}</div>
+      <div class="logo h">${happyCup(48)}${xmas() ? `<img class="xhat pxi" src="${XHAT}" alt="">` : ''}${esc(C.shopName)}</div>
       ${C.salePeriod ? `<div class="pill">รอบส่ง ${esc(C.salePeriod)}</div>` : ''}
     </div>
-    <div class="kicker">▶ SELECT YOUR BOWL</div>
-    <h1 class="hello">วันนี้กินถ้วยไหนดี~</h1>
+    ${xmas() ? '<div class="lights" aria-hidden="true">' + '<i></i>'.repeat(14) + '</div>' : ''}
+    <div class="kicker">${xmas() ? '▶ MERRY XMAS · SELECT YOUR BOWL' : '▶ SELECT YOUR BOWL'}</div>
+    <h1 class="hello">${xmas() ? 'คริสต์มาสนี้ กินถ้วยไหนดี~' : 'วันนี้กินถ้วยไหนดี~'}</h1>
     ${promoDaysLive().length ? `<div class="promo"><span class="promo-tag">SALE</span><div><b>${esc(C.promo.label)}</b><small>ทุกเมนูลด ${C.promo.pct}% ${promoAll() ? 'ทุกวันรับ' : 'เฉพาะรับวันที่ ' + esc(daysText(promoDaysLive()))} · add-on ราคาเดิม</small></div><span class="promo-pct">-${C.promo.pct}%</span></div>` : ''}
     <div class="sub">แตะเมนู เลือกผลไม้ แล้วกดสั่งได้เลย</div>
     ${IS_GAS || API_URL ? '' : '<div class="demo">โหมดตัวอย่าง (ยังไม่ต่อ Google Sheet)</div>'}
@@ -880,7 +909,7 @@ function openCart(){
 }
 function refreshConfig(){
   return call('getConfig').then(cfg => { if (!IS_GAS) save('greek_cfg', cfg);
-    C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; cleanConfig(C); demoPromo(); allPastClosed();
+    C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; cleanConfig(C); demoPromo(); allPastClosed(); applyTheme();
     if (!sheetOpen && !document.querySelector('.done')) render(); });
 }
 function renderCart(){
@@ -1533,8 +1562,42 @@ window.addEventListener('popstate', () => {
 });
 
 /* ---------- boot ---------- */
+
+/* ---------- seasonal theme ----------
+   Settings "theme" = xmas turns it on for everyone (blank = normal). Demo/UAT: ?theme=xmas or window.FORCE_THEME */
+function themeName(){
+  if (window.FORCE_THEME) return window.FORCE_THEME;
+  if (!API_URL && !IS_GAS){ const q = new URLSearchParams(location.search).get('theme'); if (q !== null) return q; }
+  return String((C && C.theme) || '').toLowerCase().trim();
+}
+const xmas = () => themeName() === 'xmas';
+// 16x12 pixel santa hat: red cap, white trim, white pom-pom
+const XHAT = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 15" shape-rendering="crispEdges">
+  <path fill="#3B2A40" d="M8 1h6v1h2v1h2v1h1v2h1v3h1v3h-2v1h1v3H1v-3h1v-1h1V7h1V5h1V3h2V2h1z"/>
+  <path fill="#E8434F" d="M9 2h5v1h2v1h2v2h1v3h-2V7h-1V6h-2v6H3V7h1V5h1V4h2V3h2z"/>
+  <path fill="#B4232F" d="M12 6h2v6h-2zM5 9h1v3H5z"/>
+  <path fill="#fff" d="M2 12h14v2H2z"/><path fill="#C9D7E4" d="M2 13h14v1H2z"/>
+  <path fill="#fff" d="M18 9h3v3h-3z"/><path fill="#C9D7E4" d="M18 11h3v1h-3z"/></svg>`);
+function applyTheme(){
+  const on = xmas();
+  document.body.classList.toggle('xmas', on);
+  let sn = document.getElementById('snow');
+  if (on && !sn){
+    sn = document.createElement('div'); sn.id = 'snow'; sn.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 18; i++){
+      const f = document.createElement('i'); if (i % 3) f.className = 's';
+      f.style.left = (Math.random() * 100) + '%';
+      f.style.animationDuration = (9 + Math.random() * 9).toFixed(1) + 's';
+      f.style.animationDelay = (-Math.random() * 18).toFixed(1) + 's';
+      f.style.setProperty('--dx', Math.round(Math.random() * 60 - 30) + 'px');
+      sn.appendChild(f);
+    }
+    document.body.prepend(sn);
+  } else if (!on && sn) sn.remove();
+  const tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.content = on ? '#F3F7F1' : '#FFF6F1';
+}
 function boot(cfg){
-  C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; cleanConfig(C); demoPromo(); allPastClosed();
+  C = cfg; C.addons = C.addons || []; C.rounds = C.rounds || []; C.fruits = C.fruits || []; cleanConfig(C); demoPromo(); allPastClosed(); applyTheme();
   cart = (load('greek_cart') || []).filter(it => menuOf(it.menuId));
   const sheetOpen = $('itemSheet').classList.contains('show') || $('cartSheet').classList.contains('show');
   if (!sheetOpen && !document.querySelector('.done')) render();
