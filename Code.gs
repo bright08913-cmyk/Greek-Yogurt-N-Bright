@@ -685,7 +685,16 @@ function findOrder_(base) {
  * ผ่าน = เงินเข้าบัญชีร้าน + ยอด ≥ ยอดออเดอร์ + โอนหลังกดสั่ง → "จ่ายแล้ว" อัตโนมัติ */
 const EASYSLIP_ = 'https://api.easyslip.com/v1';
 const SHOP_PROMPTPAY_ = '004999246525967';      // e-wallet ID เดียวกับที่แอปใช้ทำ QR
-function easySlipKey_() { return String(PropertiesService.getScriptProperties().getProperty('EASYSLIP_KEY') || '').trim(); }
+function easySlipKey_() {
+  // ยอมรับชื่อที่พิมพ์ต่างนิดหน่อย เช่น easyslip_key, "EASYSLIP KEY ", EasySlip API
+  const all = PropertiesService.getScriptProperties().getProperties();
+  const name = Object.keys(all).find(k => /^easy\s*slip[\s_-]*(api)?[\s_-]*(key)?$/i.test(k.trim()));
+  return String(name ? all[name] : '').replace(/^\s*bearer\s+/i, '').trim();
+}
+function propNames_() {
+  return Object.keys(PropertiesService.getScriptProperties().getProperties())
+    .filter(k => !/^(SLIP_|DEV_|ORDER_SEQ|LIVE_|SLIP_FOLDER_ID)/.test(k));
+}
 function verifySlip_(req, bytes, mime, base, total, orderTime) {
   const key = easySlipKey_();
   if (!key) return { state: 'off' };
@@ -764,7 +773,9 @@ function shopAccountText_() {
 /** กด Run เพื่อเช็คว่าใส่ EASYSLIP_KEY ถูก และดูโควต้าที่เหลือ */
 function testEasySlip() {
   const key = easySlipKey_(), ui = SpreadsheetApp.getUi();
-  if (!key) return ui.alert('ยังไม่ได้ใส่ EASYSLIP_KEY ใน Script Properties');
+  if (!key) { const n = propNames_();
+    return ui.alert('ยังหา key ไม่เจอ\n\nชื่อ property ที่ระบบเห็นตอนนี้: ' + (n.length ? n.join(', ') : '(ไม่มีเลย)') +
+      '\n\nต้องมีชื่อ EASYSLIP_KEY และช่อง Value ต้องไม่ว่าง (กด Save script properties ด้วย)'); }
   const res = UrlFetchApp.fetch(EASYSLIP_ + '/me', { headers: { Authorization: 'Bearer ' + key }, muteHttpExceptions: true });
   let j = {}; try { j = JSON.parse(res.getContentText()); } catch (e) {}
   if (j.status !== 200) return ui.alert('❌ EasySlip ตอบว่า: ' + (j.message || ('HTTP ' + res.getResponseCode())) + '\n(เช็คว่า copy key มาครบ ไม่มีเว้นวรรค)');
