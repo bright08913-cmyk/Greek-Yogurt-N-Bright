@@ -90,6 +90,7 @@ function doGet(e) {
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('🥣 Greek Shop')
     .addItem('🔑 ตั้ง PIN หน้า Live', 'setLivePin')
+    .addItem('🧾 เช็คการเชื่อม EasySlip', 'testEasySlip')
     .addSeparator()
     .addItem('📅 เรียงตามวันรับ', 'sortByPickupDay')
     .addItem('🕒 เรียงตามเวลาสั่ง', 'sortByOrderTime')
@@ -611,27 +612,36 @@ function attachSlip(req) {
   const m = String(req && req.image || '').match(/^data:(image\/(jpeg|png|webp));base64,(.+)$/);
   if (!m) throw new Error('ไฟล์ต้องเป็นรูปภาพ');
   const bytes = Utilities.base64Decode(m[3]);
-  if (bytes.length > 5 * 1024 * 1024) throw new Error('รูปใหญ่เกินไป');
+  if (bytes.length > 4 * 1024 * 1024) throw new Error('รูปใหญ่เกินไป');
+  const base = String(req.orderId);
+  const props = PropertiesService.getScriptProperties();
+  // the app reads the verification QR on the slip; one slip = one order (any phone)
+  const ref = /^[A-Za-z0-9]{8,40}$/.test(String(req.slipRef || '')) ? String(req.slipRef) : '';
+  const usedCheck = r => { const by = r && props.getProperty('SLIP_' + r);
+    if (by && by !== base) throw new Error('สลิปนี้เคยใช้แล้วกับออเดอร์ ' + by + '|ถ้าโอนใหม่แล้ว เลือกสลิปใบใหม่นะ'); };
+
+  // 1) find the order and check the link, before spending a bank check
+  let found = findOrder_(base);
+  if (!found) throw new Error('ไม่พบออเดอร์ ' + base);
+  if (!req.token || found.rows.some(x => String(at_(x.vals, COL.TOKEN)) !== String(req.token))) throw new Error('ลิงก์แนบสลิปไม่ถูกต้อง');
+  usedCheck(ref);
+  const live = found.rows.filter(x => String(at_(x.vals, COL.STATUS)) !== 'ยกเลิก');
+  if (!live.length) throw new Error('ออเดอร์นี้ถูกยกเลิกแล้ว');
+  if (live.every(x => at_(x.vals, COL.PAY) === 'จ่ายแล้ว')) throw new Error('ออเดอร์นี้จ่ายแล้ว ✓|ไม่ต้องส่งสลิปซ้ำนะ');
+  const total = live.reduce((t, x) => t + (Number(at_(x.vals, COL.TOTAL)) || 0), 0);
+
+  // 2) ask the bank (EasySlip) — throws when the slip is wrong; 'pending' when it can't tell right now
+  const v = verifySlip_(req, bytes, m[1], base, total, at_(found.rows[0].vals, COL.TIME));
+  usedCheck(v.transRef);
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   let slipInfo = null;
   try {
-    const base = String(req.orderId);
-    let sh = null, rows = [];
-    for (const src of orderSources_()) {
-      src.vals.forEach((r, i) => { if (base_(at_(r, COL.ID)) === base) rows.push({ row: i + 2, vals: r }); });
-      if (rows.length) { sh = src.sh; break; }
-    }
-    if (!rows.length) throw new Error('ไม่พบออเดอร์ ' + base);
-    if (!req.token || rows.some(x => String(at_(x.vals, COL.TOKEN)) !== String(req.token))) throw new Error('ลิงก์แนบสลิปไม่ถูกต้อง');
-    // the app reads the verification QR on the slip; one slip = one order (any phone)
-    const ref = /^[A-Za-z0-9]{8,40}$/.test(String(req.slipRef || '')) ? String(req.slipRef) : '';
-    const refKey = ref && 'SLIP_' + ref, props = PropertiesService.getScriptProperties();
-    const usedBy = refKey && props.getProperty(refKey);
-    if (usedBy && usedBy !== base) throw new Error('สลิปนี้เคยใช้แล้วกับออเดอร์ ' + usedBy + ' ถ้าโอนใหม่แล้ว เลือกสลิปใบใหม่นะ');
-
-    slipInfo = { base, name: at_(rows[0].vals, COL.NAME), rows: rows.map(x => x.vals) };
+    found = findOrder_(base);                      // re-read inside the lock
+    const sh = found.sh, rows = found.rows;
+    usedCheck(ref); usedCheck(v.transRef);
+    slipInfo = { base, name: at_(rows[0].vals, COL.NAME), rows: rows.map(x => x.vals), v, total };
     const ext = m[2] === 'jpeg' ? 'jpg' : m[2];
     const file = slipFolder_().createFile(
       Utilities.newBlob(bytes, m[1], base + '_' + at_(rows[0].vals, COL.NAME) + '_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'MMdd-HHmm') + '.' + ext));
@@ -641,21 +651,126 @@ function attachSlip(req) {
     let preview = null;
     if (thumb) try { preview = SpreadsheetApp.newCellImage().setSourceUrl(thumb).setAltTextTitle('สลิป ' + base).build(); } catch (e) { preview = null; }
     slipInfo.url = file.getUrl(); slipInfo.fileId = id;
-    if (refKey) props.setProperty(refKey, base);
+    [ref, v.transRef].forEach(r => { if (r) props.setProperty('SLIP_' + r, base); });
+    const tail = (v.transRef || ref).slice(-6);
+    const label = v.state === 'ok' ? '✅ ธนาคารยืนยัน ' + baht_(v.amount) + ' · …' + tail
+      : (v.state === 'pending' ? '⏳ รอร้านตรวจ · ' : 'เปิดสลิป · ') + String(req.slipBank || '').replace(/["\\]/g, '').slice(0, 20) + (tail ? ' …' + tail : '');
     rows.forEach(x => {
       if (String(at_(x.vals, COL.STATUS)) === 'ยกเลิก') return;
       const cell = sh.getRange(x.row, COL.SLIP);
       try { if (preview) cell.setValue(preview); else cell.setValue('📎 มีสลิป'); } catch (e) { cell.setValue('📎 มีสลิป'); }
-      sh.getRange(x.row, COL.LINK).setFormula(
-        '=HYPERLINK("' + file.getUrl() + '","' + (ref ? 'เปิดสลิป · ' + String(req.slipBank || '').replace(/["\\]/g, '').slice(0, 20) + ' …' + ref.slice(-6) : 'เปิดสลิป') + '")');
-      if (at_(x.vals, COL.PAY) !== 'จ่ายแล้ว') sh.getRange(x.row, COL.PAY).setValue('ส่งสลิปแล้ว');
+      sh.getRange(x.row, COL.LINK).setFormula('=HYPERLINK("' + file.getUrl() + '","' + label.replace(/"/g, '') + '")');
+      if (v.state === 'ok') sh.getRange(x.row, COL.PAY).setValue('จ่ายแล้ว');
+      else if (at_(x.vals, COL.PAY) !== 'จ่ายแล้ว') sh.getRange(x.row, COL.PAY).setValue('ส่งสลิปแล้ว');
       sh.setRowHeight(x.row, 80);
     });
   } finally {
     lock.releaseLock();
   }
   alertSlip_(slipInfo);
-  return { orderId: req.orderId };
+  return { orderId: req.orderId, verified: v.state === 'ok', amount: v.amount || 0 };
+}
+function findOrder_(base) {
+  for (const src of orderSources_()) {
+    const rows = [];
+    src.vals.forEach((r, i) => { if (base_(at_(r, COL.ID)) === base) rows.push({ row: i + 2, vals: r }); });
+    if (rows.length) return { sh: src.sh, rows };
+  }
+  return null;
+}
+
+/* ---------------- ตรวจสลิปกับธนาคาร (EasySlip) ----------------
+ * ใส่ API key ใน Apps Script → Project Settings → Script Properties ชื่อ EASYSLIP_KEY
+ * ไม่มี key = ทำงานแบบเดิม (ร้านเช็คเอง) · EasySlip ล่ม/โควต้าหมด = รับสลิปไว้ "รอร้านตรวจ" ไม่บล็อกลูกค้า
+ * ผ่าน = เงินเข้าบัญชีร้าน + ยอด ≥ ยอดออเดอร์ + โอนหลังกดสั่ง → "จ่ายแล้ว" อัตโนมัติ */
+const EASYSLIP_ = 'https://api.easyslip.com/v1';
+const SHOP_PROMPTPAY_ = '004999246525967';      // e-wallet ID เดียวกับที่แอปใช้ทำ QR
+function easySlipKey_() { return String(PropertiesService.getScriptProperties().getProperty('EASYSLIP_KEY') || '').trim(); }
+function verifySlip_(req, bytes, mime, base, total, orderTime) {
+  const key = easySlipKey_();
+  if (!key) return { state: 'off' };
+  // a customer can only make the shop spend a few checks per order
+  const cache = CacheService.getScriptCache(), ck = 'VF_' + base, tries = Number(cache.get(ck) || 0);
+  if (tries >= 6) throw new Error('ลองส่งสลิปหลายครั้งเกินไป|รอสัก 1 ชั่วโมง หรือทักร้านในไลน์นะ');
+  cache.put(ck, String(tries + 1), 3600);
+
+  const payload = /^[0-9A-Za-z]{20,255}$/.test(String(req.slipPayload || '')) ? String(req.slipPayload) : '';
+  const wallet = req.slipKind === 'truemoney';
+  const opt = { headers: { Authorization: 'Bearer ' + key }, muteHttpExceptions: true };
+  const file = () => Object.assign({ method: 'post', payload: { file: Utilities.newBlob(bytes, mime, 'slip.' + mime.split('/')[1]) } }, opt);
+  let j;
+  try {
+    const res = wallet ? UrlFetchApp.fetch(EASYSLIP_ + '/verify/truewallet', file())
+      : payload ? UrlFetchApp.fetch(EASYSLIP_ + '/verify?payload=' + encodeURIComponent(payload), opt)
+      : UrlFetchApp.fetch(EASYSLIP_ + '/verify', file());
+    j = JSON.parse(res.getContentText());
+  } catch (e) {
+    return { state: 'pending', why: 'ติดต่อ EasySlip ไม่ได้ (' + String(e.message || e).slice(0, 80) + ')' };
+  }
+  if (!j || j.status !== 200 || !j.data) {
+    const msg = String(j && j.message || 'unknown');
+    if (/^(slip_not_found|invalid_payload|qrcode_not_found|invalid_image)$/.test(msg))
+      throw new Error('🚫 ธนาคารไม่พบรายการโอนนี้|สลิปต้องเป็นของจริงจากแอปธนาคาร ถ้าเพิ่งโอน ลองใหม่อีกครั้งใน 1-2 นาที');
+    if (msg === 'slip_pending') return { state: 'pending', why: 'สลิปกรุงเทพที่เพิ่งโอน ธนาคารยังไม่อัปเดต' };
+    return { state: 'pending', why: 'EasySlip: ' + msg };     // unauthorized / quota_exceeded / application_expired / server_error
+  }
+  const d = j.data;
+  const v = wallet
+    ? { amount: Number(d.amount) || 0, transRef: String(d.transactionId || ''), date: d.date,
+        names: [d.receiver && d.receiver.name], accts: [d.receiver && d.receiver.phone], bank: 'TrueMoney',
+        sender: d.sender && d.sender.name }
+    : { amount: Number(d.amount && d.amount.amount) || 0, transRef: String(d.transRef || ''), date: d.date,
+        names: [d.receiver && d.receiver.account && d.receiver.account.name && d.receiver.account.name.th,
+                d.receiver && d.receiver.account && d.receiver.account.name && d.receiver.account.name.en],
+        accts: [d.receiver && d.receiver.account && d.receiver.account.bank && d.receiver.account.bank.account,
+                d.receiver && d.receiver.account && d.receiver.account.proxy && d.receiver.account.proxy.account],
+        bank: d.sender && d.sender.bank && (d.sender.bank.short || d.sender.bank.name) || '',
+        sender: d.sender && d.sender.account && d.sender.account.name && (d.sender.account.name.th || d.sender.account.name.en) };
+  v.transRef = /^[A-Za-z0-9]{8,40}$/.test(v.transRef) ? v.transRef : '';
+  v.receiver = v.names.filter(Boolean).join(' / ') || '-';
+
+  // money went to the shop?
+  if (!receiverIsShop_(v)) throw new Error('🚫 สลิปนี้ไม่ได้โอนเข้าบัญชีร้าน|ผู้รับในสลิปคือ "' + v.receiver + '" ต้องโอนเข้า ' + shopAccountText_());
+  // enough money?
+  if (v.amount + 0.001 < total) throw new Error('🚫 ยอดในสลิปไม่ครบ|สลิป ' + baht_(v.amount) + ' แต่ออเดอร์นี้ ' + baht_(total) + ' โอนเพิ่มแล้วส่งสลิปใบใหม่ หรือทักร้านนะ');
+  // made after the order (an old slip can't pay a new order)
+  const ot = orderTime instanceof Date ? orderTime.getTime() : Date.parse(orderTime);
+  const st = Date.parse(v.date);
+  if (ot && st && st < ot - 15 * 60 * 1000) throw new Error('🚫 สลิปนี้โอนก่อนสั่งออเดอร์|ต้องเป็นสลิปที่โอนหลังกดสั่ง ' + base);
+  v.state = 'ok';
+  return v;
+}
+// receiver = shop: account / PromptPay digits fit the masked number, or the Thai first name is there
+function receiverIsShop_(v) {
+  const s = settings_();
+  const targets = [String(s.bank_account || ''), SHOP_PROMPTPAY_].map(t => t.replace(/\D/g, '')).filter(t => t.length >= 6);
+  const fits = (masked, t) => {
+    const mm = String(masked || '').toLowerCase().replace(/[^0-9x]/g, '');
+    if (mm.length !== t.length || (mm.match(/\d/g) || []).length < 3) return false;
+    for (let i = 0; i < t.length; i++) if (mm[i] !== 'x' && mm[i] !== t[i]) return false;
+    return true;
+  };
+  if (v.accts.some(a => targets.some(t => fits(a, t)))) return true;
+  const first = String(s.account_name || '').replace(/^(นาย|นางสาว|นาง|น\.ส\.|ด\.ช\.|ด\.ญ\.)\s*/, '').trim().split(/\s+/)[0] || '';
+  const extra = String(s.slip_receiver || '').split(',').map(x => x.trim()).filter(Boolean);
+  const keys = (first.length >= 2 ? [first] : []).concat(extra).map(k => k.toLowerCase().replace(/\s+/g, ''));
+  const names = v.names.filter(Boolean).map(n => String(n).toLowerCase().replace(/\s+/g, ''));
+  return keys.some(k => names.some(n => n.indexOf(k) >= 0));
+}
+function shopAccountText_() {
+  const s = settings_();
+  return [s.bank_name, s.bank_account, s.account_name].filter(Boolean).join(' ') || 'บัญชีร้าน';
+}
+/** กด Run เพื่อเช็คว่าใส่ EASYSLIP_KEY ถูก และดูโควต้าที่เหลือ */
+function testEasySlip() {
+  const key = easySlipKey_(), ui = SpreadsheetApp.getUi();
+  if (!key) return ui.alert('ยังไม่ได้ใส่ EASYSLIP_KEY ใน Script Properties');
+  const res = UrlFetchApp.fetch(EASYSLIP_ + '/me', { headers: { Authorization: 'Bearer ' + key }, muteHttpExceptions: true });
+  let j = {}; try { j = JSON.parse(res.getContentText()); } catch (e) {}
+  if (j.status !== 200) return ui.alert('❌ EasySlip ตอบว่า: ' + (j.message || ('HTTP ' + res.getResponseCode())) + '\n(เช็คว่า copy key มาครบ ไม่มีเว้นวรรค)');
+  const d = j.data || {};
+  ui.alert('✅ เชื่อม EasySlip สำเร็จ\n\nแอป: ' + (d.application || '-') + '\nใช้ไปแล้ว: ' + (d.usedQuota != null ? d.usedQuota : '-') +
+    ' / ' + (d.maxQuota != null ? d.maxQuota : '-') + '\nเหลือ: ' + (d.remainingQuota != null ? d.remainingQuota : '-') + '\nหมดอายุ: ' + (d.expiredAt || '-'));
 }
 /** กด Run ฟังก์ชันนี้ 1 ครั้งใน Apps Script เพื่ออนุญาตให้เก็บสลิปใน Google Drive */
 function authorize() {
@@ -709,13 +824,18 @@ function alertOrder_(a) {
 }
 function alertSlip_(x) {
   if (!x) return;
-  const live = x.rows.filter(r => String(at_(r, COL.STATUS)) !== 'ยกเลิก');
-  const total = live.reduce((t, r) => t + (Number(at_(r, COL.TOTAL)) || 0), 0);
-  sendAlert_('slip', '📎 สลิปเข้า ' + x.base + ' · ' + x.name + ' · ' + baht_(total),
-    '<h2 style="margin:0 0 6px">📎 ลูกค้าแนบสลิปแล้ว ' + h_(x.base) + '</h2>' +
-    '<p style="margin:0">👤 <b>' + h_(x.name) + '</b> · ยอดที่ต้องได้ <b>' + baht_(total) + '</b></p>' +
-    (x.thumb ? '<p><a href="' + x.url + '"><img src="cid:slip" alt="สลิป" style="max-width:240px;border:2px solid #3B2A40"></a></p>' : '<p><a href="' + x.url + '">เปิดสลิป</a></p>') +
-    '<p style="color:#7A6A7E">เช็คยอดในแอปธนาคารก่อน แล้วเปลี่ยน "สถานะจ่าย" เป็น "จ่ายแล้ว" ในแท็บ Orders</p>',
+  const total = x.total, v = x.v || {};
+  const head = v.state === 'ok' ? '✅ จ่ายแล้ว (ธนาคารยืนยัน)' : v.state === 'pending' ? '⏳ สลิปเข้า · รอร้านตรวจ' : '📎 สลิปเข้า';
+  const check = v.state === 'ok'
+    ? '<p style="margin:6px 0;padding:8px;background:#E6F7EC;border:2px solid #2E8B57">✅ <b>EasySlip ตรวจกับธนาคารแล้ว</b><br>ยอดโอน <b>' + baht_(v.amount) + '</b> · ' + h_(v.bank) + (v.sender ? ' · จาก ' + h_(v.sender) : '') +
+      '<br>ผู้รับ: ' + h_(v.receiver) + '<br>ระบบเปลี่ยนเป็น "จ่ายแล้ว" ให้แล้ว ไม่ต้องเช็คเอง' + (v.amount > total + 0.001 ? '<br>⚠️ โอนเกินมา ' + baht_(v.amount - total) : '') + '</p>'
+    : v.state === 'pending'
+    ? '<p style="margin:6px 0;padding:8px;background:#FFF6D6;border:2px solid #C9A227">⏳ ตรวจอัตโนมัติไม่ได้ตอนนี้: ' + h_(v.why) + '<br>เช็คยอดในแอปธนาคารเอง แล้วเปลี่ยน "สถานะจ่าย" เป็น "จ่ายแล้ว"</p>'
+    : '<p style="color:#7A6A7E">เช็คยอดในแอปธนาคารก่อน แล้วเปลี่ยน "สถานะจ่าย" เป็น "จ่ายแล้ว" ในแท็บ Orders</p>';
+  sendAlert_('slip', head + ' ' + x.base + ' · ' + x.name + ' · ' + baht_(total),
+    '<h2 style="margin:0 0 6px">' + head + ' ' + h_(x.base) + '</h2>' +
+    '<p style="margin:0">👤 <b>' + h_(x.name) + '</b> · ยอดออเดอร์ <b>' + baht_(total) + '</b></p>' + check +
+    (x.thumb ? '<p><a href="' + x.url + '"><img src="cid:slip" alt="สลิป" style="max-width:240px;border:2px solid #3B2A40"></a></p>' : '<p><a href="' + x.url + '">เปิดสลิป</a></p>'),
     x.thumb ? { slip: Utilities.newBlob(Utilities.base64Decode(x.thumb.split(',')[1]), 'image/jpeg', 'slip.jpg') } : null);
 }
 function alertCancel_(base, rows) {

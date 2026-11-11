@@ -1281,6 +1281,7 @@ function checkSlip(file, orderId){
     // same slip twice? quick check on this phone; the shop's backend checks every phone when it's sent
     const used = load('greek_slip_refs') || {};
     if (used[s.ref] && used[s.ref] !== orderId) throw new Error('🚫 สลิปนี้เคยใช้แล้วกับออเดอร์ ' + used[s.ref] + '|ถ้าโอนใหม่แล้ว เลือกสลิปใบใหม่นะ');
+    s.payload = text;
     return s;
   });
 }
@@ -1313,20 +1314,20 @@ function slipPopup(r, slip, img){
   closeSlipPopup();
   const w = document.createElement('div'); w.className = 'sp-wrap'; w.id = 'slipPop';
   w.innerHTML = `<div class="sp" role="dialog" aria-modal="true" aria-labelledby="spT">
-      <div class="sp-top"><div class="sp-banner">SLIP RECEIVED!</div>
+      <div class="sp-top"><div class="sp-banner">${slip.verified ? 'PAYMENT OK!' : 'SLIP RECEIVED!'}</div>
         <div class="sp-hero">${pxImg(Game16.bowlURL('ORI', [], false), 120, 'sp-bowl')}<img class="sp-heart" src="${Game16.heartURL()}" width="28" height="24" alt=""></div></div>
       <div class="sp-body">
-        <h2 id="spT">ส่งสลิปเรียบร้อย~</h2>
-        <div class="sub" style="text-align:center">ร้านได้รับสลิปแล้ว จะเช็คยอดแล้วอัปเดตสถานะให้ใน "ออเดอร์ของฉัน"</div>
+        <h2 id="spT">${slip.verified ? 'จ่ายเงินเรียบร้อย~' : 'ส่งสลิปเรียบร้อย~'}</h2>
+        <div class="sub" style="text-align:center">${slip.verified ? 'ธนาคารยืนยันยอดโอนแล้ว ออเดอร์นี้ชำระครบ ✓' : 'ร้านได้รับสลิปแล้ว จะเช็คยอดแล้วอัปเดตสถานะให้ใน "ออเดอร์ของฉัน"'}</div>
         <div class="sp-receipt">
           <img src="${img}" alt="สลิปที่ส่ง">
           <div class="sp-lines">
             <div><span>ออเดอร์</span><b>${esc(r.orderId)}</b></div>
-            <div><span>ยอด</span><b>${baht(r.total)}</b></div>
+            <div><span>ยอด</span><b>${baht(slip.verified && slip.amount ? slip.amount : r.total)}</b></div>
             <div><span>สลิป</span><b class="th">${esc(slip.bankName)}</b></div>
             <div><span>อ้างอิง</span><b>…${esc(slip.ref.slice(-6))}</b></div>
           </div>
-          <div class="sp-stamp">SENT ✓</div>
+          <div class="sp-stamp">${slip.verified ? 'PAID ✓' : 'SENT ✓'}</div>
         </div>
         <button class="btn center" onclick="closeSlipPopup()">เยี่ยม! กลับไปที่ออเดอร์</button>
         <button class="link" style="align-self:center;margin:2px 0 0" onclick="closeSlipPopup();openHistory()">ดูสถานะใน "ออเดอร์ของฉัน"</button>
@@ -1364,13 +1365,13 @@ function pickSlip(input){
     return shrink(f); }, e => { slipErr(box, e, f); throw null; })
   .then(img => {
     box.innerHTML = `<img src="${img}" alt="สลิปที่เลือก"><span>กำลังส่งสลิป…</span>`;
-    return shrinkTo(img, 360, .7).then(thumb => call('attachSlip', { orderId: r.orderId, token: r.token, image: img, thumb, slipRef: slip.ref, slipBank: slip.bankName })).then(() => img);
+    return shrinkTo(img, 360, .7).then(thumb => call('attachSlip', { orderId: r.orderId, token: r.token, image: img, thumb, slipRef: slip.ref, slipBank: slip.bankName, slipKind: slip.kind, slipPayload: slip.payload })).then(res => { slip.verified = !!(res && res.verified); slip.amount = res && res.amount; return img; });
   }).then(img => {
     try { localStorage.removeItem('greek_pending'); } catch(e){}
-    save('greek_history', history_().map(h => h.orderId === r.orderId ? Object.assign(h, {slip: true}) : h));
+    save('greek_history', history_().map(h => h.orderId === r.orderId ? Object.assign(h, slip.verified ? {slip: true, pay: 'จ่ายแล้ว'} : {slip: true}) : h));
     box.classList.add('ok');
     const used = load('greek_slip_refs') || {}; used[slip.ref] = r.orderId; save('greek_slip_refs', used);
-    box.innerHTML = `<img src="${img}" alt="สลิปที่ส่งแล้ว"><span>ร้านได้รับสลิปแล้ว ขอบคุณค่า</span>
+    box.innerHTML = `<img src="${img}" alt="สลิปที่ส่งแล้ว"><span>${slip.verified ? 'ชำระเงินเรียบร้อย ธนาคารยืนยันแล้ว ✓' : 'ร้านได้รับสลิปแล้ว ขอบคุณค่า'}</span>
       <span style="font-weight:500;font-size:12px">✓ สลิป${esc(slip.bankName)} · อ้างอิง …${esc(slip.ref.slice(-6))}</span>`;
     slipPopup(r, slip, img);
   }).catch(e => { if (e === null) return; slipErr(box, e, f); });     // e.g. the shop says this slip was already used
