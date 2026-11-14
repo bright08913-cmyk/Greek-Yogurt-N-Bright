@@ -432,6 +432,27 @@
   @keyframes bnDrop{0%{transform:translateY(-130px) rotate(-90deg);opacity:0}10%{opacity:1}60%{transform:translateY(3px) rotate(0) scale(1.12,.84)}80%{transform:translateY(-3px) scale(.96,1.04)}100%{transform:none}}
   .xf.out,.bn.out{animation:scOut .3s steps(4,end) forwards}
   @media (prefers-reduced-motion: reduce){.xf.drop,.bn.drop{animation:none}}
+
+  /* add-on that needs a scoop first + the 16-bit warning dialog */
+  .needtag{color:var(--pink-dark);font-weight:600}
+  .row.locked .lbl{opacity:.6}
+  .switch.lock{opacity:.45;background-image:repeating-linear-gradient(45deg,transparent 0 4px,rgba(59,42,64,.12) 4px 8px)}
+  .row.bump{animation:bump .4s steps(5,end)}
+  .stepper button.hint{animation:hintBlink .3s steps(2,jump-none) 8;background:var(--coin)}
+  @keyframes hintBlink{50%{background:var(--pink);transform:scale(1.15)}}
+  .pxtoast{position:fixed;left:50%;top:calc(18px + env(safe-area-inset-top));z-index:60;width:min(340px,calc(100vw - 32px));transform:translateX(-50%);
+    background:#FFF4C7;--pw:3px;box-shadow:var(--pxs),0 8px 0 rgba(59,42,64,.3);padding:10px 14px 12px;cursor:pointer;animation:ptIn .5s steps(6,end) both}
+  .pxtoast.bye{animation:ptOut .3s steps(4,end) forwards}
+  .pt-head{font-family:var(--arcade);font-size:11px;color:var(--pink-dark);text-shadow:2px 2px 0 #fff;margin-bottom:6px;animation:gBlink .5s steps(2,jump-none) 4}
+  .pt-row{display:flex;gap:12px;align-items:center}
+  .pt-row b{display:block;font-size:16px}.pt-row small{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+  .pt-bang{flex:none;width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:var(--coin);font-family:var(--arcade);font-size:16px;
+    --pw:3px;box-shadow:var(--pxs);animation:ptBang .5s steps(2) 3}
+  .pxtoast.warn .pt-bang{background:var(--pink);color:#fff}
+  @keyframes ptIn{0%{transform:translate(-50%,-140%)}55%{transform:translate(-50%,8px)}70%{transform:translate(calc(-50% - 6px),0)}80%{transform:translate(calc(-50% + 6px),0)}90%{transform:translate(calc(-50% - 3px),0)}100%{transform:translate(-50%,0)}}
+  @keyframes ptOut{to{transform:translate(-50%,-140%);opacity:0}}
+  @keyframes ptBang{50%{transform:translateY(-4px)}}
+  @media (prefers-reduced-motion: reduce){.pxtoast,.pt-bang,.pt-head,.stepper button.hint{animation:none}}
 </style>
 </head>
 <body>
@@ -488,7 +509,7 @@ const DEMO_CONFIG = {
   ],
   maxCups:10,
   addons:[{id:'SCP',name:'เพิ่ม Scoop',price:10,type:'count',max:5},{id:'HER',name:'Hershey syrup',price:10,type:'toggle',max:1},
-          {id:'XFR',name:'พิเศษผลไม้',price:0,tbd:true,type:'toggle',max:1},{id:'BAN',name:'เพิ่มกล้วย',price:0,tbd:true,type:'toggle',max:1}],
+          {id:'XFR',name:'พิเศษผลไม้',price:0,tbd:true,type:'toggle',max:1,menus:['ORI','ORE','BIS'],needScoop:true},{id:'BNA',name:'เพิ่มกล้วย',price:0,tbd:true,type:'toggle',max:1}],
   fruits:[{name:'กล้วยหอม',available:true},{name:'องุ่น',available:true},{name:'บลูเบอร์รี่',available:true},{name:'ไชน์มัสคัท',available:true}]
 };
 
@@ -598,12 +619,15 @@ function addonKind(a){
   const t = (a.id || '') + ' ' + (a.name || '');
   if (a.type === 'count' || /scoop|สกู๊ป/i.test(t)) return 'scoop';
   if (/hershey|syrup|ไซรัป|ซอส|\bHER\b/i.test(t)) return 'syrup';
-  if (/กล้วย|banana|\bBAN\b/i.test(t)) return 'banana';
+  if (/กล้วย|banana|\bBNA\b/i.test(t)) return 'banana';
   if (/ผลไม้|fruit|\bXFR\b/i.test(t)) return 'xfruit';
   return '';
 }
 const addonPriceTxt = a => a.tbd ? 'ราคา ?' : '+' + baht(a.price);
-const addonsFor = m => m.addons === false ? [] : C.addons;   // บางเมนู (เช่น Banoffee) ใส่ Add-on ไม่ได้
+// add-ons a menu can take: none for menus marked addons=false; an add-on with a menu list only shows on those menus
+const addonsFor = m => m.addons === false ? [] : C.addons.filter(a => !(a.menus && a.menus.length) || a.menus.indexOf(m.id) >= 0);
+const needsScoop = a => !!a.needScoop || addonKind(a) === 'xfruit';
+const scoopCount = () => { const m = menuOf(draft.menuId); return addonsFor(m).filter(a => addonKind(a) === 'scoop').reduce((t, a) => t + (draft.addons[a.id] || 0), 0); };   // บางเมนู (เช่น Banoffee) ใส่ Add-on ไม่ได้
 const availFruits = () => C.fruits.filter(f => f.available);
 function unitPrice(it, day){ const m = menuOf(it.menuId); let p = m ? menuPrice(m, day === undefined ? it.round : day) : 0;
   Object.keys(it.addons||{}).forEach(id => { const a = addonOf(id); if (a) p += a.price * (it.addons[id]||0); }); return p; }
@@ -849,7 +873,7 @@ function openItem(menuId, idx){
       <div class="row"><div class="lbl">${esc(a.name)}<small>+${baht(a.price)} ต่อ scoop</small></div>
         <div class="stepper"><button id="ad-${a.id}-m" aria-label="ลด ${esc(a.name)}" onclick="stepAddon('${a.id}',-1)">−</button>
         <span id="ad-${a.id}">0</span><button id="ad-${a.id}-p" aria-label="เพิ่ม ${esc(a.name)}" onclick="stepAddon('${a.id}',1)">+</button></div></div>` : `
-      <div class="row"><div class="lbl">${esc(a.name)}<small>${addonPriceTxt(a)}</small></div>
+      <div class="row" id="row-${a.id}"><div class="lbl">${esc(a.name)}<small>${addonPriceTxt(a)}${needsScoop(a) ? ' · <span class="needtag">ต้องเพิ่ม Scoop ก่อน</span>' : ''}</small></div>
         <button class="switch" id="ad-${a.id}" aria-label="${esc(a.name)}" onclick="stepAddon('${a.id}',0)"></button></div>`).join('');
   $('itemInner').innerHTML = `
     <div class="hero" style="background-color:${tintOf(m)}">
@@ -861,7 +885,7 @@ function openItem(menuId, idx){
     ${m.desc ? `<div class="sub">${esc(m.desc)}</div>` : ''}
     ${C.open ? '' : `<div class="closed" id="itemClosed" style="margin-top:12px">${esc(C.closedMsg)}<div style="font-weight:400;font-size:13px;margin-top:4px">ดูเมนูได้ตามสบาย แต่ยังสั่งไม่ได้จนกว่าร้านจะเปิดรอบใหม่</div></div>`}
     ${fruitsBox}
-    ${addonsFor(m).length ? `<div class="box" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
+    ${addonsFor(m).length ? `<div class="box" id="addonBox" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
     ${C.rounds.length > 1 ? `<div class="box" id="dayBox"><h3><span>รับวันไหน <span class="req">*</span></span><small>${editIndex >= 0 ? 'ถ้วยนี้' : 'เลือกได้หลายวัน'}</small></h3><div class="rounds">
       ${C.rounds.map((r,i) => `<button class="round${isPastRound(r) ? ' past' : ''}" id="rd${i}" onclick="pickItemRound(${i})" ${isPastRound(r) ? 'disabled aria-disabled="true"' : ''}><b>${esc(roundLabel(r))}</b>${isCutToday(r) ? `<small>ปิดรับแล้ว (สั่งได้ถึง ${cutoffText()})</small>` : isPastRound(r) ? '<small>ผ่านไปแล้ว</small>' : isTodayRound(r) ? `<small class="today">วันนี้${cutoffText() ? ' · สั่งได้ถึง ' + cutoffText() : ''}</small>` : ''}${isPromoDay(r) ? `<span class="saletag">SALE -${C.promo.pct}%</span>` : ''}${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
     </div><div id="dayQty"></div></div>` : ''}
@@ -888,7 +912,8 @@ function refreshItem(){
   }
   addonsFor(m).forEach(a => { const n = draft.addons[a.id] || 0, el = $('ad-'+a.id);
     if (a.type === 'count'){ el.textContent = n; $('ad-'+a.id+'-m').disabled = n <= 0; $('ad-'+a.id+'-p').disabled = n >= a.max; }
-    else { el.classList.toggle('on', !!n); el.setAttribute('aria-pressed', !!n); }
+    else { el.classList.toggle('on', !!n); el.setAttribute('aria-pressed', !!n);
+      if (needsScoop(a)){ const lock = !scoopCount(); el.classList.toggle('lock', lock); const r = $('row-' + a.id); if (r) r.classList.toggle('locked', lock); } }
   });
   const syrup = addonsFor(m).find(a => addonKind(a) === 'syrup');
   $('drz').classList.toggle('on', !!(syrup && draft.addons[syrup.id]));
@@ -997,7 +1022,30 @@ function syncScoops(){
 }
 function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
   const v = d === 0 ? (n ? 0 : 1) : Math.max(0, Math.min(a.max, n + d));
-  if (v) draft.addons[id] = v; else delete draft.addons[id]; refreshItem(); }
+  if (v && !n && needsScoop(a) && !scoopCount()){ needScoopAlert(a); return; }     // extra fruit only on top of an extra scoop
+  if (v) draft.addons[id] = v; else delete draft.addons[id];
+  if (addonKind(a) === 'scoop' && !scoopCount()){                                  // last scoop taken off: extra fruit goes too
+    const gone = addonsFor(menuOf(draft.menuId)).filter(x => needsScoop(x) && draft.addons[x.id]);
+    gone.forEach(x => delete draft.addons[x.id]);
+    if (gone.length) pxToast('เอา "' + gone.map(x => x.name).join(', ') + '" ออกแล้ว', 'เพราะไม่มี Scoop เพิ่มแล้ว');
+  }
+  refreshItem(); }
+/* 16-bit warning: a little game dialog drops in, shakes, and points at the scoop + button */
+function needScoopAlert(a){
+  pxToast('ต้องเพิ่ม Scoop ก่อนนะ!', '"' + a.name + '" ใส่ได้เมื่อเพิ่ม Scoop อย่างน้อย 1 ลูก', 'NEED SCOOP!');
+  bump('row-' + a.id, false);
+  const plus = document.querySelector('[id$="-p"][id^="ad-"]'); if (plus){ plus.classList.remove('hint'); plus.getBoundingClientRect(); plus.classList.add('hint'); setTimeout(() => plus.classList.remove('hint'), 2600); }
+  if (navigator.vibrate) try { navigator.vibrate([40, 40, 40]); } catch(e){}
+}
+let toastTimer = null;
+function pxToast(title, sub, head){
+  let t = $('pxToast'); if (t) t.remove(); clearTimeout(toastTimer);
+  t = document.createElement('div'); t.id = 'pxToast'; t.className = 'pxtoast' + (head ? ' warn' : ''); t.setAttribute('role', 'alert');
+  t.innerHTML = `${head ? `<div class="pt-head">${esc(head)}</div>` : ''}<div class="pt-row"><span class="pt-bang" aria-hidden="true">!</span><div><b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div></div>`;
+  t.onclick = () => t.remove();
+  document.body.appendChild(t);
+  toastTimer = setTimeout(() => { t.classList.add('bye'); setTimeout(() => t.remove(), 300); }, 2600);
+}
 function setQty(d){ draft.qty = Math.max(1, Math.min(C.maxCups || 50, draft.qty + d)); refreshItem(); }
 function commitItem(){
   if (!C.open) { bump('itemClosed'); return; }      // closed: look around freely, but nothing goes in the cart
