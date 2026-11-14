@@ -93,6 +93,7 @@ function onOpen() {
     .addItem('🧾 เช็คการเชื่อม EasySlip', 'testEasySlip')
     .addItem('📊 นับออเดอร์ต่อสัปดาห์', 'orderStats')
     .addItem('🎄 ธีมคริสต์มาส: เปิด / ปิด', 'toggleXmas')
+    .addItem('❓ แถบเมนูลับ (Coming soon): เปิด / ปิด', 'toggleHidden')
     .addSeparator()
     .addItem('📅 เรียงตามวันรับ', 'sortByPickupDay')
     .addItem('🕒 เรียงตามเวลาสั่ง', 'sortByOrderTime')
@@ -305,7 +306,8 @@ function getConfig() {
       return { name: name.trim(), fee: Number(fee) || 0 };
     }),
     payMethods: list_(s.pay_methods),
-    theme: String(s.theme || '').trim().toLowerCase(),     // xmas = ธีมคริสต์มาส · ว่าง = ปกติ
+    theme: String(s.theme || '').trim().toLowerCase(),
+    hidden: String(s.hidden_menu || '').trim().slice(0, 60),   // แถบ HIDDEN MENU ในหน้าเมนู · ว่าง = ไม่โชว์     // xmas = ธีมคริสต์มาส · ว่าง = ปกติ
     payNowLabel: PAY_NOW, payLaterLabel: PAY_LATER,
     payLaterNote: String(s.pay_later_note || 'ผ่านขุนทองในกลุ่ม LINE'),
     bankAccount: String(s.bank_account || ''),
@@ -1161,4 +1163,11 @@ function toggleXmas() {
   SpreadsheetApp.getUi().alert(on
     ? '✅ ปิดธีมคริสต์มาสแล้ว\nแอปกลับเป็นธีมปกติ (ลูกค้าเห็นเมื่อเปิดแอปใหม่ / ดึงหน้าจอรีเฟรช)'
     : '🎄 เปิดธีมคริสต์มาสแล้ว\nลูกค้าจะเห็นธีมใหม่เมื่อเปิดแอปใหม่ / ดึงหน้าจอรีเฟรช\nกดเมนูเดิมอีกครั้งเพื่อปิด');
+}
+function toggleHidden() {
+  const on = String(settings_().hidden_menu || '').trim() !== '';
+  setSetting_('hidden_menu', on ? '' : 'COMING SOON · THIS WEEK', 'แถบ HIDDEN MENU สีดำในหน้าเมนู (กดดูได้ สั่งไม่ได้) · แก้ข้อความได้ · เว้นว่าง = ไม่โชว์');
+  SpreadsheetApp.getUi().alert(on
+    ? '✅ ซ่อนแถบเมนูลับแล้ว'
+    : '❓ โชว์แถบเมนูลับแล้ว\nข้อความ: COMING SOON · THIS WEEK (แก้ได้ที่แถว hidden_menu ในแท็บ Settings)\nลูกค้าเห็นเมื่อเปิดแอปใหม่ / รีเฟรช');
 }

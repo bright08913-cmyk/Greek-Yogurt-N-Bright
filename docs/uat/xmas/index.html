@@ -388,6 +388,38 @@
   #snow i.s{width:4px;height:4px;box-shadow:0 0 0 1px #C9D7E4}
   @keyframes fall{to{transform:translate3d(var(--dx,20px),110vh,0)}}
   @media (prefers-reduced-motion: reduce){#snow{display:none}.lights i{animation:none}}
+
+  /* ---------- hidden menu teaser: black 16-bit strip in the menu grid, tap = "?" popup, can't be ordered ---------- */
+  .hid{grid-column:1/-1;display:flex;align-items:center;gap:12px;margin:3px;padding:12px 14px;border:0;cursor:pointer;text-align:left;position:relative;overflow:hidden;
+       background:#231A2B repeating-linear-gradient(0deg,rgba(255,255,255,.04) 0 2px,transparent 2px 4px);color:#fff;
+       box-shadow:var(--pxs),0 9px 0 0 rgba(59,42,64,.18);transition:transform .08s steps(2)}
+  .hid:active{transform:translateY(3px)}
+  .hid::after{content:'';position:absolute;top:0;bottom:0;left:-40%;width:22%;background:rgba(255,255,255,.08);transform:skewX(-20deg);animation:hidShine 3.2s steps(12) infinite}
+  @keyframes hidShine{60%,100%{left:130%}}
+  .hid .hq{width:46px;height:46px;animation:hidBob 1.2s steps(2) infinite}
+  @keyframes hidBob{50%{transform:translateY(-3px)}}
+  .hid-t{flex:1;display:flex;flex-direction:column;gap:6px}
+  .hid-t b{font-family:var(--arcade);font-size:12px;color:var(--coin);letter-spacing:1px;text-shadow:2px 2px 0 #000}
+  .hid-t small{font-family:var(--arcade);font-size:8px;color:#CFC3DA;letter-spacing:1px;line-height:1.5}
+  .hid-t small i{font-style:normal;animation:gBlink 1s steps(2,jump-none) infinite}
+  .hid-go{font-family:var(--arcade);font-size:16px;color:var(--coin);animation:gBlink 1s steps(2,jump-none) infinite}
+  /* popup */
+  .sp-hid{background:#231A2B;color:#fff}
+  .sp-hid .sp-top{background:#1A1320 repeating-linear-gradient(0deg,rgba(255,255,255,.05) 0 2px,transparent 2px 4px);box-shadow:inset 0 -3px 0 #000}
+  .sp-hid .sp-banner{color:var(--coin);text-shadow:2px 2px 0 #000,4px 4px 0 #6E5A85}
+  .sp-hid .sp-hero{height:150px;align-items:center}
+  .sp-hid .bigq{width:120px;height:120px;animation:hidFloat 1.6s steps(4) infinite}
+  @keyframes hidFloat{50%{transform:translateY(-6px)}}
+  .sp-hid .bigq.glitch{animation:hidGlitch .32s steps(4) 1}
+  @keyframes hidGlitch{25%{transform:translate(-4px,2px)}50%{transform:translate(4px,-2px);filter:hue-rotate(90deg)}75%{transform:translate(-2px,0)}}
+  .sp-hid .sp-body{background:#231A2B}
+  .sp-hid h2{color:#fff;text-align:center;margin:0}
+  .sp-hid .sub{color:#CFC3DA;text-align:center}
+  .hid-rows{display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:#1A1320;--ec:#4B3B5C;box-shadow:var(--pxs);margin:3px;font-size:14px}
+  .hid-rows div{display:flex;justify-content:space-between}.hid-rows b{font-family:var(--arcade);font-size:11px;color:var(--coin)}
+  .sp-hid .btn.locked{background:#3A2F45;color:#9C8FA8;cursor:not-allowed;--ec:#000}
+  .sp-hid .link{color:#CFC3DA}
+  @media (prefers-reduced-motion: reduce){.hid::after,.hid .hq,.sp-hid .bigq{animation:none}}
 </style>
 </head>
 <body>
@@ -430,7 +462,7 @@ const IS_GAS = typeof google !== 'undefined' && google.script && google.script.r
 // ลิงก์ Apps Script (/exec) — ใส่ตอน build หน้าเว็บสำหรับ GitHub Pages; ว่าง = โหมดตัวอย่าง
 const API_URL = window.GREEK_API || '';
 const DEMO_CONFIG = {
-  shopName:'Bright Greek', open:true, closedMsg:'',
+  shopName:'Bright Greek', open:true, closedMsg:'', hidden:'COMING SOON · THIS WEEK',
   rounds:[1,2,3,4,5].map(k => { const d = new Date(Date.now() + k * 864e5); return d.getDate() + ' ' + d.toLocaleDateString('en-US', { month: 'short' }); }), roundNotes:{}, salePeriod:'5 - 10 Nov 2026', lineGroupUrl:'',
   delivery:[], payMethods:[],
   payNowLabel:'จ่ายเลย (แนบสลิป)', payLaterLabel:'จ่ายตอนรับ (ขุนทอง)', payLaterNote:'ผ่านขุนทองในกลุ่ม LINE',
@@ -498,6 +530,7 @@ function cleanConfig(c){
   c.menu = (c.menu || []).filter(m => SAFE_ID.test(String(m.id)));
   c.addons = (c.addons || []).filter(a => SAFE_ID.test(String(a.id)));
   c.rounds = (c.rounds || []).map(String);
+  c.hidden = c.hidden ? String(c.hidden).slice(0, 60) : '';
   return c;
 }
 const $ = id => document.getElementById(id);
@@ -735,6 +768,7 @@ function render(){
     ${installCard()}
     ${history_().length ? `<button class="hist-btn" onclick="openHistory()">${ICON.receipt}<span>ออเดอร์ของฉัน</span><em>${history_().length}</em></button>` : ''}
     <div class="grid">
+      ${hiddenStrip()}
       ${C.menu.map(m => `
         <button class="menu ${inCart[m.id]?'in-cart':''}" onclick="openItem('${m.id}')">
           ${inCart[m.id] ? `<span class="badge">${inCart[m.id]}</span>` : ''}
@@ -1572,6 +1606,32 @@ window.addEventListener('popstate', () => {
 
 /* ---------- boot ---------- */
 
+
+/* ---------- hidden menu teaser (Settings "hidden_menu" = the line under HIDDEN MENU; blank = not shown) ---------- */
+const QMARK = 'data:image/svg+xml,' + encodeURIComponent("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 19 19\" shape-rendering=\"crispEdges\"><path fill=\"#F7C948\" d=\"M8 0h3v1h-3zM5 1h3v1h-3zM11 1h3v1h-3zM4 2h1v1h-1zM14 2h1v1h-1zM3 3h1v1h-1zM15 3h1v1h-1zM2 4h1v1h-1zM16 4h1v1h-1zM1 5h1v1h-1zM17 5h1v1h-1zM1 6h1v1h-1zM17 6h1v1h-1zM1 7h1v1h-1zM17 7h1v1h-1zM0 8h1v1h-1zM18 8h1v1h-1zM0 9h1v1h-1zM18 9h1v1h-1zM0 10h1v1h-1zM18 10h1v1h-1zM1 11h1v1h-1zM17 11h1v1h-1zM1 12h1v1h-1zM17 12h1v1h-1zM1 13h1v1h-1zM17 13h1v1h-1zM2 14h1v1h-1zM16 14h1v1h-1zM3 15h1v1h-1zM15 15h1v1h-1zM4 16h1v1h-1zM14 16h1v1h-1zM5 17h3v1h-3zM11 17h3v1h-3zM8 18h3v1h-3z\"/><path fill=\"#4B3B5C\" d=\"M8 1h3v1h-3zM5 2h8v1h-8zM4 3h3v1h-3zM3 4h2v1h-2zM2 5h2v1h-2zM2 6h2v1h-2zM2 7h1v1h-1zM1 8h2v1h-2zM1 9h2v1h-2zM1 10h2v1h-2zM2 11h1v1h-1zM2 12h1v1h-1z\"/><path fill=\"#2A2033\" d=\"M13 2h1v1h-1zM7 3h8v1h-8zM6 4h10v1h-10zM5 5h12v1h-12zM4 6h3v1h-3zM11 6h6v1h-6zM3 7h3v1h-3zM8 7h2v1h-2zM12 7h5v1h-5zM3 8h7v1h-7zM12 8h6v1h-6zM3 9h6v1h-6zM11 9h7v1h-7zM3 10h5v1h-5zM10 10h8v1h-8zM3 11h14v1h-14zM3 12h5v1h-5zM10 12h7v1h-7zM2 13h15v1h-15zM3 14h13v1h-13zM4 15h11v1h-11zM5 16h9v1h-9zM8 17h3v1h-3z\"/><path fill=\"#6E5A85\" d=\"M5 4h1v1h-1zM4 5h1v1h-1z\"/><path fill=\"#F7C948\" d=\"M7 6h4v1h-4zM6 7h2v1h-2zM10 7h2v1h-2zM10 8h2v1h-2zM9 9h2v1h-2zM8 10h2v1h-2zM8 12h2v1h-2z\"/></svg>");
+function hiddenStrip(){
+  if (!C.hidden) return '';
+  return `<button class="hid" onclick="openHidden()" aria-label="เมนูลับ เร็วๆ นี้">
+    <img class="hq pxi" src="${QMARK}" alt="">
+    <span class="hid-t"><b>HIDDEN MENU</b><small>${esc(C.hidden)}<i>_</i></small></span>
+    <span class="hid-go">▶</span></button>`;
+}
+function openHidden(){
+  closeSlipPopup();
+  const w = document.createElement('div'); w.className = 'sp-wrap'; w.id = 'slipPop';
+  w.innerHTML = `<div class="sp sp-hid" role="dialog" aria-modal="true" aria-labelledby="spT">
+      <div class="sp-top"><div class="sp-banner">??? HIDDEN MENU ???</div>
+        <div class="sp-hero"><img class="bigq pxi" src="${QMARK}" alt="เครื่องหมายคำถาม" onclick="this.classList.remove('glitch');void this.offsetWidth;this.classList.add('glitch')"></div></div>
+      <div class="sp-body">
+        <h2 id="spT" class="h" style="font-size:30px">เมนูลับ!</h2>
+        <div class="sub">${esc(C.hidden)}<br>ยังบอกไม่ได้ว่าคืออะไร… รอลุ้นกันนะ~</div>
+        <div class="hid-rows"><div><span>ชื่อเมนู</span><b>???</b></div><div><span>ราคา</span><b>฿ ???</b></div><div><span>ผลไม้</span><b>???</b></div></div>
+        <button class="btn center locked" disabled>🔒 ยังสั่งไม่ได้ · เร็วๆ นี้</button>
+        <button class="link" style="align-self:center;margin:2px 0 0" onclick="closeSlipPopup()">ปิด</button>
+      </div></div>`;
+  w.addEventListener('click', e => { if (e.target === w) closeSlipPopup(); });
+  document.body.appendChild(w); lockPage();
+}
 /* ---------- seasonal theme ----------
    Settings "theme" = xmas turns it on for everyone (blank = normal). Demo/UAT: ?theme=xmas or window.FORCE_THEME */
 function themeName(){
