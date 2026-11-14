@@ -453,6 +453,19 @@
   @keyframes ptOut{to{transform:translate(-50%,-140%);opacity:0}}
   @keyframes ptBang{50%{transform:translateY(-4px)}}
   @media (prefers-reduced-motion: reduce){.pxtoast,.pt-bang,.pt-head,.stepper button.hint{animation:none}}
+
+  /* Greek Sandwich size picker (2 pcs / 4 pcs) */
+  .sizes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px}
+  .sizebtn{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:10px 12px;background:#fff;border:0;cursor:pointer;margin:3px;text-align:left;
+    --ec:var(--lilac);--pw:3px;box-shadow:var(--pxs)}
+  .sizebtn b{font-family:var(--px-font);font-size:26px;line-height:1}
+  .sizebtn .szpr{font-size:14px;color:var(--pink-dark);font-weight:700}.sizebtn .szpr s{color:var(--muted);font-weight:500}
+  .sizebtn.on{--ec:var(--ink);background:var(--soft);box-shadow:var(--pxs),0 5px 0 0 var(--pink)}
+  .szpcs{display:flex;gap:3px;height:12px}
+  .szpcs i{width:18px;height:10px;background:linear-gradient(#C98A4B 0 30%,#fff 30% 65%,#C98A4B 65%);--pw:1px;box-shadow:var(--pxs)}
+  .menu .pr.sm{font-size:24px}
+  #heroBowl.swap{animation:heroSwap .35s steps(4,end)}
+  @keyframes heroSwap{0%{transform:translateY(0) scale(1)}40%{transform:translateY(-8px) scale(1.04,.96)}100%{transform:none}}
 </style>
 </head>
 <body>
@@ -505,7 +518,9 @@ const DEMO_CONFIG = {
     {id:'BIS',name:'Biscoff',price:90,fruitPick:2,desc:'ครัมบ์ + ผลไม้ 2 อย่าง'},
     {id:'ORE',name:'Oreo',price:90,fruitPick:4,desc:'Oreo + ผลไม้ 4 อย่าง'},
     {id:'BAN',name:'Greek Banoffee',price:100,fruitPick:0,desc:'กล้วย + คาราเมล',addons:false},
-    {id:'NOF',name:'Greek no fruits',price:40,fruitPick:0,desc:'กรีกเปล่า'}
+    {id:'NOF',name:'Greek no fruits',price:40,fruitPick:0,desc:'กรีกเปล่า'},
+    {id:'SAN',name:'Greek Sandwich',price:75,fruitPick:2,desc:'แซนด์วิช Biscoff + ผลไม้ 2 อย่าง',
+     sizes:[{id:'2',name:'2 pcs',price:75},{id:'4',name:'4 pcs',price:100}],addons:['BNA','HER']}
   ],
   maxCups:10,
   addons:[{id:'SCP',name:'เพิ่ม Scoop',price:10,type:'count',max:5},{id:'HER',name:'Hershey syrup',price:10,type:'toggle',max:1},
@@ -564,6 +579,8 @@ function cleanConfig(c){
   c.menu = (c.menu || []).filter(m => SAFE_ID.test(String(m.id)));
   c.addons = (c.addons || []).filter(a => SAFE_ID.test(String(a.id)));
   c.addons.forEach(a => { a.menus = Array.isArray(a.menus) ? a.menus.map(String) : []; });
+  c.menu.forEach(m => { m.sizes = Array.isArray(m.sizes) ? m.sizes.filter(z => z && /^[A-Za-z0-9]{1,8}$/.test(String(z.id)) && Number(z.price) > 0)
+    .map(z => ({ id: String(z.id), name: String(z.name || z.id).slice(0, 20), price: Number(z.price) })) : []; });
   c.rounds = (c.rounds || []).map(String);
   c.hidden = c.hidden ? String(c.hidden).slice(0, 60) : '';
   return c;
@@ -626,17 +643,19 @@ function addonKind(a){
 }
 const addonPriceTxt = a => a.tbd ? 'ราคา ?' : '+' + baht(a.price);
 // add-ons a menu can take: none for menus marked addons=false; an add-on with a menu list only shows on those menus
-const addonsFor = m => m.addons === false ? [] : C.addons.filter(a => !(a.menus && a.menus.length) || a.menus.indexOf(m.id) >= 0);
+const addonsFor = m => m.addons === false ? [] : C.addons.filter(a => (!(a.menus && a.menus.length) || a.menus.indexOf(m.id) >= 0)
+  && (!Array.isArray(m.addons) || m.addons.indexOf(a.id) >= 0));      // e.g. Greek Sandwich: only banana + Hershey
 const needsScoop = a => !!a.needScoop || addonKind(a) === 'xfruit';
 const scoopCount = () => { const m = menuOf(draft.menuId); return addonsFor(m).filter(a => addonKind(a) === 'scoop').reduce((t, a) => t + (draft.addons[a.id] || 0), 0); };   // บางเมนู (เช่น Banoffee) ใส่ Add-on ไม่ได้
 const availFruits = () => C.fruits.filter(f => f.available);
-function unitPrice(it, day){ const m = menuOf(it.menuId); let p = m ? menuPrice(m, day === undefined ? it.round : day) : 0;
+function unitPrice(it, day){ const m = menuOf(it.menuId); let p = m ? menuPrice(m, day === undefined ? it.round : day, it.size) : 0;
   Object.keys(it.addons||{}).forEach(id => { const a = addonOf(id); if (a) p += a.price * (it.addons[id]||0); }); return p; }
 const linePrice = it => unitPrice(it) * it.qty;
 const foodTotal = () => cart.reduce((s,it) => s + linePrice(it), 0);
 const cupCount = () => cart.reduce((s,it) => s + it.qty, 0);
 function describe(it){
   const m = menuOf(it.menuId), parts = [];
+  if (it.size !== undefined && sizeOf(m, it.size)) parts.push(sizeOf(m, it.size).name);
   if (m.fruitPick > 0){
     const miss = availFruits().map(f => f.name).filter(f => it.fruits.indexOf(f) < 0);
     parts.push(it.fruits.length ? it.fruits.join(' · ') : 'ไม่ใส่ผลไม้');
@@ -759,7 +778,7 @@ function cup(m, o){
   const fr = bare ? all.map((f,i) => `<div class="fw" id="fw${i}" style="transform:${pos[i].t};z-index:${pos[i].z}"><span class="rp" id="rp${i}"></span>
       <img class="fr off" id="fr${i}" src="${Game16.fruitURL(fruitLook(f))}" width="36" height="36" alt=""></div>`).join('') : '';
   return `<div class="cup body hero-bowl" id="cupSvg" aria-hidden="true"><div id="cupBody" class="bob">
-      ${pxImg(Game16.bowlURL(m.id, [], bare), 216, 'big')}
+      ${pxImg(Game16.bowlURL(heroId(m), [], bare), 216, 'big', 'id="heroBowl"')}
       <div id="scoops"></div>
       <div id="xtra"></div>
       ${fr}
@@ -778,13 +797,18 @@ const promoOn = () => !!(C && C.promo && C.promo.pct > 0);
 const promoAll = () => promoOn() && !(C.promo.days && C.promo.days.length);
 const isPromoDay = r => promoOn() && !isPastRound(r) && (promoAll() || C.promo.days.indexOf(r) >= 0);
 const promoDaysLive = () => promoOn() ? (promoAll() ? liveRounds() : C.promo.days.filter(r => okRound(r))) : [];
-const basePrice = m => m.fullPrice || m.price;
+// a menu with sizes (Greek Sandwich 2 pcs / 4 pcs) is priced by the size picked
+const sizeOf = (m, id) => (m.sizes || []).find(z => z.id === String(id));
+const basePrice = (m, size) => { const z = size !== undefined && sizeOf(m, size); return z ? z.price : (m.fullPrice || m.price); };
+const priceRange = (m, f) => { const ps = (m.sizes || []).map(z => f(z.price)); return ps.length > 1 ? baht(Math.min(...ps)) + '–' + Math.max(...ps) : baht(f(basePrice(m))); };
 const salePrice = p => Math.ceil(p * (100 - C.promo.pct) / 100 - 1e-9);
-const menuPrice = (m, day) => isPromoDay(day) ? salePrice(basePrice(m)) : basePrice(m);
+const menuPrice = (m, day, size) => isPromoDay(day) ? salePrice(basePrice(m, size)) : basePrice(m, size);
 const daysText = ds => ds.map(r => r.replace(/^รับ(วันที่)?\s*/, '')).join(', ');
 // on the card: normal price, plus the sale price for the sale day(s)
 const cardPriceHTML = m => {
-  const ds = promoDaysLive(); if (!ds.length) return `<div class="pr h">${baht(basePrice(m))}</div>`;
+  const id = x => x, ds = promoDaysLive();
+  if (m.sizes && m.sizes.length > 1) return promoAll() && ds.length ? `<div class="pr h sm">${priceRange(m, salePrice)}</div>` : `<div class="pr h sm">${priceRange(m, id)}</div>`;
+  if (!ds.length) return `<div class="pr h">${baht(basePrice(m))}</div>`;
   if (promoAll()) return `<s class="was">${baht(basePrice(m))}</s><div class="pr h">${baht(salePrice(basePrice(m)))}</div>`;
   return `<div class="pr h">${baht(basePrice(m))}</div>`;
 };
@@ -863,6 +887,12 @@ function openItem(menuId, idx){
         : { menuId, qty:1, addons:{}, fruits: [], round: defaultRound() };   // no fruit picked yet — customer chooses
   if (!okRound(draft.round)) draft.round = defaultRound();
   draft.days = draft.round ? [draft.round] : []; draft.dq = {};
+  const sizeBox = m.sizes && m.sizes.length ? `
+    <div class="box" id="sizeBox">
+      <h3><span>เลือกขนาด <span class="req">*</span></span><small>ราคาต่อกล่อง</small></h3>
+      <div class="sizes">${m.sizes.map((z, i) => `<button class="sizebtn" id="sz${i}" onclick="pickSize(${i})">
+        <span class="szpcs">${'<i></i>'.repeat(Math.min(4, parseInt(z.name, 10) || 1))}</span><b>${esc(z.name)}</b><span class="szpr" id="szp${i}">${baht(z.price)}</span></button>`).join('')}</div>
+    </div>` : '';
   const fruitsBox = m.fruitPick > 0 ? `
     <div class="box" id="fruitBox">
       <h3><span>เลือกผลไม้ <span class="req">*</span></span><small id="pickInfo"></small></h3>
@@ -885,6 +915,7 @@ function openItem(menuId, idx){
     <div id="saleHint"></div>
     ${m.desc ? `<div class="sub">${esc(m.desc)}</div>` : ''}
     ${C.open ? '' : `<div class="closed" id="itemClosed" style="margin-top:12px">${esc(C.closedMsg)}<div style="font-weight:400;font-size:13px;margin-top:4px">ดูเมนูได้ตามสบาย แต่ยังสั่งไม่ได้จนกว่าร้านจะเปิดรอบใหม่</div></div>`}
+    ${sizeBox}
     ${fruitsBox}
     ${addonsFor(m).length ? `<div class="box" id="addonBox" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
     ${C.rounds.length > 1 ? `<div class="box" id="dayBox"><h3><span>รับวันไหน <span class="req">*</span></span><small>${editIndex >= 0 ? 'ถ้วยนี้' : 'เลือกได้หลายวัน'}</small></h3><div class="rounds">
@@ -921,7 +952,7 @@ function refreshItem(){
   $('qv').textContent = draft.qty; $('qm').disabled = draft.qty <= 1;
   syncScoops(); syncExtras();
   { // title price for the chosen day (first chosen when several)
-    const day = (editIndex < 0 && draft.days && draft.days.length) ? draft.days[0] : draft.round, b = basePrice(m);
+    const day = (editIndex < 0 && draft.days && draft.days.length) ? draft.days[0] : draft.round, b = basePrice(m, draft.size);
     $('titlePrice').innerHTML = isPromoDay(day) ? `<s class="was">${baht(b)}</s><div class="pr h">${baht(salePrice(b))}</div>` : `<div class="pr h">${baht(b)}</div>`;
     const ds = promoDaysLive();
     $('saleHint').innerHTML = ds.length && !promoAll() ? `<div class="salehint"><span class="saletag">SALE</span> รับวันที่ ${esc(daysText(ds))} ลด ${C.promo.pct}% เหลือ ${baht(salePrice(b))}${isPromoDay(day) ? ' ✓' : ' · เลือกวันนั้นด้านล่างได้เลย'}</div>` : '';
@@ -937,12 +968,17 @@ function refreshItem(){
         <span>${draft.dq[r] || 1}</span><button aria-label="เพิ่ม ${esc(r)}" onclick="setDayQty(${C.rounds.indexOf(r)},1)">+</button></div></div>`).join('') : '';
   C.rounds.forEach((r,i) => { const b = $('rd'+i), on = editIndex >= 0 ? draft.round === r : draft.days.indexOf(r) >= 0;
     if (b){ b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); } });
+  const needSize = !!(m.sizes && m.sizes.length) && !sizeOf(m, draft.size);
+  (m.sizes || []).forEach((z, i) => { const b = $('sz' + i); if (!b) return; const on = String(draft.size) === z.id;
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+    const day = (editIndex < 0 && draft.days && draft.days.length) ? draft.days[0] : draft.round;
+    $('szp' + i).innerHTML = isPromoDay(day) ? `<s>${baht(z.price)}</s> ${baht(salePrice(z.price))}` : baht(z.price); });
   const needFruit = m.fruitPick > 0 && !draft.fruits.length;
   const needDay = C.rounds.length && !okRound(draft.round);
-  $('addBtn').classList.toggle('dim', needFruit || needDay || !C.open);
-  if (!C.open){ $('addLbl').textContent = 'ร้านปิดรับอยู่ · ดูได้อย่างเดียว'; need('fruitBox', false); need('dayBox', false); return; }
-  need('fruitBox', needFruit); need('dayBox', needDay);
-  $('addLbl').textContent = needFruit ? 'เลือกผลไม้ก่อนนะ' : needDay ? 'เลือกวันรับก่อนนะ' : editIndex >= 0 ? 'บันทึก' : multi ? `ใส่ตะกร้า · ${draft.days.length} วัน ${cupsAll} ถ้วย` : 'ใส่ตะกร้า';
+  $('addBtn').classList.toggle('dim', needSize || needFruit || needDay || !C.open);
+  if (!C.open){ $('addLbl').textContent = 'ร้านปิดรับอยู่ · ดูได้อย่างเดียว'; need('fruitBox', false); need('dayBox', false); need('sizeBox', false); return; }
+  need('sizeBox', needSize); need('fruitBox', needFruit); need('dayBox', needDay);
+  $('addLbl').textContent = needSize ? 'เลือกขนาดก่อนนะ' : needFruit ? 'เลือกผลไม้ก่อนนะ' : needDay ? 'เลือกวันรับก่อนนะ' : editIndex >= 0 ? 'บันทึก' : multi ? `ใส่ตะกร้า · ${draft.days.length} วัน ${cupsAll} ถ้วย` : 'ใส่ตะกร้า';
 }
 // a new cup starts on the day picked last time (or the only open day)
 function defaultRound(){
@@ -1021,6 +1057,17 @@ function syncScoops(){
   for (let k = have.length - 1; k >= want; k--){ const im = have[k]; im.classList.add('out'); setTimeout(() => im.remove(), 320); }
   if (!quiet && want !== have.length) layoutFruits();
 }
+/* Greek Sandwich size: 2 pcs / 4 pcs — the bowl on top redraws with that many sandwiches and gives a little hop */
+const heroId = m => m.sizes && m.sizes.length ? m.id + '#' + (parseInt((sizeOf(m, draft && draft.size) || m.sizes[0]).name, 10) || 2) : m.id;
+function pickSize(i){
+  const m = menuOf(draft.menuId), z = m.sizes[i]; if (!z) return;
+  const was = draft.size; draft.size = z.id;
+  const b = $('sz' + i); if (b){ b.classList.remove('pop'); b.getBoundingClientRect(); b.classList.add('pop'); }
+  const img = $('heroBowl'); if (img && was !== z.id){ img.src = Game16.bowlURL(heroId(m), [], m.fruitPick > 0);
+    img.classList.remove('swap'); img.getBoundingClientRect(); img.classList.add('swap'); cupReact(true);
+    const box = $('scoops'); if (box) addonPop(box, z.name + '!', 120, 40); }
+  refreshItem();
+}
 function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
   const v = d === 0 ? (n ? 0 : 1) : Math.max(0, Math.min(a.max, n + d));
   if (v && !n && needsScoop(a) && !scoopCount()){ needScoopAlert(a); return; }     // extra fruit only on top of an extra scoop
@@ -1050,9 +1097,10 @@ function pxToast(title, sub, head){
 function setQty(d){ draft.qty = Math.max(1, Math.min(C.maxCups || 50, draft.qty + d)); refreshItem(); }
 function commitItem(){
   if (!C.open) { bump('itemClosed'); return; }      // closed: look around freely, but nothing goes in the cart
-  const needFruit = menuOf(draft.menuId).fruitPick > 0 && !draft.fruits.length;
+  const mm = menuOf(draft.menuId), needSize = !!(mm.sizes && mm.sizes.length) && !sizeOf(mm, draft.size);
+  const needFruit = mm.fruitPick > 0 && !draft.fruits.length;
   const needDay = C.rounds.length && !okRound(draft.round);
-  if (needFruit || needDay){ if (needDay) bump('dayBox', !needFruit); if (needFruit) bump('fruitBox', true); return; }
+  if (needSize || needFruit || needDay){ if (needDay) bump('dayBox', !needFruit && !needSize); if (needFruit) bump('fruitBox', !needSize); if (needSize) bump('sizeBox', true); return; }
   info.lastRound = draft.round;
   const clean = x => { const c = JSON.parse(JSON.stringify(x)); delete c.days; delete c.dq; return c; };
   if (editIndex >= 0) cart[editIndex] = clean(draft);
@@ -1212,6 +1260,7 @@ const PAL16={ink:'#3B2A40', body:'#F4F0EC', cup:['#FFFFFF','#E2DCE6','#C9C1D3'],
   bis:['#E9B479','#C98A4B','#8F5A26'], oreo:['#5A4A5E','#3A2D3E','#1F1622'], car:['#F2B061','#D98B3A','#A8611E']};
 function menuBowl(id, picked, bare){
   const pal=PAL16, g=new Grid(72,56), dither=true; let post=[];
+  let pcs=4; if(String(id).indexOf('#')>0){ pcs=+String(id).split('#')[1]||2; id=String(id).split('#')[0]; }
   const cx=36, rimY=33, rx=34.5, ry=10.5, baseY=51, brx=24, bry=3.2;
   for(let y=Math.floor(rimY);y<=baseY+bry;y++){
     const t=Math.min(1,(y-rimY)/(baseY-rimY)), half=rx+(brx-rx)*Math.pow(t,1.35);
@@ -1234,7 +1283,24 @@ function menuBowl(id, picked, bare){
   const crumbs=(c,n,seed)=>{ let r=seed; for(let k=0;k<n;k++){ r=(r*9301+49297)%233280; const t=r/233280; r=(r*9301+49297)%233280; const v=r/233280;
       const a=t*Math.PI*2, d=Math.sqrt(v); g.set(cx+Math.cos(a)*d*(rx-6), rimY-2+Math.sin(a)*d*(ry-3), c[k%c.length]); } };
   const oreo=(x,y)=>{ ell(g,x,y,6.5,5.6,pal.oreo); ell(g,x,y,6.5,1.2,['#F3EEF2']); g.set(x-3,y-3,'#7A6A7E'); g.set(x+2,y+3,'#7A6A7E'); };
-  if(bare && id!=='BAN' && id!=='NOF'){
+  // Biscoff sandwich lying on its side: cookie / white cream / cookie, ridged edges, rounded ends
+  const sandwich=(x,y,w,tilt)=>{ for(let xx=0;xx<w;xx++){ const yo=Math.round(xx*tilt), end=xx===0||xx===w-1;
+      for(let yy=0;yy<9;yy++){ if(end&&(yy===0||yy===8)) continue;
+        let c= yy===0?pal.bis[0]: yy===1?(xx%4===2?pal.bis[2]:pal.bis[1]): yy===2?pal.bis[2]
+             : yy===3?'#FFFFFF': yy===4?((xx%3)?'#FFFFFF':pal.yog[2]): yy===5?pal.yog[1]
+             : yy===6?pal.bis[2]: yy===7?(xx%4===0?pal.bis[2]:pal.bis[1]): pal.bis[2];
+        if(end&&yy>=3&&yy<=5) c=pal.yog[1];
+        g.set(x+xx,y+yy+yo,c); } } };
+  if(id==='SAN'){
+    crumbs([pal.bis[1],pal.bis[2],pal.bis[0]],150,11);
+    const lay = pcs>=4 ? [[8,16,25,.08],[37,17,25,.08],[12,26,25,.08],[39,27,23,.08]] : [[10,19,27,.08],[34,27,27,.08]];
+    if(!bare){                                            // menu card: strawberries + blueberries tucked around, like the real box
+      [[4,32,.3,11,5],[60,17,1.6,10,4.6],[58,36,2.6,10,5],[30,38,-.2,11,4.6]].forEach(a=>wedge(g,a[0],a[1],a[3],a[4],a[2],pal.straw,pal.flesh,pal.seed));
+      blue([[65,28,4.4],[7,23,4.2],[46,40,4.4]]);
+    }
+    lay.forEach(a=>sandwich(a[0],a[1],a[2],a[3]));
+    if(!bare){ blue([[35,15,4.2]]); wedge(g,30,36,9,4.2,.4,pal.straw,pal.flesh,pal.seed); }
+  } else if(bare && id!=='BAN' && id!=='NOF'){
     scoop();
     if(id==='BIS'){ slab(46,16,13,9); slab(52,25,12,8); crumbs([pal.bis[1],pal.bis[2],pal.bis[0]],70,7); }
     if(id==='ORE'){ oreo(48,19); oreo(57,27); crumbs([pal.oreo[0],pal.oreo[1],pal.oreo[2]],90,3); }
@@ -1283,7 +1349,7 @@ function heart(c1){ const rows=['.##.##.','#######','#######','.#####.','..###..
   rows.forEach((r,y)=>[...r].forEach((ch,x)=>{ if(ch==='#') g.set(x,y,(x<2&&y<2)?'#FFFFFF':c1); })); return g; }
 function coin(){ const g=new Grid(6,7); ell(g,3,3.5,2.6,3.2,['#FFEC27']); for(let y=2;y<=5;y++) g.set(3,y,'#FFA300'); g.set(1,2,'#FFFFFF'); outline(g,'#AB5236'); return g; }
 
-  const NAMES = {ORI:'ORIGINAL', BIS:'BISCOFF', ORE:'OREO', BAN:'BANOFFEE', NOF:'PLAIN'};
+  const NAMES = {ORI:'ORIGINAL', BIS:'BISCOFF', ORE:'OREO', BAN:'BANOFFEE', NOF:'PLAIN', SAN:'SANDWICH'};
   const cache = {};
   const sprite = it => { const k = it.id + '|' + (NAMES[it.id] ? '' : (it.fruits || []).join(',')); return cache[k] || (cache[k] = menuBowl(it.id, it.fruits)); };
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
