@@ -92,6 +92,7 @@ function onOpen() {
     .addItem('🔑 ตั้ง PIN หน้า Live', 'setLivePin')
     .addItem('🧾 เช็คการเชื่อม EasySlip', 'testEasySlip')
     .addItem('📊 นับออเดอร์ต่อสัปดาห์', 'orderStats')
+    .addItem('🎄 ธีมคริสต์มาส: เปิด / ปิด', 'toggleXmas')
     .addSeparator()
     .addItem('📅 เรียงตามวันรับ', 'sortByPickupDay')
     .addItem('🕒 เรียงตามเวลาสั่ง', 'sortByOrderTime')
@@ -304,6 +305,7 @@ function getConfig() {
       return { name: name.trim(), fee: Number(fee) || 0 };
     }),
     payMethods: list_(s.pay_methods),
+    theme: String(s.theme || '').trim().toLowerCase(),     // xmas = ธีมคริสต์มาส · ว่าง = ปกติ
     payNowLabel: PAY_NOW, payLaterLabel: PAY_LATER,
     payLaterNote: String(s.pay_later_note || 'ผ่านขุนทองในกลุ่ม LINE'),
     bankAccount: String(s.bank_account || ''),
@@ -1141,4 +1143,22 @@ function orderStats() {
     '\n\nประมาณต่อเดือน: ~' + perMonth + ' สลิป (ถ้าขายดีเท่าสัปดาห์ที่สูงสุด ~' + peakMonth + ')' +
     '\nเผื่อสลิปที่ส่งผิดแล้วส่งใหม่ ~30% → ควรมีโควต้าอย่างน้อย ~' + Math.ceil(peakMonth * 1.3) + ' ครั้ง/เดือน',
     ui.ButtonSet.OK);
+}
+
+
+/* ---------------- ธีมตามเทศกาล ----------------
+ * แถว "theme" ในแท็บ Settings: xmas = คริสต์มาส · ว่าง = ปกติ (กดเมนูเพื่อสลับ ไม่ต้องพิมพ์เอง) */
+function setSetting_(key, value, note) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SH.SET);
+  const keys = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().map(r => String(r[0]).trim()) : [];
+  const i = keys.indexOf(key);
+  if (i >= 0) sh.getRange(i + 2, 2).setValue(value);
+  else sh.appendRow([key, value, note || '']);
+}
+function toggleXmas() {
+  const on = String(settings_().theme || '').trim().toLowerCase() === 'xmas';
+  setSetting_('theme', on ? '' : 'xmas', 'ธีมแอป: xmas = คริสต์มาส · เว้นว่าง = ปกติ (สลับได้จากเมนู 🥣 Greek Shop)');
+  SpreadsheetApp.getUi().alert(on
+    ? '✅ ปิดธีมคริสต์มาสแล้ว\nแอปกลับเป็นธีมปกติ (ลูกค้าเห็นเมื่อเปิดแอปใหม่ / ดึงหน้าจอรีเฟรช)'
+    : '🎄 เปิดธีมคริสต์มาสแล้ว\nลูกค้าจะเห็นธีมใหม่เมื่อเปิดแอปใหม่ / ดึงหน้าจอรีเฟรช\nกดเมนูเดิมอีกครั้งเพื่อปิด');
 }
