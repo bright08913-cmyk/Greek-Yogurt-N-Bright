@@ -275,7 +275,8 @@ function getConfig() {
   const menu = rows_(ss.getSheetByName(SH.MENU)).filter(r => isOn_(r[6])).map(r => ({
     id: String(r[0]), name: String(r[1]), price: Number(r[2]) || 0, fullPrice: Number(r[2]) || 0,
     fruitPick: Number(r[3]) || 0, desc: String(r[4] || ''), emoji: String(r[5] || '🥣'),
-    addons: r[7] === '' || r[7] === undefined ? true : isOn_(r[7])   // คอลัมน์ H "ใส่ Add-on ได้"
+    addons: addonRule_(r[7]),    // คอลัมน์ H "ใส่ Add-on ได้": ติ๊ก/ว่าง = ได้ทุกตัว · ไม่ติ๊ก = ไม่ได้ · "BNA, HER" = ได้เฉพาะตัวที่ระบุ
+    sizes: sizes_(r[8])          // คอลัมน์ I "ขนาด": "2 pcs=75, 4 pcs=100" (ว่าง = ขนาดเดียว ราคาตามคอลัมน์ C)
   }));
   const addons = rows_(ss.getSheetByName(SH.ADDON)).filter(r => isOn_(r[5])).map(r => ({
     id: String(r[0]), name: String(r[1]), price: Number(r[2]) || 0,
@@ -356,9 +357,15 @@ function submitOrder(order) {
     const excluded = m.fruitPick >= allFruits.length && fruits.length < allFruits.length
       ? allFruits.filter(f => fruits.indexOf(f) < 0) : [];
 
+    let size = null;
+    if (m.sizes.length) {
+      size = m.sizes.find(z => z.id === String(it.size));
+      if (!size) throw new Error(m.name + ': กรุณาเลือกขนาด (' + m.sizes.map(z => z.name).join(' / ') + ')');
+    }
     let addonPrice = 0; const addonCount = {};
     Object.keys(m.addons ? (it.addons || {}) : {}).forEach(id => {
       const a = addonById[id]; if (!a) return;
+      if (Array.isArray(m.addons) && m.addons.indexOf(id) < 0) throw new Error('"' + a.name + '" ใส่กับ ' + m.name + ' ไม่ได้');
       if (a.menus.length && a.menus.indexOf(m.id) < 0) throw new Error('"' + a.name + '" ใส่กับ ' + m.name + ' ไม่ได้');
       const n = Math.max(0, Math.min(a.max, parseInt(it.addons[id], 10) || 0));
       if (n) { addonCount[id] = n; addonPrice += n * a.price; }
@@ -367,8 +374,9 @@ function submitOrder(order) {
     const scoops = Object.keys(addonCount).filter(id => addonById[id].type === 'count').reduce((t, id) => t + addonCount[id], 0);
     Object.keys(addonCount).forEach(id => { if (addonById[id].needScoop && !scoops)
       throw new Error('"' + addonById[id].name + '" ต้องเพิ่ม Scoop อย่างน้อย 1 ลูก (' + m.name + ')'); });
-    const unit = promoPrice_(cfg.promo, m.price, round) + addonPrice;   // sale only on the promotion's pickup days
-    return { m, round, qty, fruits, excluded, addonCount, addonPrice, unit, total: unit * qty };
+    const unit = promoPrice_(cfg.promo, size ? size.price : m.price, round) + addonPrice;   // sale only on the promotion's pickup days
+    const label = m.name + (size ? ' (' + size.name + ')' : '');                          // e.g. "Greek Sandwich (4 pcs)"
+    return { m, label, round, qty, fruits, excluded, addonCount, addonPrice, unit, total: unit * qty };
   });
 
   // group by pickup day, in the order the days are listed in the Rounds tab
@@ -403,11 +411,11 @@ function submitOrder(order) {
         const first = !rows.length;
         const tops = Object.keys(l.addonCount).filter(a => a !== 'SCP')
           .map(a => addonById[a].name + (l.addonCount[a] > 1 ? ' x' + l.addonCount[a] : '')).join(', ');
-        rows.push([id, now, name, round, l.m.name, l.fruits.join(', '), l.addonCount.SCP || '', tops,
+        rows.push([id, now, name, round, l.label, l.fruits.join(', '), l.addonCount.SCP || '', tops,
           l.qty, l.unit, l.total, first ? note : '', payMethod, first ? sumF : '', PAY_STATUS[0], '', '',
           ORDER_STATUS[0], token]);
       });
-      return { orderId: id, round, cups, total, summary: ls.map(l => l.m.name + (l.qty > 1 ? ' x' + l.qty : '')).join(', ') };
+      return { orderId: id, round, cups, total, summary: ls.map(l => l.label + (l.qty > 1 ? ' x' + l.qty : '')).join(', ') };
     });
     const r0 = ordSh.getLastRow() + 1;
     ordSh.getRange(r0, COL.DAY, rows.length, 1).setNumberFormat('@');      // "9 Nov" เก็บเป็นข้อความ ไม่ให้กลายเป็นวันที่
@@ -917,7 +925,7 @@ function setup() {
   sheet_(ss, SH.ROUND, ['วันที่รับ (เช่น 6 Nov)', 'เปิดรับ', 'หมายเหตุ (ไม่บังคับ โชว์ใต้ปุ่ม)'], [
     ['6 Nov', true, '']
   ]);
-  sheet_(ss, SH.MENU, ['ID', 'ชื่อเมนู', 'ราคา', 'เลือกผลไม้ได้ (อย่าง)', 'คำอธิบาย', 'อีโมจิ', 'เปิดขาย', 'ใส่ Add-on ได้'], [
+  sheet_(ss, SH.MENU, ['ID', 'ชื่อเมนู', 'ราคา', 'เลือกผลไม้ได้ (อย่าง)', 'คำอธิบาย', 'อีโมจิ', 'เปิดขาย', 'ใส่ Add-on ได้', 'ขนาด (เช่น 2 pcs=75, 4 pcs=100)'], [
     ['ORI', 'Original', 80, 4, 'กรีกโยเกิร์ต + ผลไม้ 4 อย่าง', '🍓', true, true],
     ['BIS', 'Biscoff', 90, 2, 'ครัมบ์ Biscoff + ผลไม้ 2 อย่าง', '🍪', true, true],
     ['ORE', 'Oreo', 90, 4, 'Oreo + ผลไม้ 4 อย่าง', '🖤', true, true],
@@ -1078,6 +1086,24 @@ function sheet_(ss, name, header, defaults) {
 function rows_(sh) {
   if (!sh || sh.getLastRow() < 2) return [];
   return sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues().filter(r => r[0] !== '');
+}
+// "ใส่ Add-on ได้": checkbox / blank → true/false, or a list of add-on IDs → that list only
+function addonRule_(v) {
+  if (v === '' || v === undefined || v === null) return true;
+  if (typeof v === 'boolean') return v;
+  const t = String(v).trim();
+  if (/^(true|false|yes|no)$/i.test(t)) return isOn_(v);
+  const ids = t.split(/[\s,]+/).map(x => x.trim()).filter(Boolean);
+  return ids.length ? ids : true;
+}
+// "2 pcs=75, 4 pcs=100" → [{id:'2', name:'2 pcs', price:75}, {id:'4', name:'4 pcs', price:100}]
+function sizes_(v) {
+  if (v === '' || v === undefined || v === null || typeof v === 'boolean') return [];
+  return String(v).split(/[,\n]+/).map((part, k) => {
+    const m = part.trim().match(/^(.+?)\s*[=:]\s*(\d+(?:\.\d+)?)$/); if (!m) return null;
+    const name = m[1].trim().slice(0, 20), num = name.match(/\d+/);
+    return { id: num ? num[0] : String(k + 1), name, price: Number(m[2]) };
+  }).filter(z => z && z.price > 0);
 }
 function settings_() {
   const o = {};
