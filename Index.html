@@ -402,7 +402,13 @@
   .hid-t small{font-family:var(--arcade);font-size:8px;color:#CFC3DA;letter-spacing:1px;line-height:1.5}
   .hid-t small i{font-style:normal;animation:gBlink 1s steps(2,jump-none) infinite}
   .newtag{font-style:normal;background:var(--pink);color:#fff;padding:2px 5px;margin-right:4px;text-shadow:none;animation:gBlink 1s steps(2,jump-none) infinite}
-  .hid.promo .hid-t b{font-size:11px;line-height:1.6}
+  .hid.promo{padding:14px 14px;gap:14px}
+  .hid.promo .hid-t{gap:8px}
+  .hid.promo .hid-t b{font-size:15px;line-height:1.5}
+  .hid.promo .newtag{font-size:13px;padding:3px 6px;margin-right:6px}
+  .hid-t small.pp{font-size:10px;display:flex;align-items:baseline;flex-wrap:wrap;gap:4px}
+  .hid-t small.pp em{font-style:normal;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:18px;color:#fff;letter-spacing:0}
+  .hid-t small.pp .dot{margin:0 6px;color:var(--coin)}
   .hid-go{font-family:var(--arcade);font-size:16px;color:var(--coin);animation:gBlink 1s steps(2,jump-none) infinite}
   /* popup */
   .sp-hid{background:#231A2B;color:#fff}
@@ -467,11 +473,12 @@
   #heroBowl.swap{animation:heroSwap .35s steps(4,end)}
   @keyframes heroSwap{0%{transform:translateY(0) scale(1)}40%{transform:translateY(-8px) scale(1.04,.96)}100%{transform:none}}
 
-  .hero-bowl .big.san{z-index:1}
-  .hero-bowl .big.san.none{visibility:hidden}
-  .hero-bowl .big.san.drop{animation:sanDrop .6s steps(8,end) both}
+  #sanBox{position:absolute;inset:0;z-index:1;pointer-events:none}
+  #sanBox .none{visibility:hidden}
+  #sanBox .sanp.drop{animation:sanDrop .55s steps(7,end) both}
+  #sanBox .sanp.out{animation:scOut .3s steps(4,end) forwards}
   @keyframes sanDrop{0%{transform:translateY(-150px);opacity:0}12%{opacity:1}62%{transform:translateY(4px) scale(1.03,.94)}82%{transform:translateY(-3px)}100%{transform:none}}
-  @media (prefers-reduced-motion: reduce){.hero-bowl .big.san.drop{animation:none}}
+  @media (prefers-reduced-motion: reduce){#sanBox .sanp.drop,#sanBox .sanp.out{animation:none}}
 </style>
 </head>
 <body>
@@ -524,9 +531,9 @@ const DEMO_CONFIG = {
     {id:'BIS',name:'Biscoff',price:90,fruitPick:2,desc:'ครัมบ์ + ผลไม้ 2 อย่าง'},
     {id:'ORE',name:'Oreo',price:90,fruitPick:4,desc:'Oreo + ผลไม้ 4 อย่าง'},
     {id:'BAN',name:'Greek Banoffee',price:100,fruitPick:0,desc:'กล้วย + คาราเมล',addons:false},
-    {id:'NOF',name:'Greek no fruits',price:40,fruitPick:0,desc:'กรีกเปล่า'},
     {id:'SAN',name:'Greek Sandwich',price:75,fruitPick:2,desc:'แซนด์วิช Biscoff + ผลไม้ 2 อย่าง',
-     sizes:[{id:'2',name:'2 pcs',price:75},{id:'4',name:'4 pcs',price:100}],addons:['BNA','HER']}
+     sizes:[{id:'2',name:'2 pcs',price:75},{id:'4',name:'4 pcs',price:100}],addons:['BNA','HER']},
+    {id:'NOF',name:'Greek no fruits',price:40,fruitPick:0,desc:'กรีกเปล่า'}
   ],
   maxCups:10,
   addons:[{id:'SCP',name:'เพิ่ม Scoop',price:10,type:'count',max:5},{id:'HER',name:'Hershey syrup',price:10,type:'toggle',max:1},
@@ -762,7 +769,7 @@ function layoutFruits(){
 // spot k of n on the yogurt of the pixel bowl (hero box 216 x 200). Up to 5 pieces: one curved row.
 // More: a front row and a back row set between them, so nothing is hidden. Extra scoops push every row down.
 // Greek Sandwich: fruit goes into the gaps around the pieces (the sandwich layer sits on top, so it looks tucked in)
-const SAN_SPOTS = { 2: [[156,116],[58,152],[198,136],[22,130],[112,164],[150,162]],
+const SAN_SPOTS = { 2: [[62,108],[152,110],[22,140],[198,142],[74,164],[150,165]],
                     4: [[22,140],[198,142],[74,164],[150,165],[106,110],[114,150]] };
 function slotOf(i, n){
   const t1 = (k, c) => c <= 1 ? .5 : k / (c - 1);
@@ -793,7 +800,7 @@ function cup(m, o){
       <div id="scoops"></div>
       <div id="xtra"></div>
       ${fr}
-      ${m.sizes && m.sizes.length ? pxImg(sandLayer(piecesOf(m)) || 'data:,', 216, 'big san' + (piecesOf(m) ? '' : ' none'), 'id="sanLayer"') : ''}
+      ${m.sizes && m.sizes.length ? sandHTML(m) : ''}
       ${pxImg(Game16.drizzleURL(), 216, 'big drz' + (o.syrup ? ' on' : ''), 'id="drz"')}
       <img class="fh" src="${Game16.heartURL()}" width="28" height="24" alt="">
     </div></div>`;
@@ -1072,15 +1079,28 @@ function syncScoops(){
 /* Greek Sandwich size: 2 pcs / 4 pcs — the bowl on top redraws with that many sandwiches and gives a little hop */
 const heroId = m => m.sizes && m.sizes.length ? m.id + '#0' : m.id;          // sized menus start as an empty bowl
 const piecesOf = m => { const z = m && sizeOf(m, draft && draft.size); return z ? (parseInt(z.name, 10) || 2) : 0; };
-const sandLayer = n => n ? Game16.bowlURL('SANL#' + n, [], true) : '';
+const SAN_ORDER = [2, 3, 0, 1];                                                 // draw order: back row, then front row
+function sandHTML(m){
+  const n = piecesOf(m), on = k => (n >= 4 || k < 2) && n > 0;
+  return `<div id="sanBox" aria-hidden="true">${pxImg(Game16.bowlURL('SANC', [], true), 216, 'big sanc' + (n ? '' : ' none'), 'id="spc"')}` +
+    SAN_ORDER.map(k => pxImg(Game16.bowlURL('SANP#' + k, [], true), 216, 'big sanp' + (on(k) ? '' : ' none'), `id="sp${k}"`)).join('') + '</div>';
+}
+// show the pieces for n (0/2/4): new ones drop in one after another, extra ones hop out — 2 → 4 only adds the back two
+function syncSand(n){
+  const want = k => n > 0 && (k < 2 || n >= 4); let d = 0;
+  const crumb = $('spc'); if (crumb) crumb.classList.toggle('none', !n);
+  [0, 1, 2, 3].forEach(k => { const im = $('sp' + k); if (!im) return; const shown = !im.classList.contains('none') && !im.classList.contains('out');
+    if (want(k) && !shown){ im.classList.remove('none', 'out', 'drop'); im.style.animationDelay = (d++ * 150) + 'ms'; im.getBoundingClientRect(); im.classList.add('drop'); }
+    else if (!want(k) && shown){ im.classList.remove('drop'); im.style.animationDelay = '0ms'; im.classList.add('out'); setTimeout(() => { if (im.classList.contains('out')){ im.classList.add('none'); im.classList.remove('out'); } }, 320); } });
+  return d;
+}
 function pickSize(i){
   const m = menuOf(draft.menuId), z = m.sizes[i]; if (!z) return;
   const was = draft.size; draft.size = z.id;
   const b = $('sz' + i); if (b){ b.classList.remove('pop'); b.getBoundingClientRect(); b.classList.add('pop'); }
-  const lay = $('sanLayer');
-  if (lay && was !== z.id){ lay.src = sandLayer(piecesOf(m)); lay.classList.remove('none', 'drop'); lay.getBoundingClientRect(); lay.classList.add('drop');
-    setTimeout(() => cupReact(true), 420);
-    const box = $('scoops'); if (box) addonPop(box, z.name + '!', 120, 30); }
+  if (was !== z.id){ const added = syncSand(piecesOf(m));
+    setTimeout(() => cupReact(true), 380 + Math.max(0, added - 1) * 150);
+    const box = $('scoops'); if (box) addonPop(box, (added ? '+' + added : z.name) + '!', 120, 30); }
   refreshItem(); layoutFruits();
 }
 function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
@@ -1276,7 +1296,9 @@ const PAL16={ink:'#3B2A40', body:'#F4F0EC', cup:['#FFFFFF','#E2DCE6','#C9C1D3'],
 function menuBowl(id, picked, bare){
   const pal=PAL16, g=new Grid(72,56), dither=true; let post=[];
   let pcs=4; if(String(id).indexOf('#')>0){ pcs=+String(id).split('#')[1]||0; id=String(id).split('#')[0]; }
-  const layer = id==='SANL';                     // sandwiches + crumbs only (drops onto the empty bowl)
+  const layer = id==='SANC' || id==='SANP';     // SANC = crumbs only · SANP#k = sandwich piece k only (they drop onto the empty bowl)
+  // piece spots: 0,1 = front row (2 pcs) · 2,3 = back row (added for 4 pcs)
+  const PIECES=[[12,26,25,.08],[39,27,23,.08],[8,16,25,.08],[37,17,25,.08]];
   const cx=36, rimY=33, rx=34.5, ry=10.5, baseY=51, brx=24, bry=3.2;
   if(!layer) for(let y=Math.floor(rimY);y<=baseY+bry;y++){
     const t=Math.min(1,(y-rimY)/(baseY-rimY)), half=rx+(brx-rx)*Math.pow(t,1.35);
@@ -1309,10 +1331,11 @@ function menuBowl(id, picked, bare){
         g.set(x+xx,y+yy+yo,c); } } };
   if(id==='SAN' && bare && !pcs){
     // empty bowl: just the yogurt, waiting for the customer to pick 2 or 4 pieces
-  } else if(id==='SAN' || layer){
-    if(layer) bare=true;
-    if(!layer) crumbs([pal.bis[1],pal.bis[2],pal.bis[0]],150,11);
-    const lay = pcs>=4 ? [[8,16,25,.08],[37,17,25,.08],[12,26,25,.08],[39,27,23,.08]] : [[10,19,27,.08],[34,27,27,.08]];
+  } else if(layer){
+    if(id==='SANP'){ const a=PIECES[pcs]||PIECES[0]; sandwich(a[0],a[1],a[2],a[3]); }
+  } else if(id==='SAN'){
+    crumbs([pal.bis[1],pal.bis[2],pal.bis[0]],150,11);
+    const lay = pcs>=4 ? [PIECES[2],PIECES[3],PIECES[0],PIECES[1]] : [PIECES[0],PIECES[1]];
     if(!bare){                                            // menu card: strawberries + blueberries tucked around, like the real box
       [[4,32,.3,11,5],[60,17,1.6,10,4.6],[58,36,2.6,10,5],[30,38,-.2,11,4.6]].forEach(a=>wedge(g,a[0],a[1],a[3],a[4],a[2],pal.straw,pal.flesh,pal.seed));
       blue([[65,28,4.4],[7,23,4.2],[46,40,4.4]]);
@@ -1356,10 +1379,10 @@ function menuBowl(id, picked, bare){
     blue([[25,30,6],[34,39,6.3]]);
   }
   outline(g,pal.ink);
-  if(layer){   // crumbs on the yogurt around the pieces: no outline, never on top of a sandwich
+  if(id==='SANC'){   // crumbs on the yogurt: no outline (the pieces sit on top of this layer)
     let r=11; for(let k=0;k<170;k++){ r=(r*9301+49297)%233280; const t=r/233280; r=(r*9301+49297)%233280; const v=r/233280;
       const a=t*Math.PI*2, d=Math.sqrt(v), x=cx+Math.cos(a)*d*(rx-6), y=rimY+1+Math.sin(a)*d*(ry-3);
-      if(!g.get(x,y)) g.set(x,y,[pal.bis[1],pal.bis[0],pal.bis[2]][k%3]); } }
+      g.set(x,y,[pal.bis[1],pal.bis[0],pal.bis[2]][k%3]); } }
   post.forEach(p=>{ g.set(p[0],p[1],'#FFFFFF'); [[-1,0],[1,0],[0,-1],[0,1]].forEach(o=>g.set(p[0]+o[0],p[1]+o[1],'#FF9DB5')); });
   return g;
 }
@@ -1820,9 +1843,9 @@ function hiddenStrip(){
   if (!C.hidden) return '';
   const pm = menuOf(String(C.hidden).trim());          // e.g. hidden_menu = SAN → "NEW! GREEK SANDWICH" banner that opens the menu
   if (pm) return `<button class="hid promo" onclick="openItem('${pm.id}')" aria-label="เมนูใหม่ ${esc(pm.name)} กดสั่งได้เลย">
-    <img class="hq pxi" src="${Game16.bowlURL(pm.id, [], false)}" alt="" style="width:58px;height:45px">
+    <img class="hq pxi" src="${Game16.bowlURL(pm.id, [], false)}" alt="" style="width:72px;height:56px">
     <span class="hid-t"><b><em class="newtag">NEW!</em> ${esc(pm.name.toUpperCase())}</b>
-      <small>${pm.sizes && pm.sizes.length ? pm.sizes.map(z => esc(z.name.toUpperCase()) + ' ' + baht(z.price)).join(' · ') : baht(basePrice(pm))}<i>_</i></small></span>
+      <small class="pp">${pm.sizes && pm.sizes.length ? pm.sizes.map(z => `<span>${esc(z.name.toUpperCase())}</span> <em>${baht(z.price)}</em>`).join('<span class="dot">·</span>') : `<em>${baht(basePrice(pm))}</em>`}<i>_</i></small></span>
     <span class="hid-go">▶</span></button>`;
   return `<button class="hid" onclick="openHidden()" aria-label="เมนูใหม่ เร็วๆ นี้">
     <img class="hq pxi" src="${QMARK}" alt="">
