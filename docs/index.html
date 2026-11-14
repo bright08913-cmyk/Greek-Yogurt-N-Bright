@@ -21,7 +21,7 @@
 <meta property="og:image" content="https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/og-16bit.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "7f2a29057c";</script>
+<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "88defcdd12";</script>
 
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Jersey+10&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -1353,12 +1353,7 @@ function menuBowl(id, picked, bare){
   } else if(id==='SAN'){
     crumbs([pal.bis[1],pal.bis[2],pal.bis[0]],150,11);
     const lay = pcs>=4 ? [PIECES[2],PIECES[3],PIECES[0],PIECES[1]] : [PIECES[0],PIECES[1]];
-    if(!bare){                                            // menu card: strawberries + blueberries tucked around, like the real box
-      [[4,32,.3,11,5],[60,17,1.6,10,4.6],[58,36,2.6,10,5],[30,38,-.2,11,4.6]].forEach(a=>wedge(g,a[0],a[1],a[3],a[4],a[2],pal.straw,pal.flesh,pal.seed));
-      blue([[65,28,4.4],[7,23,4.2],[46,40,4.4]]);
-    }
     lay.forEach(a=>sandwich(a[0],a[1],a[2],a[3]));
-    if(!bare){ blue([[35,15,4.2]]); wedge(g,30,36,9,4.2,.4,pal.straw,pal.flesh,pal.seed); }
   } else if(bare && id!=='BAN' && id!=='NOF'){
     scoop();
     if(id==='BIS'){ slab(46,16,13,9); slab(52,25,12,8); crumbs([pal.bis[1],pal.bis[2],pal.bis[0]],70,7); }
