@@ -422,16 +422,16 @@
   .sp-hid .link{color:#CFC3DA}
   @media (prefers-reduced-motion: reduce){.hid::after,.hid .hq,.sp-hid .bigq{animation:none}}
 
-  /* extra fruit + banana add-ons on the big bowl */
-  #xfr,#ban{position:absolute;inset:0;pointer-events:none;z-index:2}
-  .xf{position:absolute;width:30px;height:30px;image-rendering:pixelated;filter:drop-shadow(0 3px 0 rgba(59,42,64,.22))}
-  .xf.pop{animation:xfPop .45s steps(5,end) both}
-  @keyframes xfPop{0%{transform:translateY(14px) scale(0)}60%{transform:translateY(-8px) scale(1.2)}100%{transform:none}}
-  .bn{position:absolute;width:34px;height:34px;image-rendering:pixelated;filter:drop-shadow(0 3px 0 rgba(59,42,64,.22))}
+  /* extra fruit + banana add-ons on the big bowl: same wrapper idea as .fw so they slide with the layout */
+  #xtra{position:absolute;inset:0;pointer-events:none}
+  .xw{position:absolute;left:0;top:0;width:0;height:0;transition:transform .4s steps(5,end)}
+  .xf,.bn{position:absolute;left:-17px;top:-30px;width:34px;height:34px;image-rendering:pixelated;filter:drop-shadow(0 3px 0 rgba(59,42,64,.22))}
+  .xf.drop{animation:frDrop .65s steps(8,end) both}
   .bn.drop{animation:bnDrop .7s steps(8,end) both}
+  @keyframes frDrop{0%{transform:translateY(-130px);opacity:0}10%{opacity:1}60%{transform:translateY(3px) scale(1.12,.86)}80%{transform:translateY(-3px) scale(.96,1.04)}100%{transform:none}}
   @keyframes bnDrop{0%{transform:translateY(-130px) rotate(-90deg);opacity:0}10%{opacity:1}60%{transform:translateY(3px) rotate(0) scale(1.12,.84)}80%{transform:translateY(-3px) scale(.96,1.04)}100%{transform:none}}
   .xf.out,.bn.out{animation:scOut .3s steps(4,end) forwards}
-  @media (prefers-reduced-motion: reduce){.xf.pop,.bn.drop{animation:none}}
+  @media (prefers-reduced-motion: reduce){.xf.drop,.bn.drop{animation:none}}
 </style>
 </head>
 <body>
@@ -686,21 +686,42 @@ function fruitLook(f){
 }
 // where each available fruit sits: chosen ones spread evenly over the cream (they slide when one leaves),
 // unchosen ones keep a spot of their own so they can sink and pop back in place
-function fruitSpots(chosen){
-  const all = availFruits(), on = all.filter(f => chosen.indexOf(f.name) >= 0), n = on.length;
+// how many pieces sit on the yogurt: picked fruit + extra fruit copies + banana slices (all share one layout)
+function extraItems(){
+  if (typeof draft === 'undefined' || !draft || !$('xtra')) return [];
+  const m = menuOf(draft.menuId), on = kind => addonsFor(m).some(a => addonKind(a) === kind && draft.addons[a.id]);
+  const out = [];
+  if (on('xfruit')) (draft.fruits.length ? draft.fruits : availFruits().slice(0, 3).map(f => f.name)).forEach((n, k) => out.push({ key: 'x' + k + ':' + n, name: n, cls: 'xf' }));
+  if (on('banana')) for (let k = 0; k < 2; k++) out.push({ key: 'b' + k, name: 'กล้วย', cls: 'bn' });
+  return out;
+}
+function fruitSpots(chosen, total){
+  const all = availFruits(), on = all.filter(f => chosen.indexOf(f.name) >= 0), n = total || on.length;
   return all.map((f,i) => {
-    const k = on.indexOf(f), [x,y,s] = k >= 0 ? slotOf(k, n) : slotOf(i, all.length);
-    return `translate(${x}px,${y}px) scale(${s})`;
+    const k = on.indexOf(f), [x,y,s,z] = k >= 0 ? slotOf(k, n) : slotOf(i, all.length);
+    return { t: `translate(${x}px,${y}px) scale(${s})`, z };
   });
 }
-function layoutFruits(){ fruitSpots(draft.fruits).forEach((t,i) => { const w = $('fw'+i); if (w) w.style.transform = t; }); }
-// fruit spots on the yogurt of the pixel bowl (hero box is 216 x 200, bowl drawn 3x at the bottom)
+// place every piece: picked fruit first (always in front), then extras, then banana — moves together when scoops are added
+function layoutFruits(){
+  const ex = extraItems(), T = draft.fruits.length + ex.length;
+  fruitSpots(draft.fruits, T).forEach((p,i) => { const w = $('fw'+i); if (w){ w.style.transform = p.t; w.style.zIndex = p.z; } });
+  ex.forEach((it, k) => { const w = document.querySelector(`#xtra .xw[data-key="${it.key}"]`); if (!w) return;
+    const [x,y,s,z] = slotOf(draft.fruits.length + k, T); w.style.transform = `translate(${x}px,${y}px) scale(${s})`; w.style.zIndex = z; });
+}
+// spot k of n on the yogurt of the pixel bowl (hero box 216 x 200). Up to 5 pieces: one curved row.
+// More: a front row and a back row set between them, so nothing is hidden. Extra scoops push every row down.
 function slotOf(i, n){
-  const t = n <= 1 ? .5 : i / (n - 1);
-  // with extra scoops piled in the middle, the fruit sits down on the yogurt in front of them (wider, flatter row)
-  if (typeof draft !== 'undefined' && draft && draft.addons && draft.addons.SCP)
-    return [ (34 + 148 * t).toFixed(1), (136 - 5 * Math.sin(Math.PI * t)).toFixed(1), n > 5 ? .8 : 1 ];
-  return [ (40 + 136 * t).toFixed(1), (128 - 20 * Math.sin(Math.PI * t)).toFixed(1), n > 5 ? .8 : 1 ];
+  const t1 = (k, c) => c <= 1 ? .5 : k / (c - 1);
+  const scoops = typeof draft !== 'undefined' && draft && draft.addons && draft.addons.SCP;
+  if (n <= 5){ const t = t1(i, n);
+    return scoops ? [ (34 + 148 * t).toFixed(1), (136 - 5 * Math.sin(Math.PI * t)).toFixed(1), 1, 2 ]
+                  : [ (40 + 136 * t).toFixed(1), (128 - 20 * Math.sin(Math.PI * t)).toFixed(1), 1, 2 ]; }
+  // zigzag across the bowl: front, back, front, back… — every back piece sits in the gap between two front ones
+  const front = Math.ceil(n / 2), isFront = i < front, j = isFront ? 2 * i : 2 * (i - front) + 1, t = j / (n - 1);
+  const x = (30 + 156 * t).toFixed(1), arc = Math.sin(Math.PI * t);
+  if (isFront) return [ x, (scoops ? 142 - 3 * arc : 136 - 8 * arc).toFixed(1), .9, 2 ];
+  return [ x, (scoops ? 125 - 4 * arc : 117 - 10 * arc).toFixed(1), .8, 1 ];
 }
 /* cup(m, {size, fruits:[names], live:true, syrup:bool}) — the 16-bit bowl.
    live = the big one on the item screen: bowl without fruit + every fruit as a sprite that pops in/out */
@@ -710,12 +731,12 @@ function cup(m, o){
   const size = o.size || 104;
   if (!o.live) return pxImg(Game16.bowlURL(m.id, o.fruits || [], false), size, 'bowl');
   const all = availFruits(), pos = fruitSpots(o.fruits || []), bare = m.fruitPick > 0;
-  const fr = bare ? all.map((f,i) => `<div class="fw" id="fw${i}" style="transform:${pos[i]}"><span class="rp" id="rp${i}"></span>
+  const fr = bare ? all.map((f,i) => `<div class="fw" id="fw${i}" style="transform:${pos[i].t};z-index:${pos[i].z}"><span class="rp" id="rp${i}"></span>
       <img class="fr off" id="fr${i}" src="${Game16.fruitURL(fruitLook(f))}" width="36" height="36" alt=""></div>`).join('') : '';
   return `<div class="cup body hero-bowl" id="cupSvg" aria-hidden="true"><div id="cupBody" class="bob">
       ${pxImg(Game16.bowlURL(m.id, [], bare), 216, 'big')}
       <div id="scoops"></div>
-      <div id="xfr"></div><div id="ban"></div>
+      <div id="xtra"></div>
       ${fr}
       ${pxImg(Game16.drizzleURL(), 216, 'big drz' + (o.syrup ? ' on' : ''), 'id="drz"')}
       <img class="fh" src="${Game16.heartURL()}" width="28" height="24" alt="">
@@ -931,41 +952,26 @@ function cupReact(added){
   if (added){ svg.classList.add('happy'); clearTimeout(happyTimer); happyTimer = setTimeout(() => svg.classList.remove('happy'), 900); }
 }
 
-/* add-on "พิเศษผลไม้": more of the chosen fruit pops up around the bowl · "เพิ่มกล้วย": 16-bit banana slices drop in and stick */
-const XFR_SPOTS = [[58,116],[158,116],[84,102],[132,102],[70,130],[146,130]];
-const BAN_SPOTS = [[66,108],[150,108],[108,100]];
+/* add-on "พิเศษผลไม้": another of each picked fruit · "เพิ่มกล้วย": 16-bit banana slices — both drop in from the top and land in the shared layout */
 function addonOn(kind){ const m = menuOf(draft.menuId); return addonsFor(m).some(a => addonKind(a) === kind && draft.addons[a.id]); }
 function syncExtras(){
-  const xb = $('xfr'), bb = $('ban'); if (!xb || !bb) return;
-  const quiet = !xb.dataset.ready; xb.dataset.ready = '1';
-  // extra fruit: copies of the fruit picked (or the shop's fruits if none picked yet)
-  const pool = (draft.fruits.length ? draft.fruits : availFruits().map(f => f.name));
-  const want = addonOn('xfruit') ? XFR_SPOTS.map((p, k) => pool[k % pool.length]) : [];
-  const sig = want.join('|');
-  if (xb.dataset.sig !== sig){
-    const was = !!xb.dataset.sig;
-    if (!want.length){ xb.querySelectorAll('.xf').forEach(im => { im.classList.add('out'); setTimeout(() => im.remove(), 320); }); }
-    else {
-      xb.innerHTML = '';
-      want.forEach((name, k) => { const [x, y] = XFR_SPOTS[k], f = availFruits().find(v => v.name === name) || { name };
-        const im = document.createElement('img'); im.src = Game16.fruitURL(fruitLook(f)); im.alt = '';
-        im.className = 'xf' + (quiet || was ? '' : ' pop'); im.style.left = (x - 15) + 'px'; im.style.top = (y - 26) + 'px';
-        im.style.animationDelay = (k * 70) + 'ms'; xb.appendChild(im); });
-      if (!quiet && !was){ addonPop(xb, 'x2 ผลไม้!', 150, 70); setTimeout(() => cupReact(true), 420); }
-    }
-    xb.dataset.sig = sig;
-  }
-  // banana: 3 slices fall from the top one after another
-  const nb = addonOn('banana') ? BAN_SPOTS.length : 0, have = [...bb.querySelectorAll('.bn:not(.out)')];
-  const qb = !bb.dataset.ready; bb.dataset.ready = '1';
-  for (let k = have.length; k < nb; k++){
-    const [x, y] = BAN_SPOTS[k], im = document.createElement('img');
-    im.src = Game16.fruitURL(fruitLook({ name: 'กล้วย' })); im.alt = '';
-    im.className = 'bn' + (qb ? '' : ' drop'); im.style.left = (x - 17) + 'px'; im.style.top = (y - 28) + 'px';
-    im.style.animationDelay = (k * 160) + 'ms'; bb.appendChild(im);
-  }
-  if (nb && have.length < nb && !qb){ addonPop(bb, '+กล้วย', 140, 60); setTimeout(() => cupReact(true), 700); }
-  for (let k = have.length - 1; k >= nb; k--){ const im = have[k]; im.classList.add('out'); setTimeout(() => im.remove(), 320); }
+  const box = $('xtra'); if (!box) return;
+  const quiet = !box.dataset.ready; box.dataset.ready = '1';
+  const want = extraItems(), keys = want.map(it => it.key);
+  const have = [...box.querySelectorAll('.xw:not(.gone)')];
+  let changed = false, added = 0, firstNew = '';
+  have.forEach(w => { if (keys.indexOf(w.dataset.key) < 0){ changed = true; w.classList.add('gone'); w.firstChild.classList.add('out'); setTimeout(() => w.remove(), 320); } });
+  want.forEach(it => {
+    if (box.querySelector(`.xw[data-key="${it.key}"]:not(.gone)`)) return;
+    changed = true;
+    const f = availFruits().find(v => v.name === it.name) || { name: it.name };
+    const w = document.createElement('div'); w.className = 'xw'; w.dataset.key = it.key;
+    const im = document.createElement('img'); im.src = Game16.fruitURL(fruitLook(f)); im.alt = '';
+    im.className = it.cls + (quiet ? '' : ' drop'); im.style.animationDelay = (added++ * 140) + 'ms';
+    w.appendChild(im); box.appendChild(w); if (!firstNew) firstNew = it.cls;
+  });
+  if (changed){ box.getBoundingClientRect(); layoutFruits(); }
+  if (!quiet && firstNew){ addonPop(box, firstNew === 'bn' ? '+กล้วย' : 'x2 ผลไม้!', 140, 54); setTimeout(() => cupReact(true), 500 + added * 140); }
 }
 function addonPop(box, txt, x, y){ const pop = document.createElement('div'); pop.className = 'sc-pop'; pop.textContent = txt;
   pop.style.left = x + 'px'; pop.style.top = y + 'px'; box.appendChild(pop); setTimeout(() => pop.remove(), 900); }
