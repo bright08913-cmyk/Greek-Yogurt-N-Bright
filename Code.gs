@@ -279,7 +279,9 @@ function getConfig() {
   }));
   const addons = rows_(ss.getSheetByName(SH.ADDON)).filter(r => isOn_(r[5])).map(r => ({
     id: String(r[0]), name: String(r[1]), price: Number(r[2]) || 0,
-    type: String(r[3] || 'toggle'), max: Number(r[4]) || 1
+    type: String(r[3] || 'toggle'), max: Number(r[4]) || 1,
+    menus: typeof r[6] === 'boolean' ? [] : String(r[6] || '').split(/[\s,]+/).map(x => x.trim()).filter(x => x && !/^(true|false)$/i.test(x)),   // คอลัมน์ G "ใช้กับเมนู" (ว่าง = ทุกเมนู)
+    needScoop: isOn_(r[7])                                                           // คอลัมน์ H "ต้องเพิ่ม Scoop ก่อน"
   }));
   const fruits = rows_(ss.getSheetByName(SH.FRUIT)).filter(r => r[0]).map(r => ({
     name: String(r[0]), emoji: String(r[1] || ''), available: isOn_(r[2]),
@@ -357,9 +359,14 @@ function submitOrder(order) {
     let addonPrice = 0; const addonCount = {};
     Object.keys(m.addons ? (it.addons || {}) : {}).forEach(id => {
       const a = addonById[id]; if (!a) return;
+      if (a.menus.length && a.menus.indexOf(m.id) < 0) throw new Error('"' + a.name + '" ใส่กับ ' + m.name + ' ไม่ได้');
       const n = Math.max(0, Math.min(a.max, parseInt(it.addons[id], 10) || 0));
       if (n) { addonCount[id] = n; addonPrice += n * a.price; }
     });
+    // add-ons that need an extra scoop first (e.g. พิเศษผลไม้)
+    const scoops = Object.keys(addonCount).filter(id => addonById[id].type === 'count').reduce((t, id) => t + addonCount[id], 0);
+    Object.keys(addonCount).forEach(id => { if (addonById[id].needScoop && !scoops)
+      throw new Error('"' + addonById[id].name + '" ต้องเพิ่ม Scoop อย่างน้อย 1 ลูก (' + m.name + ')'); });
     const unit = promoPrice_(cfg.promo, m.price, round) + addonPrice;   // sale only on the promotion's pickup days
     return { m, round, qty, fruits, excluded, addonCount, addonPrice, unit, total: unit * qty };
   });
@@ -917,7 +924,7 @@ function setup() {
     ['BAN', 'Greek Banoffee', 100, 0, 'กล้วย + คาราเมล', '🍌', true, false],
     ['NOF', 'Greek no fruits', 40, 0, 'กรีกเปล่า ไม่ใส่ผลไม้', '🥛', true, true]
   ]);
-  sheet_(ss, SH.ADDON, ['ID', 'ชื่อ', 'ราคา', 'แบบ (count/toggle)', 'สูงสุด', 'เปิดขาย'], [
+  sheet_(ss, SH.ADDON, ['ID', 'ชื่อ', 'ราคา', 'แบบ (count/toggle)', 'สูงสุด', 'เปิดขาย', 'ใช้กับเมนู (ID คั่นด้วย , · ว่าง = ทุกเมนู)', 'ต้องเพิ่ม Scoop ก่อน'], [
     ['SCP', 'เพิ่ม Scoop', 10, 'count', 5, true],
     ['HER', 'Hershey syrup', 10, 'toggle', 1, true]
   ]);

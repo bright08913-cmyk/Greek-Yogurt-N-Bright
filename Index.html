@@ -507,7 +507,7 @@ const DEMO_CONFIG = {
   ],
   maxCups:10,
   addons:[{id:'SCP',name:'เพิ่ม Scoop',price:10,type:'count',max:5},{id:'HER',name:'Hershey syrup',price:10,type:'toggle',max:1},
-          {id:'XFR',name:'พิเศษผลไม้',price:0,tbd:true,type:'toggle',max:1,menus:['ORI','ORE','BIS'],needScoop:true},{id:'BNA',name:'เพิ่มกล้วย',price:0,tbd:true,type:'toggle',max:1}],
+          {id:'XFR',name:'พิเศษผลไม้',price:20,type:'toggle',max:1,menus:['ORI','ORE','BIS'],needScoop:true},{id:'BNA',name:'เพิ่มกล้วย',price:10,type:'toggle',max:1}],
   fruits:[{name:'กล้วยหอม',available:true},{name:'องุ่น',available:true},{name:'บลูเบอร์รี่',available:true},{name:'ไชน์มัสคัท',available:true}]
 };
 
@@ -561,6 +561,7 @@ const SAFE_ID = /^[A-Za-z0-9_-]{1,24}$/;
 function cleanConfig(c){
   c.menu = (c.menu || []).filter(m => SAFE_ID.test(String(m.id)));
   c.addons = (c.addons || []).filter(a => SAFE_ID.test(String(a.id)));
+  c.addons.forEach(a => { a.menus = Array.isArray(a.menus) ? a.menus.map(String) : []; });
   c.rounds = (c.rounds || []).map(String);
   c.hidden = c.hidden ? String(c.hidden).slice(0, 60) : '';
   return c;
