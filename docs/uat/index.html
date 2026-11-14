@@ -403,6 +403,8 @@
   .hid-t b{font-family:var(--arcade);font-size:12px;color:var(--coin);letter-spacing:1px;text-shadow:2px 2px 0 #000}
   .hid-t small{font-family:var(--arcade);font-size:8px;color:#CFC3DA;letter-spacing:1px;line-height:1.5}
   .hid-t small i{font-style:normal;animation:gBlink 1s steps(2,jump-none) infinite}
+  .newtag{font-style:normal;background:var(--pink);color:#fff;padding:2px 5px;margin-right:4px;text-shadow:none;animation:gBlink 1s steps(2,jump-none) infinite}
+  .hid.promo .hid-t b{font-size:11px;line-height:1.6}
   .hid-go{font-family:var(--arcade);font-size:16px;color:var(--coin);animation:gBlink 1s steps(2,jump-none) infinite}
   /* popup */
   .sp-hid{background:#231A2B;color:#fff}
@@ -466,6 +468,12 @@
   .menu .pr.sm{font-size:24px}
   #heroBowl.swap{animation:heroSwap .35s steps(4,end)}
   @keyframes heroSwap{0%{transform:translateY(0) scale(1)}40%{transform:translateY(-8px) scale(1.04,.96)}100%{transform:none}}
+
+  .hero-bowl .big.san{z-index:1}
+  .hero-bowl .big.san.none{visibility:hidden}
+  .hero-bowl .big.san.drop{animation:sanDrop .6s steps(8,end) both}
+  @keyframes sanDrop{0%{transform:translateY(-150px);opacity:0}12%{opacity:1}62%{transform:translateY(4px) scale(1.03,.94)}82%{transform:translateY(-3px)}100%{transform:none}}
+  @media (prefers-reduced-motion: reduce){.hero-bowl .big.san.drop{animation:none}}
 </style>
 </head>
 <body>
@@ -508,7 +516,7 @@ const IS_GAS = typeof google !== 'undefined' && google.script && google.script.r
 // ลิงก์ Apps Script (/exec) — ใส่ตอน build หน้าเว็บสำหรับ GitHub Pages; ว่าง = โหมดตัวอย่าง
 const API_URL = window.GREEK_API || '';
 const DEMO_CONFIG = {
-  shopName:'Bright Greek', open:true, closedMsg:'', hidden:'COMING SOON · THIS WEEK',
+  shopName:'Bright Greek', open:true, closedMsg:'', hidden:'SAN',
   rounds:[1,2,3,4,5].map(k => { const d = new Date(Date.now() + k * 864e5); return d.getDate() + ' ' + d.toLocaleDateString('en-US', { month: 'short' }); }), roundNotes:{}, salePeriod:'5 - 10 Nov 2026', lineGroupUrl:'',
   delivery:[], payMethods:[],
   payNowLabel:'จ่ายเลย (แนบสลิป)', payLaterLabel:'จ่ายตอนรับ (ขุนทอง)', payLaterNote:'ผ่านขุนทองในกลุ่ม LINE',
@@ -755,8 +763,13 @@ function layoutFruits(){
 }
 // spot k of n on the yogurt of the pixel bowl (hero box 216 x 200). Up to 5 pieces: one curved row.
 // More: a front row and a back row set between them, so nothing is hidden. Extra scoops push every row down.
+// Greek Sandwich: fruit goes into the gaps around the pieces (the sandwich layer sits on top, so it looks tucked in)
+const SAN_SPOTS = { 2: [[156,116],[58,152],[198,136],[22,130],[112,164],[150,162]],
+                    4: [[22,140],[198,142],[74,164],[150,165],[106,110],[114,150]] };
 function slotOf(i, n){
   const t1 = (k, c) => c <= 1 ? .5 : k / (c - 1);
+  if (typeof draft !== 'undefined' && draft && draft.menuId){ const sm = menuOf(draft.menuId), pc = sm && sm.sizes && sm.sizes.length ? piecesOf(sm) : 0;
+    if (pc && SAN_SPOTS[pc]){ const sp = SAN_SPOTS[pc][i % SAN_SPOTS[pc].length]; return [sp[0], sp[1], .78, 2]; } }
   const scoops = typeof draft !== 'undefined' && draft && draft.addons && draft.addons.SCP;
   if (n <= 5){ const t = t1(i, n);
     return scoops ? [ (34 + 148 * t).toFixed(1), (136 - 5 * Math.sin(Math.PI * t)).toFixed(1), 1, 2 ]
@@ -782,6 +795,7 @@ function cup(m, o){
       <div id="scoops"></div>
       <div id="xtra"></div>
       ${fr}
+      ${m.sizes && m.sizes.length ? pxImg(sandLayer(piecesOf(m)) || 'data:,', 216, 'big san' + (piecesOf(m) ? '' : ' none'), 'id="sanLayer"') : ''}
       ${pxImg(Game16.drizzleURL(), 216, 'big drz' + (o.syrup ? ' on' : ''), 'id="drz"')}
       <img class="fh" src="${Game16.heartURL()}" width="28" height="24" alt="">
     </div></div>`;
@@ -856,7 +870,7 @@ function render(){
     <h1 class="hello">${xmas() ? 'คริสต์มาสนี้ กินถ้วยไหนดี~' : 'วันนี้กินถ้วยไหนดี~'}</h1>
     ${promoDaysLive().length ? `<div class="promo"><span class="promo-tag">SALE</span><div><b>${esc(C.promo.label)}</b><small>ทุกเมนูลด ${C.promo.pct}% ${promoAll() ? 'ทุกวันรับ' : 'เฉพาะรับวันที่ ' + esc(daysText(promoDaysLive()))} · add-on ราคาเดิม</small></div><span class="promo-pct">-${C.promo.pct}%</span></div>` : ''}
     <div class="sub">แตะเมนู เลือกผลไม้ แล้วกดสั่งได้เลย</div>
-    ${IS_GAS || API_URL ? '' : '<div class="demo">🧪 UAT · ลองเมนูใหม่ Greek Sandwich (เลือก 2 pcs / 4 pcs) — ไม่ส่งออเดอร์จริง</div>'}
+    ${IS_GAS || API_URL ? '' : '<div class="demo">🧪 UAT · ลองเมนูใหม่ Greek Sandwich (กดแถบดำ NEW! ด้านบนก็ได้) — ไม่ส่งออเดอร์จริง</div>'}
     ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}</div>`}
     ${load('greek_pending') ? `<button class="banner" onclick="renderDone(load('greek_pending'))">${ICON.qr}<span>ออเดอร์ ${esc(load('greek_pending').orderId)} ยังไม่ได้แนบสลิป</span>แนบเลย →</button>` : ''}
     ${installCard()}
@@ -1058,15 +1072,18 @@ function syncScoops(){
   if (!quiet && want !== have.length) layoutFruits();
 }
 /* Greek Sandwich size: 2 pcs / 4 pcs — the bowl on top redraws with that many sandwiches and gives a little hop */
-const heroId = m => m.sizes && m.sizes.length ? m.id + '#' + (parseInt((sizeOf(m, draft && draft.size) || m.sizes[0]).name, 10) || 2) : m.id;
+const heroId = m => m.sizes && m.sizes.length ? m.id + '#0' : m.id;          // sized menus start as an empty bowl
+const piecesOf = m => { const z = m && sizeOf(m, draft && draft.size); return z ? (parseInt(z.name, 10) || 2) : 0; };
+const sandLayer = n => n ? Game16.bowlURL('SANL#' + n, [], true) : '';
 function pickSize(i){
   const m = menuOf(draft.menuId), z = m.sizes[i]; if (!z) return;
   const was = draft.size; draft.size = z.id;
   const b = $('sz' + i); if (b){ b.classList.remove('pop'); b.getBoundingClientRect(); b.classList.add('pop'); }
-  const img = $('heroBowl'); if (img && was !== z.id){ img.src = Game16.bowlURL(heroId(m), [], m.fruitPick > 0);
-    img.classList.remove('swap'); img.getBoundingClientRect(); img.classList.add('swap'); cupReact(true);
-    const box = $('scoops'); if (box) addonPop(box, z.name + '!', 120, 40); }
-  refreshItem();
+  const lay = $('sanLayer');
+  if (lay && was !== z.id){ lay.src = sandLayer(piecesOf(m)); lay.classList.remove('none', 'drop'); lay.getBoundingClientRect(); lay.classList.add('drop');
+    setTimeout(() => cupReact(true), 420);
+    const box = $('scoops'); if (box) addonPop(box, z.name + '!', 120, 30); }
+  refreshItem(); layoutFruits();
 }
 function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
   const v = d === 0 ? (n ? 0 : 1) : Math.max(0, Math.min(a.max, n + d));
@@ -1260,9 +1277,10 @@ const PAL16={ink:'#3B2A40', body:'#F4F0EC', cup:['#FFFFFF','#E2DCE6','#C9C1D3'],
   bis:['#E9B479','#C98A4B','#8F5A26'], oreo:['#5A4A5E','#3A2D3E','#1F1622'], car:['#F2B061','#D98B3A','#A8611E']};
 function menuBowl(id, picked, bare){
   const pal=PAL16, g=new Grid(72,56), dither=true; let post=[];
-  let pcs=4; if(String(id).indexOf('#')>0){ pcs=+String(id).split('#')[1]||2; id=String(id).split('#')[0]; }
+  let pcs=4; if(String(id).indexOf('#')>0){ pcs=+String(id).split('#')[1]||0; id=String(id).split('#')[0]; }
+  const layer = id==='SANL';                     // sandwiches + crumbs only (drops onto the empty bowl)
   const cx=36, rimY=33, rx=34.5, ry=10.5, baseY=51, brx=24, bry=3.2;
-  for(let y=Math.floor(rimY);y<=baseY+bry;y++){
+  if(!layer) for(let y=Math.floor(rimY);y<=baseY+bry;y++){
     const t=Math.min(1,(y-rimY)/(baseY-rimY)), half=rx+(brx-rx)*Math.pow(t,1.35);
     for(let x=Math.ceil(cx-half);x<=cx+half;x++){
       if(t>=1){ const yb=baseY+bry*Math.sqrt(Math.max(0,1-((x-cx)/brx)**2)); if(y>yb) continue; }
@@ -1270,8 +1288,8 @@ function menuBowl(id, picked, bare){
       g.set(x,y, u<.1?pal.cup[0]: u>.82?pal.cup[2]: u>.62?pal.cup[1]: pal.body);
     }
   }
-  for(let y=Math.floor(rimY+5);y<baseY-2;y++) if(y%3) g.set(cx-rx*.8+(y-rimY)*.35,y,'#FFFFFF');
-  ell(g,cx,rimY,rx,ry,[pal.rim]); ell(g,cx,rimY+.5,rx-1.6,ry-1.4,pal.surf,{dither});
+  if(!layer){ for(let y=Math.floor(rimY+5);y<baseY-2;y++) if(y%3) g.set(cx-rx*.8+(y-rimY)*.35,y,'#FFFFFF');
+  ell(g,cx,rimY,rx,ry,[pal.rim]); ell(g,cx,rimY+.5,rx-1.6,ry-1.4,pal.surf,{dither}); }
   const banana=(x,y)=>{ ell(g,x,y,6.4,4.9,[pal.ban[2]]); ell(g,x-.3,y-.3,5.4,3.9,[pal.ban[0],pal.ban[0],pal.ban[1]],{dither});
     g.set(x,y,pal.ban[2]); g.set(x+1.5,y-.5,pal.ban[2]); g.set(x-1.5,y-.5,pal.ban[2]); };
   const redg=a=>a.forEach(p=>ball(g,p[0],p[1],p[2],pal.redg,{spec:pal.spec,dither}));
@@ -1291,8 +1309,11 @@ function menuBowl(id, picked, bare){
              : yy===6?pal.bis[2]: yy===7?(xx%4===0?pal.bis[2]:pal.bis[1]): pal.bis[2];
         if(end&&yy>=3&&yy<=5) c=pal.yog[1];
         g.set(x+xx,y+yy+yo,c); } } };
-  if(id==='SAN'){
-    crumbs([pal.bis[1],pal.bis[2],pal.bis[0]],150,11);
+  if(id==='SAN' && bare && !pcs){
+    // empty bowl: just the yogurt, waiting for the customer to pick 2 or 4 pieces
+  } else if(id==='SAN' || layer){
+    if(layer) bare=true;
+    if(!layer) crumbs([pal.bis[1],pal.bis[2],pal.bis[0]],150,11);
     const lay = pcs>=4 ? [[8,16,25,.08],[37,17,25,.08],[12,26,25,.08],[39,27,23,.08]] : [[10,19,27,.08],[34,27,27,.08]];
     if(!bare){                                            // menu card: strawberries + blueberries tucked around, like the real box
       [[4,32,.3,11,5],[60,17,1.6,10,4.6],[58,36,2.6,10,5],[30,38,-.2,11,4.6]].forEach(a=>wedge(g,a[0],a[1],a[3],a[4],a[2],pal.straw,pal.flesh,pal.seed));
@@ -1337,6 +1358,10 @@ function menuBowl(id, picked, bare){
     blue([[25,30,6],[34,39,6.3]]);
   }
   outline(g,pal.ink);
+  if(layer){   // crumbs on the yogurt around the pieces: no outline, never on top of a sandwich
+    let r=11; for(let k=0;k<170;k++){ r=(r*9301+49297)%233280; const t=r/233280; r=(r*9301+49297)%233280; const v=r/233280;
+      const a=t*Math.PI*2, d=Math.sqrt(v), x=cx+Math.cos(a)*d*(rx-6), y=rimY+1+Math.sin(a)*d*(ry-3);
+      if(!g.get(x,y)) g.set(x,y,[pal.bis[1],pal.bis[0],pal.bis[2]][k%3]); } }
   post.forEach(p=>{ g.set(p[0],p[1],'#FFFFFF'); [[-1,0],[1,0],[0,-1],[0,1]].forEach(o=>g.set(p[0]+o[0],p[1]+o[1],'#FF9DB5')); });
   return g;
 }
@@ -1795,6 +1820,12 @@ window.addEventListener('popstate', () => {
 const QMARK = 'data:image/svg+xml,' + encodeURIComponent("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 19 19\" shape-rendering=\"crispEdges\"><path fill=\"#F7C948\" d=\"M8 0h3v1h-3zM5 1h3v1h-3zM11 1h3v1h-3zM4 2h1v1h-1zM14 2h1v1h-1zM3 3h1v1h-1zM15 3h1v1h-1zM2 4h1v1h-1zM16 4h1v1h-1zM1 5h1v1h-1zM17 5h1v1h-1zM1 6h1v1h-1zM17 6h1v1h-1zM1 7h1v1h-1zM17 7h1v1h-1zM0 8h1v1h-1zM18 8h1v1h-1zM0 9h1v1h-1zM18 9h1v1h-1zM0 10h1v1h-1zM18 10h1v1h-1zM1 11h1v1h-1zM17 11h1v1h-1zM1 12h1v1h-1zM17 12h1v1h-1zM1 13h1v1h-1zM17 13h1v1h-1zM2 14h1v1h-1zM16 14h1v1h-1zM3 15h1v1h-1zM15 15h1v1h-1zM4 16h1v1h-1zM14 16h1v1h-1zM5 17h3v1h-3zM11 17h3v1h-3zM8 18h3v1h-3z\"/><path fill=\"#4B3B5C\" d=\"M8 1h3v1h-3zM5 2h8v1h-8zM4 3h3v1h-3zM3 4h2v1h-2zM2 5h2v1h-2zM2 6h2v1h-2zM2 7h1v1h-1zM1 8h2v1h-2zM1 9h2v1h-2zM1 10h2v1h-2zM2 11h1v1h-1zM2 12h1v1h-1z\"/><path fill=\"#2A2033\" d=\"M13 2h1v1h-1zM7 3h8v1h-8zM6 4h10v1h-10zM5 5h12v1h-12zM4 6h3v1h-3zM11 6h6v1h-6zM3 7h3v1h-3zM8 7h2v1h-2zM12 7h5v1h-5zM3 8h7v1h-7zM12 8h6v1h-6zM3 9h6v1h-6zM11 9h7v1h-7zM3 10h5v1h-5zM10 10h8v1h-8zM3 11h14v1h-14zM3 12h5v1h-5zM10 12h7v1h-7zM2 13h15v1h-15zM3 14h13v1h-13zM4 15h11v1h-11zM5 16h9v1h-9zM8 17h3v1h-3z\"/><path fill=\"#6E5A85\" d=\"M5 4h1v1h-1zM4 5h1v1h-1z\"/><path fill=\"#F7C948\" d=\"M7 6h4v1h-4zM6 7h2v1h-2zM10 7h2v1h-2zM10 8h2v1h-2zM9 9h2v1h-2zM8 10h2v1h-2zM8 12h2v1h-2z\"/></svg>");
 function hiddenStrip(){
   if (!C.hidden) return '';
+  const pm = menuOf(String(C.hidden).trim());          // e.g. hidden_menu = SAN → "NEW! GREEK SANDWICH" banner that opens the menu
+  if (pm) return `<button class="hid promo" onclick="openItem('${pm.id}')" aria-label="เมนูใหม่ ${esc(pm.name)} กดสั่งได้เลย">
+    <img class="hq pxi" src="${Game16.bowlURL(pm.id, [], false)}" alt="" style="width:58px;height:45px">
+    <span class="hid-t"><b><em class="newtag">NEW!</em> ${esc(pm.name.toUpperCase())}</b>
+      <small>${pm.sizes && pm.sizes.length ? pm.sizes.map(z => esc(z.name.toUpperCase()) + ' ' + baht(z.price)).join(' · ') : baht(basePrice(pm))}<i>_</i></small></span>
+    <span class="hid-go">▶</span></button>`;
   return `<button class="hid" onclick="openHidden()" aria-label="เมนูใหม่ เร็วๆ นี้">
     <img class="hq pxi" src="${QMARK}" alt="">
     <span class="hid-t"><b>NEW MENU</b><small>${esc(C.hidden)}<i>_</i></small></span>
