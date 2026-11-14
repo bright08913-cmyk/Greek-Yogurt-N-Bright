@@ -419,6 +419,17 @@
   .sp-hid .btn.locked{background:#3A2F45;color:#9C8FA8;cursor:not-allowed;--ec:#000}
   .sp-hid .link{color:#CFC3DA}
   @media (prefers-reduced-motion: reduce){.hid::after,.hid .hq,.sp-hid .bigq{animation:none}}
+
+  /* extra fruit + banana add-ons on the big bowl */
+  #xfr,#ban{position:absolute;inset:0;pointer-events:none;z-index:2}
+  .xf{position:absolute;width:30px;height:30px;image-rendering:pixelated;filter:drop-shadow(0 3px 0 rgba(59,42,64,.22))}
+  .xf.pop{animation:xfPop .45s steps(5,end) both}
+  @keyframes xfPop{0%{transform:translateY(14px) scale(0)}60%{transform:translateY(-8px) scale(1.2)}100%{transform:none}}
+  .bn{position:absolute;width:34px;height:34px;image-rendering:pixelated;filter:drop-shadow(0 3px 0 rgba(59,42,64,.22))}
+  .bn.drop{animation:bnDrop .7s steps(8,end) both}
+  @keyframes bnDrop{0%{transform:translateY(-130px) rotate(-90deg);opacity:0}10%{opacity:1}60%{transform:translateY(3px) rotate(0) scale(1.12,.84)}80%{transform:translateY(-3px) scale(.96,1.04)}100%{transform:none}}
+  .xf.out,.bn.out{animation:scOut .3s steps(4,end) forwards}
+  @media (prefers-reduced-motion: reduce){.xf.pop,.bn.drop{animation:none}}
 </style>
 </head>
 <body>
@@ -474,7 +485,8 @@ const DEMO_CONFIG = {
     {id:'NOF',name:'Greek no fruits',price:40,fruitPick:0,desc:'กรีกเปล่า'}
   ],
   maxCups:10,
-  addons:[{id:'SCP',name:'เพิ่ม Scoop',price:10,type:'count',max:5},{id:'HER',name:'Hershey syrup',price:10,type:'toggle',max:1}],
+  addons:[{id:'SCP',name:'เพิ่ม Scoop',price:10,type:'count',max:5},{id:'HER',name:'Hershey syrup',price:10,type:'toggle',max:1},
+          {id:'XFR',name:'พิเศษผลไม้',price:0,tbd:true,type:'toggle',max:1},{id:'BAN',name:'เพิ่มกล้วย',price:0,tbd:true,type:'toggle',max:1}],
   fruits:[{name:'กล้วยหอม',available:true},{name:'องุ่น',available:true},{name:'บลูเบอร์รี่',available:true},{name:'ไชน์มัสคัท',available:true}]
 };
 
@@ -579,6 +591,16 @@ const okRound = r => C.rounds.indexOf(r) >= 0 && !isPastRound(r);
 const roundLabel = r => /^รับ/.test(r) ? r : 'รับวันที่ ' + r;
 const menuOf = id => C.menu.find(m => m.id === id);
 const addonOf = id => C.addons.find(a => a.id === id);
+// how an add-on shows on the bowl: scoop / syrup (drizzle) / banana / extra fruit / nothing
+function addonKind(a){
+  const t = (a.id || '') + ' ' + (a.name || '');
+  if (a.type === 'count' || /scoop|สกู๊ป/i.test(t)) return 'scoop';
+  if (/hershey|syrup|ไซรัป|ซอส|\bHER\b/i.test(t)) return 'syrup';
+  if (/กล้วย|banana|\bBAN\b/i.test(t)) return 'banana';
+  if (/ผลไม้|fruit|\bXFR\b/i.test(t)) return 'xfruit';
+  return '';
+}
+const addonPriceTxt = a => a.tbd ? 'ราคา ?' : '+' + baht(a.price);
 const addonsFor = m => m.addons === false ? [] : C.addons;   // บางเมนู (เช่น Banoffee) ใส่ Add-on ไม่ได้
 const availFruits = () => C.fruits.filter(f => f.available);
 function unitPrice(it, day){ const m = menuOf(it.menuId); let p = m ? menuPrice(m, day === undefined ? it.round : day) : 0;
@@ -691,6 +713,7 @@ function cup(m, o){
   return `<div class="cup body hero-bowl" id="cupSvg" aria-hidden="true"><div id="cupBody" class="bob">
       ${pxImg(Game16.bowlURL(m.id, [], bare), 216, 'big')}
       <div id="scoops"></div>
+      <div id="xfr"></div><div id="ban"></div>
       ${fr}
       ${pxImg(Game16.drizzleURL(), 216, 'big drz' + (o.syrup ? ' on' : ''), 'id="drz"')}
       <img class="fh" src="${Game16.heartURL()}" width="28" height="24" alt="">
@@ -803,7 +826,7 @@ function openItem(menuId, idx){
       <div class="row"><div class="lbl">${esc(a.name)}<small>+${baht(a.price)} ต่อ scoop</small></div>
         <div class="stepper"><button id="ad-${a.id}-m" aria-label="ลด ${esc(a.name)}" onclick="stepAddon('${a.id}',-1)">−</button>
         <span id="ad-${a.id}">0</span><button id="ad-${a.id}-p" aria-label="เพิ่ม ${esc(a.name)}" onclick="stepAddon('${a.id}',1)">+</button></div></div>` : `
-      <div class="row"><div class="lbl">${esc(a.name)}<small>+${baht(a.price)}</small></div>
+      <div class="row"><div class="lbl">${esc(a.name)}<small>${addonPriceTxt(a)}</small></div>
         <button class="switch" id="ad-${a.id}" aria-label="${esc(a.name)}" onclick="stepAddon('${a.id}',0)"></button></div>`).join('');
   $('itemInner').innerHTML = `
     <div class="hero" style="background-color:${tintOf(m)}">
@@ -844,10 +867,10 @@ function refreshItem(){
     if (a.type === 'count'){ el.textContent = n; $('ad-'+a.id+'-m').disabled = n <= 0; $('ad-'+a.id+'-p').disabled = n >= a.max; }
     else { el.classList.toggle('on', !!n); el.setAttribute('aria-pressed', !!n); }
   });
-  const syrup = addonsFor(m).find(a => a.type !== 'count');
+  const syrup = addonsFor(m).find(a => addonKind(a) === 'syrup');
   $('drz').classList.toggle('on', !!(syrup && draft.addons[syrup.id]));
   $('qv').textContent = draft.qty; $('qm').disabled = draft.qty <= 1;
-  syncScoops();
+  syncScoops(); syncExtras();
   { // title price for the chosen day (first chosen when several)
     const day = (editIndex < 0 && draft.days && draft.days.length) ? draft.days[0] : draft.round, b = basePrice(m);
     $('titlePrice').innerHTML = isPromoDay(day) ? `<s class="was">${baht(b)}</s><div class="pr h">${baht(salePrice(b))}</div>` : `<div class="pr h">${baht(b)}</div>`;
@@ -905,6 +928,45 @@ function cupReact(added){
   body.classList.remove('wob'); body.getBoundingClientRect(); body.classList.add('wob');
   if (added){ svg.classList.add('happy'); clearTimeout(happyTimer); happyTimer = setTimeout(() => svg.classList.remove('happy'), 900); }
 }
+
+/* add-on "พิเศษผลไม้": more of the chosen fruit pops up around the bowl · "เพิ่มกล้วย": 16-bit banana slices drop in and stick */
+const XFR_SPOTS = [[58,116],[158,116],[84,102],[132,102],[70,130],[146,130]];
+const BAN_SPOTS = [[66,108],[150,108],[108,100]];
+function addonOn(kind){ const m = menuOf(draft.menuId); return addonsFor(m).some(a => addonKind(a) === kind && draft.addons[a.id]); }
+function syncExtras(){
+  const xb = $('xfr'), bb = $('ban'); if (!xb || !bb) return;
+  const quiet = !xb.dataset.ready; xb.dataset.ready = '1';
+  // extra fruit: copies of the fruit picked (or the shop's fruits if none picked yet)
+  const pool = (draft.fruits.length ? draft.fruits : availFruits().map(f => f.name));
+  const want = addonOn('xfruit') ? XFR_SPOTS.map((p, k) => pool[k % pool.length]) : [];
+  const sig = want.join('|');
+  if (xb.dataset.sig !== sig){
+    const was = !!xb.dataset.sig;
+    if (!want.length){ xb.querySelectorAll('.xf').forEach(im => { im.classList.add('out'); setTimeout(() => im.remove(), 320); }); }
+    else {
+      xb.innerHTML = '';
+      want.forEach((name, k) => { const [x, y] = XFR_SPOTS[k], f = availFruits().find(v => v.name === name) || { name };
+        const im = document.createElement('img'); im.src = Game16.fruitURL(fruitLook(f)); im.alt = '';
+        im.className = 'xf' + (quiet || was ? '' : ' pop'); im.style.left = (x - 15) + 'px'; im.style.top = (y - 26) + 'px';
+        im.style.animationDelay = (k * 70) + 'ms'; xb.appendChild(im); });
+      if (!quiet && !was){ addonPop(xb, 'x2 ผลไม้!', 150, 70); setTimeout(() => cupReact(true), 420); }
+    }
+    xb.dataset.sig = sig;
+  }
+  // banana: 3 slices fall from the top one after another
+  const nb = addonOn('banana') ? BAN_SPOTS.length : 0, have = [...bb.querySelectorAll('.bn:not(.out)')];
+  const qb = !bb.dataset.ready; bb.dataset.ready = '1';
+  for (let k = have.length; k < nb; k++){
+    const [x, y] = BAN_SPOTS[k], im = document.createElement('img');
+    im.src = Game16.fruitURL(fruitLook({ name: 'กล้วย' })); im.alt = '';
+    im.className = 'bn' + (qb ? '' : ' drop'); im.style.left = (x - 17) + 'px'; im.style.top = (y - 28) + 'px';
+    im.style.animationDelay = (k * 160) + 'ms'; bb.appendChild(im);
+  }
+  if (nb && have.length < nb && !qb){ addonPop(bb, '+กล้วย', 140, 60); setTimeout(() => cupReact(true), 700); }
+  for (let k = have.length - 1; k >= nb; k--){ const im = have[k]; im.classList.add('out'); setTimeout(() => im.remove(), 320); }
+}
+function addonPop(box, txt, x, y){ const pop = document.createElement('div'); pop.className = 'sc-pop'; pop.textContent = txt;
+  pop.style.left = x + 'px'; pop.style.top = y + 'px'; box.appendChild(pop); setTimeout(() => pop.remove(), 900); }
 /* extra scoops drop into the bowl one by one (+ on "เพิ่ม Scoop"), the top one pops off on − */
 // the bowl already has its own scoop in the middle (about x108, y112): extras go beside it, then on top
 const SCOOP_SPOTS = [[78,118],[138,118],[93,98],[123,98],[108,82]];
