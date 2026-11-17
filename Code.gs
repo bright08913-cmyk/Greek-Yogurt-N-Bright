@@ -909,11 +909,17 @@ function onEdit(e) {
   const sh = r.getSheet(), v = r.getValue();
   const id = String(sh.getRange(r.getRow(), COL.ID).getValue());
   if (!id) return;
+  // which rows get the same value:
+  //  · สถานะออเดอร์ → rows of the same pickup day (same OrderID, e.g. G0062-1)
+  //  · สถานะจ่าย, จ่ายตอนรับ (ขุนทอง) → same pickup day only — the customer pays at each pickup
+  //  · สถานะจ่าย, จ่ายเลย (แนบสลิป) → every day of the order — one transfer paid for all of it
+  const method = String(sh.getRange(r.getRow(), COL.METHOD).getValue());
+  const wholeOrder = col === COL.PAY && method !== PAY_LATER;
   const ids = sh.getRange(2, COL.ID, sh.getLastRow() - 1, 1).getValues();
   ids.forEach((x, i) => {
     const row = i + 2, other = String(x[0]);
     if (row === r.getRow()) return;
-    if (col === COL.PAY ? base_(other) === base_(id) : other === id) sh.getRange(row, col).setValue(v);
+    if (wholeOrder ? base_(other) === base_(id) : other === id) sh.getRange(row, col).setValue(v);
   });
 }
 
