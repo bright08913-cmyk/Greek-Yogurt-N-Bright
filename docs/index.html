@@ -21,7 +21,7 @@
 <meta property="og:image" content="https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/og-16bit.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "db9576e2c6";</script>
+<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "9025ae99a1";</script>
 
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Jersey+10&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -2170,7 +2170,8 @@ function livePing(force){
   if (!force && key === liveLast) return;
   liveLast = key;
   try { fetch(API_URL, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ action: 'ping', device: deviceId(), n: (info.name || '').trim() }, st)) }).catch(() => {}); } catch(e){}
+    body: JSON.stringify(Object.assign({ action: 'ping', device: deviceId(), n: (info.name || '').trim(),
+      p: /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'iOS' : /Android/.test(navigator.userAgent) ? 'Android' : '' }, st)) }).catch(() => {}); } catch(e){}
 }
 function liveSoon(){ clearTimeout(liveSoonT); liveSoonT = setTimeout(() => livePing(false), 400); }
 setInterval(() => livePing(true), 30000);

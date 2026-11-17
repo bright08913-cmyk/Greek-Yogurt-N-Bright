@@ -54,6 +54,33 @@
   .keys button:active{transform:translateY(3px)}
   .err{color:var(--pink-dark);font-weight:700;min-height:22px}
   .demo{display:inline-block;margin-top:10px;font-size:12px;background:#FFF1C7;padding:4px 10px;--pw:2px;box-shadow:var(--pxs)}
+
+  /* LIVE / LOG tabs */
+  .tabs{display:flex;gap:10px;margin:14px 3px 0}
+  .tab{border:0;cursor:pointer;background:#fff;padding:8px 16px;font-family:var(--arcade);font-size:10px;--pw:2px;box-shadow:var(--pxs),0 5px 0 rgba(59,42,64,.15)}
+  .tab.on{background:var(--ink);color:#fff;--ec:var(--pink)}
+  .tab em{font-style:normal;color:var(--pink)}
+  .filters{display:flex;flex-wrap:wrap;gap:6px;margin:12px 3px 0}
+  .filters button{border:0;cursor:pointer;background:#fff;font-size:12px;font-weight:700;padding:4px 10px;--pw:2px;box-shadow:var(--pxs)}
+  .filters button.on{background:var(--soft);--ec:var(--pink-dark)}
+  .day{font-family:var(--arcade);font-size:10px;color:var(--pink-dark);margin:20px 4px 8px}
+  .lg{background:#fff;margin:10px 3px;padding:10px 12px;display:grid;grid-template-columns:44px 1fr auto;gap:4px 12px;align-items:start;box-shadow:var(--pxs),0 6px 0 rgba(59,42,64,.1)}
+  .lg.open{--ec:#3BE38A}
+  .lg .av{width:44px;height:44px}.lg .av canvas{width:44px;height:44px}
+  .lg .who{font-family:var(--px);font-size:22px;line-height:1;font-weight:700}
+  .lg .who small{font-family:'Chakra Petch',sans-serif;font-size:11px;font-weight:500;color:var(--muted);margin-left:4px}
+  .lg .when{font-size:12px;color:var(--muted);text-align:right;white-space:nowrap}
+  .act{grid-column:2/-1;display:inline-block;justify-self:start;font-size:13px;font-weight:700;padding:2px 8px;--pw:2px;box-shadow:var(--pxs);background:#ECE6F2}
+  .act.order{background:#D8F3E3}.act.cart{background:#FFE3C2}.act.now{background:#E1F0FB}
+  .lg .cartx{grid-column:2/-1;font-size:12px;color:var(--muted)}
+  .lg details{grid-column:2/-1;font-size:12px;color:var(--muted)}
+  .lg summary{cursor:pointer;font-weight:700;color:var(--ink)}
+  .lg .path{margin-top:4px;line-height:1.7}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 3px 0}
+  .stat{background:#fff;padding:8px 10px;--pw:2px;box-shadow:var(--pxs);text-align:center}
+  .stat b{display:block;font-family:var(--px);font-size:30px;font-weight:400;line-height:1}
+  .stat span{font-size:11px;color:var(--muted)}
+  @media (max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}
   @media (prefers-reduced-motion: reduce){.dot,.p.new,.empty .z{animation:none}}
 </style>
 </head>
@@ -67,6 +94,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const baht = n => '฿' + Number(n).toLocaleString('th-TH');
 let pin = sessionStorage.getItem('live_pin') || '', typed = '', timer = 0, seen = {};
+let tab = sessionStorage.getItem('live_tab') || 'live', logData = null, logAt = 0, logFilter = 'all', lastLive = { list: [], at: 0 };
 
 /* a little pixel creature per phone: same phone = same face */
 function hash(s){ let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -91,12 +119,15 @@ const SCREEN = {
 function agoText(s){ return s < 15 ? 'เมื่อกี้' : s < 60 ? s + ' วิที่แล้ว' : Math.floor(s / 60) + ' นาทีที่แล้ว'; }
 
 function renderLive(list, at){
+  lastLive = { list, at };
+  if (tab === 'log') return renderLog();
   const now = at || Date.now();
   list.sort((a, b) => (b.t - a.t));
   const count = k => list.filter(p => p.screen === k).length;
   $('app').innerHTML = `
     <div class="hud"><h1>BRIGHT GREEK<br>LIVE</h1><div class="on"><span class="dot"></span>${list.length} ONLINE</div></div>
     ${API ? '' : '<div class="demo">โหมดตัวอย่าง: ข้อมูลจำลอง</div>'}
+    ${tabsHTML(list.length)}
     <div class="chips">
       <span class="chip">🍽 เมนู<b>${count('home')}</b></span><span class="chip">🍓 เลือกอยู่<b>${count('item')}</b></span>
       <span class="chip">🛒 ตะกร้า<b>${count('cart')}</b></span><span class="chip">✅ สั่งเสร็จ<b>${count('done') + count('pay')}</b></span>
@@ -133,6 +164,63 @@ function demoList(){
       total: d.total, t: Date.now() - ((i * 17 + tick * 7) % 80) * 1000 }; });
 }
 
+
+/* ---- LOG: one row per visit — who, when, what they did last, and the pages they went through ---- */
+function tabsHTML(n){
+  return `<div class="tabs"><button class="tab${tab === 'live' ? ' on' : ''}" onclick="setTab('live')">LIVE <em>${n}</em></button>
+    <button class="tab${tab === 'log' ? ' on' : ''}" onclick="setTab('log')">LOG</button></div>`;
+}
+function setTab(t){ tab = t; sessionStorage.setItem('live_tab', t); if (t === 'log'){ renderLog(); loadLog(); } else renderLive(lastLive.list, lastLive.at); }
+const kindOf = f => /^✅/.test(f) ? 'order' : /^🛒/.test(f) ? 'cart' : 'look';
+const hm = t => new Date(t).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+const dayKey = t => new Date(t).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+function dayName(k){ const today = dayKey(Date.now()), y = dayKey(Date.now() - 864e5);
+  return k === today ? 'TODAY · วันนี้' : k === y ? 'YESTERDAY · เมื่อวาน' : new Date(k + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }); }
+function renderLog(){
+  const d = logData, n = (lastLive.list || []).length;
+  const head = `<div class="hud"><h1>BRIGHT GREEK<br>LOG</h1><div class="on"><span class="dot"></span>${n} ONLINE</div></div>
+    ${API ? '' : '<div class="demo">โหมดตัวอย่าง: ข้อมูลจำลอง</div>'}${tabsHTML(n)}`;
+  if (!d){ $('app').innerHTML = head + '<div class="empty"><div class="z">LOADING…</div></div>'; return; }
+  const today = dayKey(Date.now()), todays = d.list.filter(r => dayKey(r.start) === today);
+  const cnt = k => todays.filter(r => kindOf(r.final) === k).length, visits = todays.length;
+  const rows = d.list.filter(r => logFilter === 'all' || kindOf(r.final) === logFilter);
+  let lastDay = '';
+  const card = (r, open) => `<div class="lg${open ? ' open' : ''}">
+      <div class="av" data-id="${esc(r.dev)}"></div>
+      <div class="who">${esc(r.name)}<small>${esc(r.dev)}</small></div>
+      <div class="when">${hm(r.start)}${open ? ' – ตอนนี้' : r.last && r.last - r.start > 60000 ? '–' + hm(r.last) : ''}<br>${open ? 'ยังอยู่ในแอป' : (r.mins || 1) + ' นาที'}</div>
+      <span class="act ${open ? 'now' : kindOf(r.final)}">${esc(r.final)}</span>
+      ${r.cart ? `<div class="cartx">ตะกร้าที่ทิ้งไว้: ${esc(r.cart)}</div>` : ''}
+      ${r.path ? `<details><summary>ไปหน้าไหนบ้าง</summary><div class="path">${esc(r.path)}</div></details>` : ''}
+    </div>`;
+  $('app').innerHTML = head + `
+    <div class="stats"><div class="stat"><b>${visits}</b><span>เข้าแอปวันนี้</span></div><div class="stat"><b>${cnt('order')}</b><span>สั่งแล้ว ${visits ? Math.round(cnt('order') / visits * 100) : 0}%</span></div>
+      <div class="stat"><b>${cnt('cart')}</b><span>ทิ้งตะกร้า</span></div><div class="stat"><b>${cnt('look')}</b><span>ดูเฉยๆ</span></div></div>
+    ${d.open.length ? `<div class="day">▶ NOW · ยังอยู่ในแอป</div>${d.open.map(r => card(r, true)).join('')}` : ''}
+    <div class="filters">${[['all', 'ทั้งหมด'], ['order', '✅ สั่งแล้ว'], ['cart', '🛒 ทิ้งตะกร้า'], ['look', '👀 ดูเฉยๆ']].map(f => `<button class="${logFilter === f[0] ? 'on' : ''}" onclick="logFilter='${f[0]}';renderLog()">${f[1]}</button>`).join('')}</div>
+    ${rows.length ? rows.map(r => { const k = dayKey(r.start), h = k !== lastDay ? `<div class="day">${dayName(k)}</div>` : ''; lastDay = k; return h + card(r, false); }).join('')
+      : '<div class="empty"><p>ยังไม่มีบันทึก — จะขึ้นเมื่อมีคนเปิดแอปแล้วออกไป (ประมาณ 3 นาทีหลังออก)</p></div>'}
+    <div class="meta"><span class="sub">บันทึกเต็มอยู่ในแท็บ "Live Log" ของชีท · อัปเดตทุก 30 วิ · ${new Date(logAt || Date.now()).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+      <button class="chip" style="border:0;cursor:pointer" onclick="logout()">ล็อก</button></div>`;
+  document.querySelectorAll('.av').forEach(x => x.prepend(avatar(x.dataset.id)));
+}
+function loadLog(){
+  logAt = Date.now();
+  if (!API){ logData = demoLog(); renderLog(); return; }
+  fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'livelog', pin }) })
+    .then(r => r.text()).then(t => { const j = JSON.parse(t); if (!j.ok) throw new Error(j.error || 'error'); logData = j.data; if (tab === 'log') renderLog(); })
+    .catch(e => { const m = String((e && e.message) || e); if (/^PIN:/.test(m)) return logout(m.replace(/^PIN:\s*/, ''));
+      const el = document.querySelector('.meta .sub'); if (el) el.textContent = /unknown action/i.test(m) ? 'ระบบร้านยังไม่ได้อัปเดต: วาง Code.gs ล่าสุด แล้ว Deploy → New version ก่อนนะ' : 'โหลด Log ไม่ได้: ' + m; });
+}
+function demoLog(){
+  const t0 = Date.now(), m = 60000, y = t0 - 864e5;
+  return { now: t0, open: [{ start: t0 - 4 * m, last: t0, name: 'กิมจิ', dev: '#c3b9 · iOS', final: '🛒 อยู่ในตะกร้า 3 ถ้วย · ฿260' }], list: [
+    { start: t0 - 22 * m, last: t0 - 15 * m, mins: 7, name: 'Ice', dev: '#a1f3 · iOS', final: '✅ สั่งแล้ว G0031 · ฿170', cart: '', path: '20:01 เมนู → 20:02 Original → 20:04 ตะกร้า → 20:05 จ่ายเงิน G0031 → 20:08 สั่งเสร็จ G0031', orders: 'G0031' },
+    { start: t0 - 40 * m, last: t0 - 33 * m, mins: 7, name: 'Mook', dev: '#b7c2 · Android', final: '🛒 ออกจากหน้าตะกร้า ยังไม่กดสั่ง', cart: '1 ถ้วย · ฿90', path: '19:43 เมนู → 19:44 Biscoff → 19:46 ตะกร้า' },
+    { start: t0 - 55 * m, last: t0 - 53 * m, mins: 2, name: '(ไม่ได้ใส่ชื่อ)', dev: '#9d04 · iOS', final: '🍓 ดู Greek Sandwich แล้วออก', cart: '', path: '19:28 เมนู → 19:29 Greek Sandwich' },
+    { start: t0 - 70 * m, last: t0 - 69 * m, mins: 1, name: '(ไม่ได้ใส่ชื่อ)', dev: '#77aa · Android', final: '👀 ดูหน้าเมนูแล้วออก', cart: '', path: '19:13 เมนู' },
+    { start: y - 30 * m, last: y - 20 * m, mins: 10, name: 'Ning', dev: '#e55a · iOS', final: '✅ สั่งแล้ว G0028 · ฿180 · ยังไม่แนบสลิป', cart: '', path: '21:10 เมนู → 21:12 Original → 21:15 ตะกร้า → 21:18 จ่ายเงิน G0028', orders: 'G0028' }] };
+}
 function load(){
   if (!API) { renderLive(demoList()); return; }
   fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'live', pin }) })
@@ -148,7 +236,8 @@ function load(){
       if (el) el.textContent = why; });
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && pin) load(); });
-function start(){ load(); clearInterval(timer); timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 5000); }   // every 5 s, only while on screen
+function start(){ load(); if (tab === 'log') loadLog(); clearInterval(timer);
+  timer = setInterval(() => { if (document.visibilityState !== 'visible') return; load(); if (tab === 'log' && Date.now() - logAt > 30000) loadLog(); }, 5000); }   // live every 5 s, log every 30 s   // every 5 s, only while on screen
 
 /* ---- PIN screen ---- */
 function lockScreen(msg){

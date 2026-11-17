@@ -65,6 +65,7 @@ function doPost(e) {
     if (body.action === 'config') return json_({ ok: true, data: getConfig() });
     if (body.action === 'ping') return json_({ ok: true, data: livePing_(body) });
     if (body.action === 'live') return json_({ ok: true, data: liveList_(body) });
+    if (body.action === 'livelog') return json_({ ok: true, data: liveLog_(body) });
     if (body.action === 'history') return json_({ ok: true, data: myOrders(body) });
     if (body.action === 'cancel') return json_({ ok: true, data: cancelOrder(body) });
     throw new Error('unknown action');
@@ -446,6 +447,7 @@ function submitOrder(order) {
     lock.releaseLock();
   }
   alertOrder_(alert);
+  try { liveOrder_(order.device, result.orderId, result.total, name); } catch (e) {}   // Live Log: this visit ended in an order
   return result;
 }
 /**
@@ -532,20 +534,26 @@ function livePing_(b) {
   if (!/^[A-Za-z0-9-]{8,64}$/.test(id)) return {};
   const clean = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001F<>]/g, '').trim().slice(0, n);
   const rec = { id: id.slice(-12), n: clean(b.n, 30), s: LIVE_SCREENS.indexOf(b.s) >= 0 ? b.s : 'home', d: clean(b.d, 30),
-    c: Math.max(0, Math.min(99, parseInt(b.c, 10) || 0)), t: Math.max(0, Math.min(99999, parseInt(b.t, 10) || 0)), at: Date.now() };
+    c: Math.max(0, Math.min(99, parseInt(b.c, 10) || 0)), t: Math.max(0, Math.min(99999, parseInt(b.t, 10) || 0)), at: Date.now(),
+    p: ['iOS', 'Android'].indexOf(b.p) >= 0 ? b.p : '' };
   const cache = CacheService.getScriptCache();
   cache.put('LV_' + id, JSON.stringify(rec), 150);
+  try { liveSession_(id, rec); liveSweep_(false); } catch (e) { console.error('live log: ' + e); }
   const idx = JSON.parse(cache.get('LV_IDX') || '[]');
   if (idx.indexOf(id) < 0) { idx.push(id); cache.put('LV_IDX', JSON.stringify(idx.slice(-300)), 21600); }
   return {};
 }
-function liveList_(b) {
+function livePinCheck_(b) {
   const props = PropertiesService.getScriptProperties(), cache = CacheService.getScriptCache();
   const saved = props.getProperty('LIVE_PIN');
   if (!saved) throw new Error('PIN: ยังไม่ได้ตั้ง PIN — เปิดชีต เมนู 🥣 Greek Shop → 🔑 ตั้ง PIN หน้า Live');
   const bad = Number(cache.get('LV_BAD') || 0);
   if (bad >= 8) throw new Error('PIN: ใส่ PIN ผิดหลายครั้ง ล็อกไว้ 10 นาที');
   if (pinHash_(String(b.pin || '')) !== saved) { cache.put('LV_BAD', String(bad + 1), 600); throw new Error('PIN: PIN ไม่ถูกต้อง'); }
+}
+function liveList_(b) {
+  livePinCheck_(b);
+  const cache = CacheService.getScriptCache();
   const idx = JSON.parse(cache.get('LV_IDX') || '[]'), got = idx.length ? cache.getAll(idx.map(i => 'LV_' + i)) : {};
   const now = Date.now(), list = [], keep = [];
   idx.forEach(i => { const v = got['LV_' + i]; if (!v) return; const r = JSON.parse(v);
@@ -1234,7 +1242,7 @@ function toggleHidden() {
  * อ่านรูปสลิปจาก Drive แล้วถาม EasySlip ใหม่ · ผ่าน = "จ่ายแล้ว" อัตโนมัติ · ไม่ผ่าน = ป้าย ❌ + อีเมลบอกร้าน
  * ข้ามออเดอร์ที่ร้านเปลี่ยนเป็น "จ่ายแล้ว" เองแล้ว · ลองได้สูงสุด 12 ครั้งต่อออเดอร์
  * ให้ทำงานเองทุก 10 นาที: Apps Script → Triggers (รูปนาฬิกา) → Add Trigger → recheckSlips → Time-driven → Minutes timer → Every 10 minutes */
-function recheckSlips() { return recheckSlips_().summary; }
+function recheckSlips() { try { liveSweep_(true); } catch (e) {} return recheckSlips_().summary; }
 function recheckSlipsNow() {
   const r = recheckSlips_();
   SpreadsheetApp.getUi().alert('🔁 ตรวจสลิปที่รอ', r.summary || 'ไม่มีสลิปที่ "รอร้านตรวจ" ค้างอยู่', SpreadsheetApp.getUi().ButtonSet.OK);
@@ -1317,4 +1325,103 @@ function rewardsLeft_(cfg, proof) {
     if (at_(r, COL.PAY) === 'จ่ายแล้ว' || at_(r, COL.STATUS) === 'ส่งแล้ว') cups += Number(at_(r, COL.QTY)) || 0;
   }));
   return Math.max(0, Math.floor(cups / cfg.stamp.goal) - used);
+}
+
+
+/* ---------------- Live Log: one row per visit in the "Live Log" tab ----------------
+ * a visit = the app open with no gap longer than 3 minutes · when it ends, the row says what the person did last
+ * (ordered / left with a cart / looked at a menu …) and the path they took, with times */
+const LOG_SH = 'Live Log';
+const LOG_HEAD = ['เข้าแอป', 'เห็นล่าสุด', 'อยู่ (นาที)', 'ชื่อ', 'เครื่อง', 'สุดท้ายทำอะไร', 'ตะกร้า', 'ไปหน้าไหนบ้าง', 'OrderID'];
+const LOG_GAP = 3 * 60 * 1000;
+function liveSession_(dev, rec) {
+  const cache = CacheService.getScriptCache(), key = 'LS_' + dev, now = rec.at;
+  let ss = JSON.parse(cache.get(key) || 'null');
+  if (ss && now - ss.last > LOG_GAP) { liveWrite_([ss]); ss = null; }          // came back after a break: the old visit is done
+  if (!ss) {
+    ss = { dev, id: rec.id, n: '', p: rec.p, start: now, last: now, steps: [], s: '', d: '', c: 0, t: 0, orders: [] };
+    const idx = JSON.parse(cache.get('LS_IDX') || '[]'); if (idx.indexOf(dev) < 0) { idx.push(dev); cache.put('LS_IDX', JSON.stringify(idx.slice(-300)), 21600); }
+  }
+  if (rec.s !== ss.s || rec.d !== ss.d) { ss.steps.push([now, rec.s, rec.d]); ss.steps = ss.steps.slice(-25); }
+  ss.last = now; ss.s = rec.s; ss.d = rec.d; ss.c = rec.c; ss.t = rec.t; if (rec.n) ss.n = rec.n; if (rec.p) ss.p = rec.p;
+  if ((rec.s === 'done' || rec.s === 'pay') && /^G\d+$/.test(rec.d) && ss.orders.indexOf(rec.d) < 0) ss.orders.push(rec.d);
+  cache.put(key, JSON.stringify(ss), 21600);
+}
+// called from submitOrder: the order is the most important thing a visit can end with
+function liveOrder_(device, orderId, total, name) {
+  const dev = String(device || ''); if (!/^[A-Za-z0-9-]{8,64}$/.test(dev)) return;
+  const cache = CacheService.getScriptCache(), key = 'LS_' + dev, now = Date.now();
+  let ss = JSON.parse(cache.get(key) || 'null');
+  if (!ss) { ss = { dev, id: dev.slice(-12), n: '', p: '', start: now, last: now, steps: [], s: 'done', d: orderId, c: 0, t: 0, orders: [] };
+    const idx = JSON.parse(cache.get('LS_IDX') || '[]'); if (idx.indexOf(dev) < 0) { idx.push(dev); cache.put('LS_IDX', JSON.stringify(idx.slice(-300)), 21600); } }
+  if (ss.orders.indexOf(orderId) < 0) ss.orders.push(orderId);
+  ss.ot = (ss.ot || 0) + (Number(total) || 0); ss.last = now; if (name) ss.n = String(name).replace(/^'/, '').slice(0, 30);
+  cache.put(key, JSON.stringify(ss), 21600);
+}
+// close visits that went quiet (throttled to once a minute unless forced)
+function liveSweep_(force) {
+  const cache = CacheService.getScriptCache();
+  if (!force && cache.get('LS_SWEEP')) return; cache.put('LS_SWEEP', '1', 60);
+  const lock = LockService.getScriptLock(); if (!lock.tryLock(3000)) return;
+  try {
+    const idx = JSON.parse(cache.get('LS_IDX') || '[]'); if (!idx.length) return;
+    const got = cache.getAll(idx.map(d => 'LS_' + d)), now = Date.now(), done = [], keep = [];
+    idx.forEach(d => { const v = got['LS_' + d]; if (!v) return; const ss = JSON.parse(v);
+      if (now - ss.last > LOG_GAP) { done.push(ss); cache.remove('LS_' + d); } else keep.push(d); });
+    cache.put('LS_IDX', JSON.stringify(keep), 21600);
+    if (done.length) liveWrite_(done);
+  } finally { lock.releaseLock(); }
+}
+const LOG_STEP = { home: 'เมนู', item: '', cart: 'ตะกร้า', pay: 'จ่ายเงิน', done: 'สั่งเสร็จ', history: 'ออเดอร์ของฉัน' };
+function liveFinal_(ss) {
+  if (ss.orders.length) return '✅ สั่งแล้ว ' + ss.orders.join(', ') + (ss.ot ? ' · ' + baht_(ss.ot) : '') + (ss.s === 'pay' ? ' · ยังไม่แนบสลิป' : '');
+  if (ss.c > 0 && ss.s === 'cart') return '🛒 ออกจากหน้าตะกร้า ยังไม่กดสั่ง';
+  if (ss.c > 0) return '🛒 มีของในตะกร้า แต่ไม่ได้สั่ง';
+  if (ss.s === 'item') return '🍓 ดู ' + (ss.d || 'เมนู') + ' แล้วออก';
+  if (ss.s === 'history') return '📜 ดูออเดอร์ของฉันแล้วออก';
+  return '👀 ดูหน้าเมนูแล้วออก';
+}
+// what a person still in the app is doing right now
+function liveNow_(ss) {
+  if (ss.orders.length) return '✅ สั่งแล้ว ' + ss.orders.join(', ') + (ss.s === 'pay' ? ' · รอแนบสลิป' : '');
+  if (ss.s === 'cart') return '🛒 อยู่ในตะกร้า' + (ss.c ? ' ' + ss.c + ' ถ้วย · ' + baht_(ss.t) : '');
+  if (ss.s === 'item') return '🍓 กำลังดู ' + (ss.d || 'เมนู') + (ss.c ? ' · ตะกร้า ' + ss.c + ' ถ้วย' : '');
+  if (ss.s === 'history') return '📜 ดูออเดอร์ของฉัน';
+  return '👀 กำลังดูหน้าเมนู' + (ss.c ? ' · ตะกร้า ' + ss.c + ' ถ้วย' : '');
+}
+function liveWrite_(list) {
+  const ss0 = SpreadsheetApp.getActive();
+  let sh = ss0.getSheetByName(LOG_SH);
+  if (!sh) {
+    sh = ss0.insertSheet(LOG_SH);
+    sh.getRange(1, 1, 1, LOG_HEAD.length).setValues([LOG_HEAD]).setFontWeight('bold').setBackground('#3B2A40').setFontColor('#FFFFFF');
+    sh.setFrozenRows(1); [110, 110, 70, 120, 110, 260, 110, 420, 90].forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  }
+  const hm = t => Utilities.formatDate(new Date(t), 'Asia/Bangkok', 'HH:mm');
+  const rows = list.sort((a, b) => a.start - b.start).map(ss => {
+    const path = []; ss.steps.forEach(st => { const label = st[1] === 'item' ? (st[2] || 'เลือกเมนู') : LOG_STEP[st[1]] + (st[2] && st[1] !== 'item' ? ' ' + st[2] : '');
+      if (!path.length || path[path.length - 1][1] !== label) path.push([st[0], label]); });
+    return [new Date(ss.start), new Date(ss.last), Math.max(1, Math.round((ss.last - ss.start) / 60000)), ss.n || '(ไม่ได้ใส่ชื่อ)',
+      '#' + String(ss.id).slice(-4) + (ss.p ? ' · ' + ss.p : ''), liveFinal_(ss), ss.c > 0 && !ss.orders.length ? ss.c + ' ถ้วย · ' + baht_(ss.t) : '',
+      path.map(x => hm(x[0]) + ' ' + x[1]).join(' → '), ss.orders.join(', ')];
+  });
+  const r0 = sh.getLastRow() + 1;
+  sh.getRange(r0, 1, rows.length, LOG_HEAD.length).setValues(rows);
+  sh.getRange(r0, 1, rows.length, 2).setNumberFormat('dd/MM HH:mm');
+}
+// Live page "LOG" tab: the latest visits, newest first (+ visits still going on)
+function liveLog_(b) {
+  livePinCheck_(b);
+  liveSweep_(true);
+  const sh = SpreadsheetApp.getActive().getSheetByName(LOG_SH), out = [];
+  if (sh && sh.getLastRow() > 1) {
+    const n = Math.min(150, sh.getLastRow() - 1), vals = sh.getRange(sh.getLastRow() - n + 1, 1, n, LOG_HEAD.length).getValues();
+    vals.reverse().forEach(r => out.push({ start: +new Date(r[0]), last: +new Date(r[1]), mins: r[2], name: String(r[3]), dev: String(r[4]),
+      final: String(r[5]), cart: String(r[6]), path: String(r[7]), orders: String(r[8]) }));
+  }
+  const cache = CacheService.getScriptCache(), idx = JSON.parse(cache.get('LS_IDX') || '[]');
+  const got = idx.length ? cache.getAll(idx.map(d => 'LS_' + d)) : {}, open = [];
+  idx.forEach(d => { const v = got['LS_' + d]; if (!v) return; const ss = JSON.parse(v);
+    open.push({ start: ss.start, last: ss.last, name: ss.n || '(ไม่ได้ใส่ชื่อ)', dev: '#' + String(ss.id).slice(-4) + (ss.p ? ' · ' + ss.p : ''), final: liveNow_(ss), live: true }); });
+  return { now: Date.now(), open, list: out };
 }

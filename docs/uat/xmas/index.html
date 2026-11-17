@@ -2155,7 +2155,8 @@ function livePing(force){
   if (!force && key === liveLast) return;
   liveLast = key;
   try { fetch(API_URL, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ action: 'ping', device: deviceId(), n: (info.name || '').trim() }, st)) }).catch(() => {}); } catch(e){}
+    body: JSON.stringify(Object.assign({ action: 'ping', device: deviceId(), n: (info.name || '').trim(),
+      p: /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'iOS' : /Android/.test(navigator.userAgent) ? 'Android' : '' }, st)) }).catch(() => {}); } catch(e){}
 }
 function liveSoon(){ clearTimeout(liveSoonT); liveSoonT = setTimeout(() => livePing(false), 400); }
 setInterval(() => livePing(true), 30000);
