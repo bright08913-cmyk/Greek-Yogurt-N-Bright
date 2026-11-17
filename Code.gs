@@ -344,6 +344,12 @@ function submitOrder(order) {
   const addonById = {}; cfg.addons.forEach(a => addonById[a.id] = a);
   const fruitOk = {}; cfg.fruits.forEach(f => { if (f.available) fruitOk[f.name] = true; });
   const allFruits = cfg.fruits.filter(f => f.available).map(f => f.name);
+  // stamp reward ("Scoop ฟรี"): count the customer's coins again from their earlier orders before giving it
+  const wantRewards = order.items.filter(it => it.reward).length;
+  if (wantRewards) {
+    const left = rewardsLeft_(cfg, order.proof);
+    if (wantRewards > left) throw new Error('สิทธิ์ Scoop ฟรีไม่พอ (เหลือ ' + left + ' สิทธิ์)|เหรียญนับเมื่อร้านยืนยันออเดอร์แล้ว (จ่ายแล้ว/รับของแล้ว) · เอาการใช้สิทธิ์ออกจากตะกร้าแล้วสั่งใหม่ได้');
+  }
 
   const lines = order.items.map(it => {
     const m = menuById[it.menuId];
@@ -377,9 +383,16 @@ function submitOrder(order) {
     const scoops = Object.keys(addonCount).filter(id => addonById[id].type === 'count').reduce((t, id) => t + addonCount[id], 0);
     Object.keys(addonCount).forEach(id => { if (addonById[id].needScoop && !scoops)
       throw new Error('"' + addonById[id].name + '" ต้องเพิ่ม Scoop อย่างน้อย 1 ลูก (' + m.name + ')'); });
+    let reward = false;
+    if (it.reward) {
+      const scp = Object.keys(addonCount).find(id => addonById[id].type === 'count');
+      if (!scp) throw new Error(m.name + ': ใช้สิทธิ์ Scoop ฟรีได้กับเมนูที่เพิ่ม Scoop ได้เท่านั้น');
+      if (qty !== 1) throw new Error(m.name + ': ใช้สิทธิ์ได้ 1 ถ้วยต่อ 1 สิทธิ์');
+      addonPrice -= addonById[scp].price; reward = true;
+    }
     const unit = promoPrice_(cfg.promo, size ? size.price : m.price, round) + addonPrice;   // sale only on the promotion's pickup days
     const label = m.name + (size ? ' (' + size.name + ')' : '');                          // e.g. "Greek Sandwich (4 pcs)"
-    return { m, label, round, qty, fruits, excluded, addonCount, addonPrice, unit, total: unit * qty };
+    return { m, label, round, qty, fruits, excluded, addonCount, addonPrice, unit, total: unit * qty, reward };
   });
 
   // group by pickup day, in the order the days are listed in the Rounds tab
@@ -413,7 +426,7 @@ function submitOrder(order) {
       ls.forEach(l => {
         const first = !rows.length;
         const tops = Object.keys(l.addonCount).filter(a => a !== 'SCP')
-          .map(a => addonById[a].name + (l.addonCount[a] > 1 ? ' x' + l.addonCount[a] : '')).join(', ');
+          .map(a => addonById[a].name + (l.addonCount[a] > 1 ? ' x' + l.addonCount[a] : '')).concat(l.reward ? [REWARD_MARK] : []).join(', ');
         rows.push([id, now, name, round, l.label, l.fruits.join(', '), l.addonCount.SCP || '', tops,
           l.qty, l.unit, l.total, first ? note : '', payMethod, first ? sumF : '', PAY_STATUS[0], '', '',
           ORDER_STATUS[0], token]);
@@ -1282,4 +1295,26 @@ function recheckSlips_() {
     });
   } finally { lock.releaseLock(); }
   return { summary: out.join('\n') };
+}
+
+
+/* ---------------- บัตรสะสมเหรียญ (Settings stamp_goal / stamp_reward) ----------------
+ * 1 ถ้วย = 1 เหรียญ · นับเฉพาะออเดอร์ที่ร้านยืนยันแล้ว (จ่ายแล้ว หรือ ส่งแล้ว) และไม่ยกเลิก
+ * ใช้สิทธิ์แล้วจะมีคำว่า "🎁 Scoop ฟรี (แต้มสะสม)" ในช่องท็อปปิ้ง — ใช้นับว่าใช้ไปกี่ครั้ง
+ * แอปส่งรายการออเดอร์เก่าของลูกค้า (OrderID + token) มาให้ ระบบนับเหรียญเองจากชีท ปลอมไม่ได้ */
+const REWARD_MARK = '🎁 Scoop ฟรี (แต้มสะสม)';
+function rewardsLeft_(cfg, proof) {
+  if (!cfg.stamp || !(cfg.stamp.goal > 0)) return 0;
+  const want = {};
+  (Array.isArray(proof) ? proof : []).slice(0, 60).forEach(p => { const b = String(p && p.orderId || ''), t = String(p && p.token || '');
+    if (/^G\d+$/.test(b) && t) want[b] = t; });
+  if (!Object.keys(want).length) return 0;
+  let cups = 0, used = 0;
+  orderSources_().forEach(src => src.vals.forEach(r => {
+    const base = base_(at_(r, COL.ID));
+    if (!want[base] || String(at_(r, COL.TOKEN)) !== want[base] || String(at_(r, COL.STATUS)) === 'ยกเลิก') return;
+    if (String(at_(r, COL.TOP)).indexOf(REWARD_MARK) >= 0) used++;
+    if (at_(r, COL.PAY) === 'จ่ายแล้ว' || at_(r, COL.STATUS) === 'ส่งแล้ว') cups += Number(at_(r, COL.QTY)) || 0;
+  }));
+  return Math.max(0, Math.floor(cups / cfg.stamp.goal) - used);
 }

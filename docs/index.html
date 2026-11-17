@@ -21,7 +21,7 @@
 <meta property="og:image" content="https://bright08913-cmyk.github.io/Greek-Yogurt-N-Bright/og-16bit.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "578dd1833f";</script>
+<script>window.GREEK_API = "https://script.google.com/macros/s/AKfycbxRHkfgL8I-EUmYW4I2Qj5E2VPY_N6N7MQSYqp6RlNZPaphzg_xpDAWKYjUp5z2YIl5/exec"; window.APP_VER = "db9576e2c6";</script>
 
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Jersey+10&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -533,6 +533,26 @@
   .g-bar i.st{animation:stFill 2.2s steps(10,end) .6s both}
   @keyframes stFill{from{width:var(--from)}to{width:var(--to)}}
   @media (prefers-reduced-motion: reduce){.stamp.full,.st-slot.on{animation:none}.g-bar i.st{animation:none;width:var(--to)}}
+
+  /* stamp card v2: no endless animations, faded = pending coins, redeem */
+  .stamp.full{background:#FFF4C7;animation:none;--ec:#C9962A}
+  .st-row img.wait,.st-note img.wait{opacity:.35;filter:grayscale(.6)}
+  .st-slot.on{animation:none}
+  .st-slot.on.pop{animation:stPop .4s steps(4,end) both}
+  .st-slot.wait{position:relative;--ec:var(--lilac);background:#fff}
+  .st-slot.wait img{opacity:.35;filter:grayscale(.6)}
+  .st-slot.wait em{position:absolute;bottom:2px;right:4px;font-style:normal;font-size:10px;color:var(--muted);font-family:'Chakra Petch',sans-serif;font-weight:700}
+  .sp-coins .sp-banner{animation:none}
+  .st-note{display:flex;align-items:center;gap:6px;justify-content:center;font-size:12px;color:var(--muted)}
+  .st-note img{width:14px;height:16px}
+  .btn.gold{background:var(--coin)}
+  .menu.arm{--ec:#C9962A;box-shadow:var(--pxs),0 0 0 3px #FFD34E,0 9px 0 0 rgba(59,42,64,.18)}
+  .armtag{position:absolute;top:10px;left:12px;background:var(--coin);font-size:11px;font-weight:700;padding:2px 6px;--pw:2px;box-shadow:var(--pxs);z-index:3}
+  .row.reward{background:#FFF8DC;margin:6px -10px;padding:8px 10px;--pw:2px;--ec:#C9962A;box-shadow:var(--pxs)}
+  .row.reward.flash{animation:rwFlash .5s steps(3,end) 2}
+  @keyframes rwFlash{50%{background:#FFE58A}}
+  .g-bar b{position:absolute;left:0;top:0;bottom:0;background:#C93C63;z-index:1}
+  .g-bar i.st{background:repeating-linear-gradient(90deg,#FF9DB5 0 4px,#FFC3D2 4px 8px)}
 </style>
 </head>
 <body>
@@ -633,7 +653,7 @@ function call(fn, arg){
         const gone = load('demo_cancel') || [];
         if (fn === 'cancelOrder') { history_().filter(h => h.orderId === arg.orderId).forEach(h => (h.parts || []).forEach(p => { if (!arg.partId || p.orderId === arg.partId) gone.push(p.orderId); })); save('demo_cancel', gone); }
         const out = {__v: 2}; history_().forEach(h => out[h.orderId] = (h.parts || []).map(p => ({ id: p.orderId, round: p.round, total: p.total,
-          pay: h.slip ? 'ส่งสลิปแล้ว' : 'ยังไม่จ่าย', status: gone.indexOf(p.orderId) >= 0 ? 'ยกเลิก' : 'ใหม่', slip: !!h.slip }))); resolve(out); }
+          pay: h.slip ? 'ส่งสลิปแล้ว' : 'ยังไม่จ่าย', status: gone.indexOf(p.orderId) >= 0 ? 'ยกเลิก' : ((load('demo_done') || []).indexOf(p.orderId) >= 0 ? 'ส่งแล้ว' : 'ใหม่'), slip: !!h.slip }))); resolve(out); }
       else resolve({ orderId: arg.orderId });
     }, 700);
   });
@@ -721,13 +741,17 @@ const needsScoop = a => !!a.needScoop || addonKind(a) === 'xfruit';
 const scoopCount = () => { const m = menuOf(draft.menuId); return addonsFor(m).filter(a => addonKind(a) === 'scoop').reduce((t, a) => t + (draft.addons[a.id] || 0), 0); };   // บางเมนู (เช่น Banoffee) ใส่ Add-on ไม่ได้
 const availFruits = () => C.fruits.filter(f => f.available);
 function unitPrice(it, day){ const m = menuOf(it.menuId); let p = m ? menuPrice(m, day === undefined ? it.round : day, it.size) : 0;
-  Object.keys(it.addons||{}).forEach(id => { const a = addonOf(id); if (a) p += a.price * (it.addons[id]||0); }); return p; }
+  Object.keys(it.addons||{}).forEach(id => { const a = addonOf(id); if (a) p += a.price * (it.addons[id]||0); });
+  if (it.reward && m){ const sc = scoopAddon(m); if (sc) p -= sc.price; }          // stamp reward: one scoop free (reward cups are always 1 cup)
+  return Math.max(0, p); }
+const scoopAddon = m => addonsFor(m).find(a => addonKind(a) === 'scoop');
 const linePrice = it => unitPrice(it) * it.qty;
 const foodTotal = () => cart.reduce((s,it) => s + linePrice(it), 0);
 const cupCount = () => cart.reduce((s,it) => s + it.qty, 0);
 function describe(it){
   const m = menuOf(it.menuId), parts = [];
   if (it.size !== undefined && sizeOf(m, it.size)) parts.push(sizeOf(m, it.size).name);
+  if (it.reward) parts.push('🎁 Scoop ฟรี (ใช้สิทธิ์)');
   if (m.fruitPick > 0){
     const miss = availFruits().map(f => f.name).filter(f => it.fruits.indexOf(f) < 0);
     parts.push(it.fruits.length ? it.fruits.join(' · ') : 'ไม่ใส่ผลไม้');
@@ -945,7 +969,7 @@ function render(){
     <div class="grid">
       ${hiddenStrip()}
       ${C.menu.map(m => `
-        <button class="menu ${inCart[m.id]?'in-cart':''}" onclick="openItem('${m.id}')">
+        <button class="menu ${inCart[m.id]?'in-cart':''}${rewardArmed && scoopAddon(m) ? ' arm' : ''}" onclick="openItem('${m.id}')">${rewardArmed && scoopAddon(m) ? '<span class="armtag">🎁 ใช้สิทธิ์ได้</span>' : ''}
           ${inCart[m.id] ? `<span class="badge">${inCart[m.id]}</span>` : ''}
           <div class="art" style="background:${tintOf(m)}">${cup(m, {fruits: availFruits().slice(0, m.fruitPick).map(f => f.name)})}</div>
           <div class="nm h">${esc(m.name)}</div>
@@ -998,7 +1022,7 @@ function openItem(menuId, idx){
     ${C.open ? '' : `<div class="closed" id="itemClosed" style="margin-top:12px">${esc(C.closedMsg)}<div style="font-weight:400;font-size:13px;margin-top:4px">ดูเมนูได้ตามสบาย แต่ยังสั่งไม่ได้จนกว่าร้านจะเปิดรอบใหม่</div></div>`}
     ${sizeBox}
     ${fruitsBox}
-    ${addonsFor(m).length ? `<div class="box" id="addonBox" style="padding-top:6px;padding-bottom:6px">${addons}</div>` : ''}
+    ${addonsFor(m).length ? `<div class="box" id="addonBox" style="padding-top:6px;padding-bottom:6px">${rewardRow(m)}${addons}</div>` : ''}
     ${C.rounds.length > 1 ? `<div class="box" id="dayBox"><h3><span>รับวันไหน <span class="req">*</span></span><small>${editIndex >= 0 ? 'ถ้วยนี้' : 'เลือกได้หลายวัน'}</small></h3><div class="rounds">
       ${C.rounds.map((r,i) => `<button class="round${isPastRound(r) ? ' past' : ''}" id="rd${i}" onclick="pickItemRound(${i})" ${isPastRound(r) ? 'disabled aria-disabled="true"' : ''}><b>${esc(roundLabel(r))}</b>${isCutToday(r) ? `<small>ปิดรับแล้ว (สั่งได้ถึง ${cutoffText()})</small>` : isPastRound(r) ? '<small>ผ่านไปแล้ว</small>' : isTodayRound(r) ? `<small class="today">วันนี้${cutoffText() ? ' · สั่งได้ถึง ' + cutoffText() : ''}</small>` : ''}${isPromoDay(r) ? `<span class="saletag">SALE -${C.promo.pct}%</span>` : ''}${(C.roundNotes||{})[r] ? `<small>${esc(C.roundNotes[r])}</small>` : ''}</button>`).join('')}
     </div><div id="dayQty"></div></div>` : ''}
@@ -1007,6 +1031,7 @@ function openItem(menuId, idx){
     <div class="sheet-bar"><button class="btn" id="addBtn" onclick="commitItem()"><span id="addLbl"></span><span id="addPrice"></span></button></div>`;
   show('itemSheet');
   refreshItem();
+  if (rewardArmed && editIndex < 0 && rewardRow(m)) setTimeout(() => { if (!draft.reward) toggleReward(); rewardArmed = false; render(); }, 450);
   // fruits pop out of the yogurt one by one when the sheet opens
   availFruits().forEach((f,i) => { if (draft.fruits.indexOf(f.name) >= 0) setTimeout(() => setFruit(i, true, true), 280 + i * 90); });
 }
@@ -1028,6 +1053,7 @@ function refreshItem(){
     else { el.classList.toggle('on', !!n); el.setAttribute('aria-pressed', !!n);
       if (needsScoop(a)){ const lock = !scoopCount(); el.classList.toggle('lock', lock); const r = $('row-' + a.id); if (r) r.classList.toggle('locked', lock); } }
   });
+  { const rw = $('ad-RWD'); if (rw){ rw.classList.toggle('on', !!draft.reward); rw.setAttribute('aria-pressed', !!draft.reward); } }
   const syrup = addonsFor(m).find(a => addonKind(a) === 'syrup');
   $('drz').classList.toggle('on', !!(syrup && draft.addons[syrup.id]));
   $('qv').textContent = draft.qty; $('qm').disabled = draft.qty <= 1;
@@ -1073,6 +1099,7 @@ function pickItemRound(i){
   const r = C.rounds[i];
   if (isPastRound(r)) return;
   if (editIndex >= 0) { draft.round = r; refreshItem(); return; }
+  if (draft.reward){ draft.days = draft.days[0] === r ? [] : [r]; draft.round = draft.days[0] || ''; refreshItem(); return; }   // a reward cup is one cup on one day
   const k = draft.days.indexOf(r);
   if (k >= 0) draft.days.splice(k, 1); else { draft.days.push(r); draft.dq[r] = draft.dq[r] || draft.qty; }
   draft.days.sort((a, b) => C.rounds.indexOf(a) - C.rounds.indexOf(b));
@@ -1171,6 +1198,7 @@ function stepAddon(id, d){ const a = addonOf(id), n = draft.addons[id] || 0;
   const v = d === 0 ? (n ? 0 : 1) : Math.max(0, Math.min(a.max, n + d));
   if (v && !n && needsScoop(a) && !scoopCount()){ needScoopAlert(a); return; }     // extra fruit only on top of an extra scoop
   if (v) draft.addons[id] = v; else delete draft.addons[id];
+  if (addonKind(a) === 'scoop' && draft.reward && v < 1){ draft.reward = 0; pxToast('ยกเลิกการใช้สิทธิ์แล้ว', 'สิทธิ์ Scoop ฟรียังอยู่ ใช้ทีหลังได้'); }
   if (addonKind(a) === 'scoop' && !scoopCount()){                                  // last scoop taken off: extra fruit goes too
     const gone = addonsFor(menuOf(draft.menuId)).filter(x => needsScoop(x) && draft.addons[x.id]);
     gone.forEach(x => delete draft.addons[x.id]);
@@ -1193,7 +1221,9 @@ function pxToast(title, sub, head){
   document.body.appendChild(t);
   toastTimer = setTimeout(() => { t.classList.add('bye'); setTimeout(() => t.remove(), 300); }, 2600);
 }
-function setQty(d){ draft.qty = Math.max(1, Math.min(C.maxCups || 50, draft.qty + d)); refreshItem(); }
+function setQty(d){
+  if (draft.reward && d > 0){ pxToast('ใช้สิทธิ์ได้ 1 ถ้วยต่อ 1 สิทธิ์', 'อยากได้หลายถ้วย ใส่ถ้วยนี้ก่อน แล้วสั่งถ้วยอื่นเพิ่มนะ'); return; }
+  draft.qty = Math.max(1, Math.min(C.maxCups || 50, draft.qty + d)); refreshItem(); }
 function commitItem(){
   if (!C.open) { bump('itemClosed'); return; }      // closed: look around freely, but nothing goes in the cart
   const mm = menuOf(draft.menuId), needSize = !!(mm.sizes && mm.sizes.length) && !sizeOf(mm, draft.size);
@@ -1287,6 +1317,7 @@ function submit(){
   const btn = $('submitBtn'); btn.disabled = true; btn.innerHTML = '<span>กำลังส่งออเดอร์…</span><span class="spin"></span>';
   save('greek_form', {name: info.name});
   const payload = { name: info.name.trim(), note: info.note, payLater: !!info.payLater, items: cart, device: deviceId() };
+  if (cart.some(it => it.reward)) payload.proof = history_().map(h => ({ orderId: h.orderId, token: h.token }));   // the shop re-counts the coins from these
   const itemsText = cart.map(it => menuOf(it.menuId).name + ' x' + it.qty).join(', ');
   call('submitOrder', payload).then(res => {
     const done = Object.assign({}, res, { name: info.name, itemsText, items: JSON.parse(JSON.stringify(cart)) });
@@ -1936,46 +1967,99 @@ function hidePickup(){
 
 /* ---------- idea 1: pixel stamp card — every cup = 1 coin, a full card = a reward ---------- */
 const stampRule = () => C && C.stamp && C.stamp.goal > 0 ? C.stamp : null;
-function stampCount(){
-  const cups = myParts().filter(p => p.status !== 'ยกเลิก').reduce((t, p) => t + (p.cups || 0), 0);
-  return cups + (!IS_GAS && !API_URL ? (load('uat_stamps') || 0) : 0);
+// a coin counts once the shop has confirmed the cup (paid or picked up); before that it shows as a faded "pending" coin
+const coinOk = p => p.pay === 'จ่ายแล้ว' || p.status === 'ส่งแล้ว';
+function rewardsUsed(){
+  const parts = myParts(); let used = 0;
+  history_().forEach(h => (h.items || []).forEach(it => { if (!it.reward) return;
+    const p = parts.find(x => x.base === h.orderId && x.round === it.round) || parts.find(x => x.base === h.orderId);
+    if (!p || p.status !== 'ยกเลิก') used++; }));
+  return used;
 }
-function stampState(){ const r = stampRule(); if (!r) return null; const n = stampCount(), g = r.goal;
-  return { n, g, k: n && n % g === 0 ? g : n % g, earned: Math.floor(n / g), left: g - (n % g), reward: r.reward }; }
+function stampState(){
+  const r = stampRule(); if (!r) return null;
+  const parts = myParts().filter(p => p.status !== 'ยกเลิก'), cups = list => list.reduce((t, p) => t + (p.cups || 0), 0);
+  const demo = !IS_GAS && !API_URL;
+  const n = cups(parts.filter(coinOk)) + (demo ? (load('uat_stamps') || 0) : 0), pend = cups(parts.filter(p => !coinOk(p)));
+  const g = r.goal, earned = Math.floor(n / g), used = rewardsUsed(), avail = Math.max(0, earned - used);
+  const k = n % g === 0 && n > 0 && avail > 0 ? g : n % g;      // a full card stays full until its reward is used
+  return { n, pend, g, k, earned, used, avail, left: g - k, reward: r.reward };
+}
+// rewards still free to use in this order (cups already in the cart with a reward count as used)
+const rewardsLeft = () => { const st = stampState(); return st ? st.avail - cart.filter((it, i) => it.reward && i !== editIndex).length : 0; };
+const rewardMenus = () => C.menu.filter(m => scoopAddon(m));
+var rewardArmed = false;
 function stampCard(){
   const st = stampState(); if (!st) return '';
-  const full = st.k === st.g;
-  return `<button class="stamp${full ? ' full' : ''}" onclick="openStamps()" aria-label="บัตรสะสม ${st.k} จาก ${st.g}">
+  const left = rewardsLeft(), solid = st.k, faded = Math.min(st.pend, st.g - solid);
+  return `<button class="stamp${left > 0 ? ' full' : ''}" onclick="openStamps()" aria-label="บัตรสะสม ${st.k} จาก ${st.g}">
     <span class="st-lbl">COINS</span>
-    <span class="st-row">${Array.from({ length: st.g }, (_, i) => i < st.k ? `<img class="pxi" src="${Game16.coinURL()}" alt="">` : '<i></i>').join('')}</span>
+    <span class="st-row">${Array.from({ length: st.g }, (_, i) => i < solid ? `<img class="pxi" src="${Game16.coinURL()}" alt="">` : i < solid + faded ? `<img class="pxi wait" src="${Game16.coinURL()}" alt="">` : '<i></i>').join('')}</span>
     <span class="st-n"><b>${st.k}</b>/${st.g}</span>
-    <small class="st-msg">${full ? `🎁 ครบแล้ว! รับ ${esc(st.reward)} · แตะดูวิธีใช้` : `อีก ${st.left} ถ้วย รับ ${esc(st.reward)}`}</small></button>`;
+    <small class="st-msg">${rewardArmed ? '👉 แตะเมนูที่มีกรอบทองด้านล่าง เพื่อใช้สิทธิ์' : cart.some(it => it.reward) && left <= 0 ? '🎁 ใส่สิทธิ์ Scoop ฟรีในตะกร้าแล้ว · กดยืนยันสั่งเพื่อรับ' : left > 0 ? `🎁 มี ${left} สิทธิ์ ${esc(st.reward)} · แตะเพื่อใช้` : `อีก ${st.left} ถ้วย รับ ${esc(st.reward)}${st.pend ? ` · รอร้านยืนยัน ${st.pend} ถ้วย` : ''}`}</small></button>`;
 }
 function openStamps(){
   const st = stampState(); if (!st) return;
   closeSlipPopup();
-  const full = st.k === st.g, demo = !IS_GAS && !API_URL;
+  const left = rewardsLeft(), demo = !IS_GAS && !API_URL;
+  // only coins that are new since the last look get the little pop — no bouncing every time
+  const seen = load('greek_stamp_seen'), fresh = seen === null ? 0 : Math.max(0, st.n - seen);
+  save('greek_stamp_seen', st.n);
+  const faded = Math.min(st.pend, st.g - st.k);
+  const slot = i => i < st.k ? `<span class="st-slot on${i >= st.k - fresh ? ' pop' : ''}" style="animation-delay:${Math.max(0, i - (st.k - fresh)) * 120}ms"><img class="pxi" src="${Game16.coinURL()}" alt=""></span>`
+    : i < st.k + faded ? `<span class="st-slot wait"><img class="pxi" src="${Game16.coinURL()}" alt=""><em>รอ</em></span>` : `<span class="st-slot">${i + 1}</span>`;
+  const names = rewardMenus().map(m => m.name).join(' / ');
   const w = document.createElement('div'); w.className = 'sp-wrap'; w.id = 'slipPop';
   w.innerHTML = `<div class="sp sp-coins" role="dialog" aria-modal="true" aria-labelledby="spT">
-      <div class="sp-top"><div class="sp-banner">${full ? 'REWARD READY!' : 'STAMP CARD'}</div>
-        <div class="st-grid">${Array.from({ length: st.g }, (_, i) => `<span class="st-slot${i < st.k ? ' on' : ''}" style="animation-delay:${i * 60}ms">${i < st.k ? `<img class="pxi" src="${Game16.coinURL()}" alt="">` : i + 1}</span>`).join('')}</div></div>
+      <div class="sp-top"><div class="sp-banner">${left > 0 ? 'REWARD READY!' : 'STAMP CARD'}</div>
+        <div class="st-grid">${Array.from({ length: st.g }, (_, i) => slot(i)).join('')}</div></div>
       <div class="sp-body">
-        <h2 id="spT" class="h" style="text-align:center;margin:0;font-size:28px">${full ? 'ได้รางวัลแล้ว!' : `${st.k} / ${st.g} เหรียญ`}</h2>
-        <div class="sub" style="text-align:center">${full ? `รับ <b>${esc(st.reward)}</b> · บอกร้านในไลน์ตอนสั่งรอบหน้า หรือโชว์หน้านี้ตอนรับของ` : `ทุก 1 ถ้วย = 1 เหรียญ · ครบ ${st.g} เหรียญ รับ <b>${esc(st.reward)}</b><br>อีก ${st.left} ถ้วยเท่านั้น!`}</div>
-        ${st.earned ? `<div class="st-earned">🏆 สะสมครบมาแล้ว ${st.earned} ใบ · รวม ${st.n} ถ้วย</div>` : ''}
-        <div class="sub" style="text-align:center;font-size:12px">นับจากออเดอร์ในมือถือเครื่องนี้ (ไม่นับออเดอร์ที่ยกเลิก)</div>
-        ${demo ? `<div class="uat-row"><button class="mini" onclick="uatStamp(1)">+1 ถ้วย (UAT)</button><button class="mini" onclick="uatStamp(st => -st)">ล้าง (UAT)</button></div>` : ''}
-        <button class="btn center" onclick="closeSlipPopup()">โอเค!</button>
+        <h2 id="spT" class="h" style="text-align:center;margin:0;font-size:28px">${left > 0 ? `มี ${left} สิทธิ์ ${esc(st.reward)}!` : `${st.k} / ${st.g} เหรียญ`}</h2>
+        <div class="sub" style="text-align:center">${left > 0 ? `กดใช้สิทธิ์ แล้วเลือกเมนู (${esc(names)})<br>ร้านใส่ Scoop เพิ่มให้ 1 ลูก <b>ไม่คิดเงิน</b>` : `ทุก 1 ถ้วย = 1 เหรียญ · ครบ ${st.g} เหรียญ รับ <b>${esc(st.reward)}</b><br>อีก ${st.left} ถ้วยเท่านั้น!`}</div>
+        ${st.pend ? `<div class="st-note"><img class="pxi wait" src="${Game16.coinURL()}" alt=""> เหรียญจาง = รอร้านยืนยัน ${st.pend} ถ้วย (นับเมื่อจ่ายแล้วหรือรับของแล้ว)</div>` : ''}
+        ${st.earned ? `<div class="st-earned">🏆 สะสมครบมาแล้ว ${st.earned} ครั้ง · ใช้ไปแล้ว ${st.used} ครั้ง</div>` : ''}
+        ${left > 0 ? `<button class="btn center gold" onclick="armReward()">🎁 ใช้สิทธิ์เลย</button>` : ''}
+        ${demo ? `<div class="uat-row"><button class="mini" onclick="uatStamp(1)">+1 ถ้วย</button><button class="mini" onclick="uatConfirm()">ร้านยืนยันทุกออเดอร์</button><button class="mini" onclick="uatStamp(0)">ล้าง</button></div><div class="sub" style="text-align:center;font-size:11px">ปุ่มเทสเฉพาะ UAT</div>` : ''}
+        <button class="${left > 0 ? 'link' : 'btn center'}" ${left > 0 ? 'style="align-self:center"' : ''} onclick="closeSlipPopup()">${left > 0 ? 'ไว้ใช้ทีหลัง' : 'โอเค!'}</button>
       </div></div>`;
   w.addEventListener('click', e => { if (e.target === w) closeSlipPopup(); });
   document.body.appendChild(w); lockPage();
 }
-function uatStamp(d){ const cur = load('uat_stamps') || 0; save('uat_stamps', typeof d === 'function' ? 0 : cur + d); closeSlipPopup(); render(); openStamps(); }
-// order-complete scene: the bar fills from the old coin count to the new one
+// "use it": highlight the menus that can take a free scoop; opening one switches the reward on
+function armReward(){
+  closeSlipPopup(); rewardArmed = true; render();
+  pxToast('แตะเลือกเมนูที่อยากได้ Scoop ฟรี', 'เมนูที่ใช้สิทธิ์ได้มีกรอบทอง · ' + rewardMenus().map(m => m.name).join(' / '));
+  const first = document.querySelector('.menu.arm'); if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function rewardRow(m){
+  if (!stampRule() || !scoopAddon(m)) return '';
+  const left = rewardsLeft(); if (left <= 0 && !draft.reward) return '';
+  return `<div class="row reward" id="row-RWD"><div class="lbl">🎁 ใช้สิทธิ์ Scoop ฟรี<small>${draft.reward ? 'ใช้กับถ้วยนี้แล้ว · ไม่คิดเงิน' : `มี ${left} สิทธิ์ · เพิ่ม Scoop 1 ลูก ไม่คิดเงิน`}</small></div>
+    <button class="switch" id="ad-RWD" aria-label="ใช้สิทธิ์ Scoop ฟรี" onclick="toggleReward()"></button></div>`;
+}
+function toggleReward(){
+  const m = menuOf(draft.menuId), sc = scoopAddon(m); if (!sc) return;
+  if (!draft.reward){
+    if (rewardsLeft() <= 0) return;
+    draft.reward = 1; draft.addons[sc.id] = Math.min(sc.max, (draft.addons[sc.id] || 0) + 1);
+    if (draft.qty > 1) draft.qty = 1;
+    if (editIndex < 0 && draft.days.length > 1){ draft.days = [draft.days[0]]; draft.round = draft.days[0]; }
+    refreshItem();
+    const box = $('scoops'); if (box) setTimeout(() => addonPop(box, 'FREE!', 128, 22), 350);
+    const r = $('row-RWD'); if (r){ r.querySelector('small').textContent = 'ใช้กับถ้วยนี้แล้ว · ไม่คิดเงิน'; r.classList.remove('flash'); r.getBoundingClientRect(); r.classList.add('flash'); }
+  } else {
+    draft.reward = 0; const n = (draft.addons[sc.id] || 0) - 1; if (n > 0) draft.addons[sc.id] = n; else delete draft.addons[sc.id];
+    refreshItem(); const r = $('row-RWD'); if (r) r.querySelector('small').textContent = `มี ${rewardsLeft()} สิทธิ์ · เพิ่ม Scoop 1 ลูก ไม่คิดเงิน`;
+  }
+}
+function uatStamp(d){ save('uat_stamps', d ? (load('uat_stamps') || 0) + d : 0); if (!d){ save('demo_done', []); save('greek_stamp_seen', 0); } closeSlipPopup(); render(); openStamps(); }
+function uatConfirm(){ save('demo_done', myParts().map(p => p.id)); call('myOrders', { orders: history_().map(h => ({ orderId: h.orderId, token: h.token })) })
+  .then(m => { save('greek_live', m); closeSlipPopup(); render(); openStamps(); }); }
+// order-complete scene: solid = confirmed coins, the new cups fill in as "pending"
 function stampHud(cups){
   const st = stampState(); if (!st) return '';
-  const before = Math.max(0, st.n - cups), from = before % st.g / st.g * 100, to = st.k / st.g * 100, crossed = Math.floor(before / st.g) < Math.floor(st.n / st.g);
-  return `<span>COIN</span><div class="g-bar"><i class="st" style="--from:${from}%;--to:${crossed ? 100 : to}%"></i></div><span>${crossed ? 'FREE!' : st.k + '/' + st.g}</span>`;
+  const solid = st.k / st.g * 100, to = Math.min(100, (st.k + st.pend) / st.g * 100);
+  return `<span>COIN</span><div class="g-bar"><b style="width:${solid}%"></b><i class="st" style="--from:${solid}%;--to:${to}%"></i></div><span>+${cups}</span>`;
 }
 /* ---------- hidden menu teaser (Settings "hidden_menu" = the line under HIDDEN MENU; blank = not shown) ---------- */
 const QMARK = 'data:image/svg+xml,' + encodeURIComponent("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 19 19\" shape-rendering=\"crispEdges\"><path fill=\"#F7C948\" d=\"M8 0h3v1h-3zM5 1h3v1h-3zM11 1h3v1h-3zM4 2h1v1h-1zM14 2h1v1h-1zM3 3h1v1h-1zM15 3h1v1h-1zM2 4h1v1h-1zM16 4h1v1h-1zM1 5h1v1h-1zM17 5h1v1h-1zM1 6h1v1h-1zM17 6h1v1h-1zM1 7h1v1h-1zM17 7h1v1h-1zM0 8h1v1h-1zM18 8h1v1h-1zM0 9h1v1h-1zM18 9h1v1h-1zM0 10h1v1h-1zM18 10h1v1h-1zM1 11h1v1h-1zM17 11h1v1h-1zM1 12h1v1h-1zM17 12h1v1h-1zM1 13h1v1h-1zM17 13h1v1h-1zM2 14h1v1h-1zM16 14h1v1h-1zM3 15h1v1h-1zM15 15h1v1h-1zM4 16h1v1h-1zM14 16h1v1h-1zM5 17h3v1h-3zM11 17h3v1h-3zM8 18h3v1h-3z\"/><path fill=\"#4B3B5C\" d=\"M8 1h3v1h-3zM5 2h8v1h-8zM4 3h3v1h-3zM3 4h2v1h-2zM2 5h2v1h-2zM2 6h2v1h-2zM2 7h1v1h-1zM1 8h2v1h-2zM1 9h2v1h-2zM1 10h2v1h-2zM2 11h1v1h-1zM2 12h1v1h-1z\"/><path fill=\"#2A2033\" d=\"M13 2h1v1h-1zM7 3h8v1h-8zM6 4h10v1h-10zM5 5h12v1h-12zM4 6h3v1h-3zM11 6h6v1h-6zM3 7h3v1h-3zM8 7h2v1h-2zM12 7h5v1h-5zM3 8h7v1h-7zM12 8h6v1h-6zM3 9h6v1h-6zM11 9h7v1h-7zM3 10h5v1h-5zM10 10h8v1h-8zM3 11h14v1h-14zM3 12h5v1h-5zM10 12h7v1h-7zM2 13h15v1h-15zM3 14h13v1h-13zM4 15h11v1h-11zM5 16h9v1h-9zM8 17h3v1h-3z\"/><path fill=\"#6E5A85\" d=\"M5 4h1v1h-1zM4 5h1v1h-1z\"/><path fill=\"#F7C948\" d=\"M7 6h4v1h-4zM6 7h2v1h-2zM10 7h2v1h-2zM10 8h2v1h-2zM9 9h2v1h-2zM8 10h2v1h-2zM8 12h2v1h-2z\"/></svg>");
