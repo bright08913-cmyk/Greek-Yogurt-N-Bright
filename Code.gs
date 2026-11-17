@@ -94,6 +94,7 @@ function onOpen() {
     .addItem('📊 นับออเดอร์ต่อสัปดาห์', 'orderStats')
     .addItem('🎄 ธีมคริสต์มาส: เปิด / ปิด', 'toggleXmas')
     .addItem('❓ แถบ NEW MENU (Coming soon): เปิด / ปิด', 'toggleHidden')
+    .addItem('🔁 ตรวจสลิปที่ "รอร้านตรวจ" อีกครั้งตอนนี้', 'recheckSlipsNow')
     .addSeparator()
     .addItem('📅 เรียงตามวันรับ', 'sortByPickupDay')
     .addItem('🕒 เรียงตามเวลาสั่ง', 'sortByOrderTime')
@@ -310,7 +311,9 @@ function getConfig() {
     }),
     payMethods: list_(s.pay_methods),
     theme: String(s.theme || '').trim().toLowerCase(),
-    hidden: String(s.hidden_menu || '').trim().slice(0, 60),   // แถบ NEW MENU ในหน้าเมนู · ว่าง = ไม่โชว์     // xmas = ธีมคริสต์มาส · ว่าง = ปกติ
+    hidden: String(s.hidden_menu || '').trim().slice(0, 60),
+    pickup: isOn_(s.pickup_banner),                                         // การ์ด "พรุ่งนี้/วันนี้มารับของนะ" ในแอป
+    stamp: Number(s.stamp_goal) > 0 ? { goal: Number(s.stamp_goal), reward: String(s.stamp_reward || 'Scoop ฟรี 1 ลูก') } : null,   // บัตรสะสมเหรียญ   // แถบ NEW MENU ในหน้าเมนู · ว่าง = ไม่โชว์     // xmas = ธีมคริสต์มาส · ว่าง = ปกติ
     payNowLabel: PAY_NOW, payLaterLabel: PAY_LATER,
     payLaterNote: String(s.pay_later_note || 'ผ่านขุนทองในกลุ่ม LINE'),
     bankAccount: String(s.bank_account || ''),
@@ -715,13 +718,15 @@ function propNames_() {
   return Object.keys(PropertiesService.getScriptProperties().getProperties())
     .filter(k => !/^(SLIP_|DEV_|ORDER_SEQ|LIVE_|SLIP_FOLDER_ID)/.test(k));
 }
-function verifySlip_(req, bytes, mime, base, total, orderTime) {
+function verifySlip_(req, bytes, mime, base, total, orderTime, recheck) {
   const key = easySlipKey_();
   if (!key) return { state: 'off' };
-  // a customer can only make the shop spend a few checks per order
-  const cache = CacheService.getScriptCache(), ck = 'VF_' + base, tries = Number(cache.get(ck) || 0);
-  if (tries >= 6) throw new Error('ลองส่งสลิปหลายครั้งเกินไป|รอสัก 1 ชั่วโมง หรือทักร้านในไลน์นะ');
-  cache.put(ck, String(tries + 1), 3600);
+  // a customer can only make the shop spend a few checks per order (the shop's own re-check doesn't count)
+  if (!recheck) {
+    const cache = CacheService.getScriptCache(), ck = 'VF_' + base, tries = Number(cache.get(ck) || 0);
+    if (tries >= 6) throw new Error('ลองส่งสลิปหลายครั้งเกินไป|รอสัก 1 ชั่วโมง หรือทักร้านในไลน์นะ');
+    cache.put(ck, String(tries + 1), 3600);
+  }
 
   const payload = /^[0-9A-Za-z]{20,255}$/.test(String(req.slipPayload || '')) ? String(req.slipPayload) : '';
   const wallet = req.slipKind === 'truemoney';
@@ -1209,4 +1214,72 @@ function toggleHidden() {
   SpreadsheetApp.getUi().alert(on
     ? '✅ ซ่อนแถบ NEW MENU แล้ว'
     : '❓ โชว์แถบ NEW MENU แล้ว\nข้อความ: COMING SOON · THIS WEEK (แก้ได้ที่แถว hidden_menu ในแท็บ Settings)\nลูกค้าเห็นเมื่อเปิดแอปใหม่ / รีเฟรช');
+}
+
+
+/* ---------------- ตรวจสลิปที่ "⏳ รอร้านตรวจ" ซ้ำ (เช่น สลิปกรุงเทพที่เพิ่งโอน / EasySlip ล่มชั่วคราว) ----------------
+ * อ่านรูปสลิปจาก Drive แล้วถาม EasySlip ใหม่ · ผ่าน = "จ่ายแล้ว" อัตโนมัติ · ไม่ผ่าน = ป้าย ❌ + อีเมลบอกร้าน
+ * ข้ามออเดอร์ที่ร้านเปลี่ยนเป็น "จ่ายแล้ว" เองแล้ว · ลองได้สูงสุด 12 ครั้งต่อออเดอร์
+ * ให้ทำงานเองทุก 10 นาที: Apps Script → Triggers (รูปนาฬิกา) → Add Trigger → recheckSlips → Time-driven → Minutes timer → Every 10 minutes */
+function recheckSlips() { return recheckSlips_().summary; }
+function recheckSlipsNow() {
+  const r = recheckSlips_();
+  SpreadsheetApp.getUi().alert('🔁 ตรวจสลิปที่รอ', r.summary || 'ไม่มีสลิปที่ "รอร้านตรวจ" ค้างอยู่', SpreadsheetApp.getUi().ButtonSet.OK);
+}
+function recheckSlips_() {
+  if (!easySlipKey_()) return { summary: 'ยังไม่ได้ใส่ EASYSLIP_KEY' };
+  const props = PropertiesService.getScriptProperties();
+  const sh = SpreadsheetApp.getActive().getSheetByName(SH.ORD);
+  if (!sh || sh.getLastRow() < 2) return { summary: '' };
+  const lock = LockService.getScriptLock(); if (!lock.tryLock(20000)) return { summary: 'ระบบกำลังทำงานอยู่ ลองใหม่อีกครั้ง' };
+  const out = [];
+  try {
+    const n = sh.getLastRow() - 1;
+    const vals = sh.getRange(2, 1, n, ORD_HEAD.length).getValues(), links = sh.getRange(2, COL.LINK, n, 1).getFormulas();
+    const groups = {}, order = [];
+    vals.forEach((r, i) => { const base = base_(at_(r, COL.ID)); if (!base) return;
+      if (!groups[base]) { groups[base] = []; order.push(base); } groups[base].push({ row: i + 2, vals: r, link: String(links[i][0] || '') }); });
+    let asked = 0;
+    order.forEach(base => {
+      if (asked >= 10) return;                                              // a few per run, keeps each run short
+      const live = groups[base].filter(x => String(at_(x.vals, COL.STATUS)) !== 'ยกเลิก');
+      const waiting = live.find(x => x.link.indexOf('⏳') >= 0);
+      if (!waiting || live.every(x => at_(x.vals, COL.PAY) === 'จ่ายแล้ว')) return;
+      const id = (waiting.link.match(/\/d\/([A-Za-z0-9_-]{20,})/) || [])[1], url = (waiting.link.match(/HYPERLINK\("([^"]+)"/) || [])[1];
+      if (!id || !url) return;
+      const tk = 'RC_' + base, tries = Number(props.getProperty(tk) || 0);
+      if (tries >= 12) return;
+      props.setProperty(tk, String(tries + 1)); asked++;
+      const total = live.reduce((t, x) => t + (Number(at_(x.vals, COL.TOTAL)) || 0), 0), name = at_(live[0].vals, COL.NAME);
+      const setLink = label => live.forEach(x => sh.getRange(x.row, COL.LINK).setFormula('=HYPERLINK("' + url + '","' + label.replace(/"/g, '') + '")'));
+      let v;
+      try {
+        const blob = DriveApp.getFileById(id).getBlob();
+        v = verifySlip_({}, blob.getBytes(), blob.getContentType() || 'image/jpeg', base, total, at_(live[0].vals, COL.TIME), true);
+        if (v.state === 'ok' && v.transRef) { const by = props.getProperty('SLIP_' + v.transRef);
+          if (by && by !== base) throw new Error('🚫 สลิปนี้เคยใช้แล้วกับออเดอร์ ' + by); }
+      } catch (err) {
+        const why = String(err.message || err).replace(/^🚫\s*/, '').replace('|', ' — ');
+        setLink('❌ ตรวจซ้ำไม่ผ่าน · ' + why.slice(0, 40)); props.setProperty(tk, '99');
+        sendAlert_('slip', '❌ สลิปไม่ผ่าน (ตรวจซ้ำ) ' + base + ' · ' + name,
+          '<h2 style="margin:0 0 6px">❌ ตรวจสลิปซ้ำแล้วไม่ผ่าน ' + h_(base) + '</h2><p>👤 <b>' + h_(name) + '</b> · ยอดออเดอร์ ' + baht_(total) + '</p><p>' + h_(why) +
+          '</p><p><a href="' + url + '">เปิดสลิป</a> · ทักลูกค้าเพื่อเช็คอีกครั้ง</p>');
+        out.push('❌ ' + base + ' ' + name + ': ' + why); return;
+      }
+      if (v.state === 'ok') {
+        if (v.transRef) props.setProperty('SLIP_' + v.transRef, base);
+        live.forEach(x => sh.getRange(x.row, COL.PAY).setValue('จ่ายแล้ว'));
+        setLink('✅ ธนาคารยืนยัน ' + baht_(v.amount) + ' · ตรวจซ้ำ · …' + String(v.transRef || '').slice(-6));
+        props.deleteProperty(tk);
+        sendAlert_('slip', '✅ จ่ายแล้ว (ตรวจซ้ำผ่าน) ' + base + ' · ' + name + ' · ' + baht_(v.amount),
+          '<h2 style="margin:0 0 6px">✅ ตรวจสลิปซ้ำผ่านแล้ว ' + h_(base) + '</h2><p>👤 <b>' + h_(name) + '</b> · ยอดโอน <b>' + baht_(v.amount) + '</b> · ' + h_(v.bank) +
+          '</p><p>เปลี่ยนเป็น "จ่ายแล้ว" ให้แล้ว</p>');
+        out.push('✅ ' + base + ' ' + name + ': จ่ายแล้ว ' + baht_(v.amount));
+      } else if (tries + 1 >= 12) {
+        setLink('⏳ รอร้านตรวจ · ตรวจอัตโนมัติไม่ได้ (' + String(v.why || '').slice(0, 30) + ')');
+        out.push('⏳ ' + base + ' ' + name + ': ตรวจอัตโนมัติไม่ได้ ' + (v.why || ''));
+      } else out.push('⏳ ' + base + ' ' + name + ': ยังตรวจไม่ได้ (' + (v.why || '') + ') จะลองใหม่รอบหน้า');
+    });
+  } finally { lock.releaseLock(); }
+  return { summary: out.join('\n') };
 }

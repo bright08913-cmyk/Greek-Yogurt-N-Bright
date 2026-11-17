@@ -388,7 +388,8 @@
   @keyframes fall{to{transform:translate3d(var(--dx,20px),110vh,0)}}
   @media (prefers-reduced-motion: reduce){#snow{display:none}.lights i{animation:none}}
 
-  /* ---------- hidden menu teaser: black 16-bit strip in the menu grid, tap = "?" popup, can't be ordered ---------- */
+  
+/* ---------- hidden menu teaser: black 16-bit strip in the menu grid, tap = "?" popup, can't be ordered ---------- */
   .hid{grid-column:1/-1;display:flex;align-items:center;gap:12px;margin:3px;padding:12px 14px;border:0;cursor:pointer;text-align:left;position:relative;overflow:hidden;
        background:#231A2B repeating-linear-gradient(0deg,rgba(255,255,255,.04) 0 2px,transparent 2px 4px);color:#fff;
        box-shadow:var(--pxs),0 9px 0 0 rgba(59,42,64,.18);transition:transform .08s steps(2)}
@@ -479,6 +480,42 @@
   #sanBox .sanp.out{animation:scOut .3s steps(4,end) forwards}
   @keyframes sanDrop{0%{transform:translateY(-150px);opacity:0}12%{opacity:1}62%{transform:translateY(4px) scale(1.03,.94)}82%{transform:translateY(-3px)}100%{transform:none}}
   @media (prefers-reduced-motion: reduce){#sanBox .sanp.drop,#sanBox .sanp.out{animation:none}}
+
+  /* idea 2: pick-up card */
+  .pickup{margin:14px 3px 4px;padding:12px 14px;background:#FFF4C7;--pw:3px;box-shadow:var(--pxs),0 7px 0 0 rgba(59,42,64,.16)}
+  .pickup.today{background:#FFE0E7;--ec:var(--pink-dark)}
+  .pk-head{display:flex;align-items:center;gap:10px}
+  .pk-head b{display:block;font-size:18px}.pk-head small{color:var(--muted);font-size:13px}
+  .pk-kick{font-family:var(--arcade);font-size:9px;color:var(--pink-dark);letter-spacing:1px;animation:gBlink 1s steps(2,jump-none) infinite}
+  .pk-x{border:0;background:none;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;align-self:flex-start;padding:0 2px}
+  .pk-row{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:8px;border-top:2px dashed rgba(59,42,64,.15);font-size:14px}
+  .pk-row small{display:block;color:var(--muted);font-size:11px}.pk-row b{font-family:var(--px-font);font-size:22px;font-weight:400}
+  .pk-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .pk-go{display:block;margin:8px 0 0 auto}
+  @media (prefers-reduced-motion: reduce){.pk-kick{animation:none}}
+  /* idea 1: stamp card */
+  .stamp{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 10px;width:calc(100% - 6px);margin:12px 3px 2px;padding:10px 12px;border:0;cursor:pointer;text-align:left;
+    background:#fff;--pw:3px;box-shadow:var(--pxs),0 7px 0 0 rgba(59,42,64,.14)}
+  .stamp.full{background:#FFF4C7;animation:stFull 1.2s steps(2,jump-none) infinite}
+  @keyframes stFull{50%{box-shadow:var(--pxs),0 7px 0 0 var(--coin)}}
+  .st-lbl{font-family:var(--arcade);font-size:9px;color:var(--pink-dark)}
+  .st-row{display:flex;gap:3px;flex-wrap:nowrap;min-width:0}
+  .st-row img,.st-row i{width:15px;height:17px;flex:none}
+  .st-row i{background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(59,42,64,.05) 2px 4px);--pw:1px;--ec:var(--lilac);box-shadow:var(--pxs)}
+  .st-n{font-family:var(--px-font);font-size:22px}.st-n b{color:var(--pink-dark);font-weight:400}
+  .st-msg{grid-column:1/-1;font-size:12px;color:var(--muted)}
+  .sp-coins .sp-top{background:linear-gradient(#FFE58A 0 20%,#FFEBA3 20% 40%,#FFF0BB 40% 60%,#FFF5D2 60% 80%,#FFFAE8 80%)}
+  .sp-coins .sp-banner{color:var(--ink);text-shadow:2px 2px 0 #fff,4px 4px 0 #E0A63A}
+  .st-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:14px 18px 10px}
+  .st-slot{aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:#fff;--pw:2px;--ec:var(--lilac);box-shadow:var(--pxs);font-family:var(--arcade);font-size:10px;color:var(--lilac)}
+  .st-slot.on{--ec:var(--ink);background:#FFFAE8;animation:stPop .4s steps(4,end) both}
+  .st-slot img{width:70%;height:auto}
+  @keyframes stPop{0%{transform:scale(0) rotate(-20deg)}70%{transform:scale(1.2) rotate(6deg)}100%{transform:none}}
+  .st-earned{text-align:center;font-size:13px;font-weight:700}
+  .uat-row{display:flex;gap:8px;justify-content:center}
+  .g-bar i.st{animation:stFill 2.2s steps(10,end) .6s both}
+  @keyframes stFill{from{width:var(--from)}to{width:var(--to)}}
+  @media (prefers-reduced-motion: reduce){.stamp.full,.st-slot.on{animation:none}.g-bar i.st{animation:none;width:var(--to)}}
 </style>
 </head>
 <body>
@@ -521,7 +558,7 @@ const IS_GAS = typeof google !== 'undefined' && google.script && google.script.r
 // ลิงก์ Apps Script (/exec) — ใส่ตอน build หน้าเว็บสำหรับ GitHub Pages; ว่าง = โหมดตัวอย่าง
 const API_URL = window.GREEK_API || '';
 const DEMO_CONFIG = {
-  shopName:'Bright Greek', open:true, closedMsg:'', hidden:'SAN',
+  shopName:'Bright Greek', open:true, closedMsg:'', hidden:'SAN', stamp:{goal:10, reward:'Scoop ฟรี 1 ลูก'}, pickup:true,
   rounds:[1,2,3,4,5].map(k => { const d = new Date(Date.now() + k * 864e5); return d.getDate() + ' ' + d.toLocaleDateString('en-US', { month: 'short' }); }), roundNotes:{}, salePeriod:'5 - 10 Nov 2026', lineGroupUrl:'',
   delivery:[], payMethods:[],
   payNowLabel:'จ่ายเลย (แนบสลิป)', payLaterLabel:'จ่ายตอนรับ (ขุนทอง)', payLaterNote:'ผ่านขุนทองในกลุ่ม LINE',
@@ -596,6 +633,8 @@ function cleanConfig(c){
     .map(z => ({ id: String(z.id), name: String(z.name || z.id).slice(0, 20), price: Number(z.price) })) : []; });
   c.rounds = (c.rounds || []).map(String);
   c.hidden = c.hidden ? String(c.hidden).slice(0, 60) : '';
+  c.pickup = !!c.pickup;
+  c.stamp = c.stamp && Number(c.stamp.goal) > 0 ? { goal: Math.min(50, Math.round(Number(c.stamp.goal))), reward: String(c.stamp.reward || 'ของรางวัล').slice(0, 40) } : null;
   return c;
 }
 const $ = id => document.getElementById(id);
@@ -605,8 +644,11 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp
 function deviceId(){ let d = load('greek_device');
   if (!d) { d = (crypto.randomUUID ? crypto.randomUUID() : 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12)); save('greek_device', d); }
   return d; }
-function load(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
-function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+// UAT / demo pages keep their own copy (key "uat:…") so test orders never mix with the real shop on the same website
+const KP = () => window.GREEK_API ? '' : 'uat:';
+function load(k){ try{ return JSON.parse(localStorage.getItem(KP() + k)); }catch(e){ return null; } }
+function save(k,v){ try{ localStorage.setItem(KP() + k, JSON.stringify(v)); }catch(e){} }
+function forget(k){ try{ localStorage.removeItem(KP() + k); }catch(e){} }
 /* pickup days that are already over can't be chosen any more (shown grey).  "today" is Bangkok time;
    ?today=2026-11-11 in the link pretends another day — demo/UAT only, the real shop always uses the real date */
 const MON_EN = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
@@ -791,7 +833,7 @@ const pxImg = (src, w, cls, extra) => `<img class="pxi ${cls || ''}" src="${src}
 function cup(m, o){
   o = o || {};
   const size = o.size || 104;
-  if (!o.live) return pxImg(Game16.bowlURL(m.id, o.fruits || [], false), size, 'bowl');
+  if (!o.live) return pxImg(Game16.bowlURL(m.id + (o.pcs ? '#' + o.pcs : ''), o.fruits || [], false), size, 'bowl');
   const all = availFruits(), pos = fruitSpots(o.fruits || []), bare = m.fruitPick > 0;
   const fr = bare ? all.map((f,i) => `<div class="fw" id="fw${i}" style="transform:${pos[i].t};z-index:${pos[i].z}"><span class="rp" id="rp${i}"></span>
       <img class="fr off" id="fr${i}" src="${Game16.fruitURL(fruitLook(f))}" width="36" height="36" alt=""></div>`).join('') : '';
@@ -818,6 +860,7 @@ const isPromoDay = r => promoOn() && !isPastRound(r) && (promoAll() || C.promo.d
 const promoDaysLive = () => promoOn() ? (promoAll() ? liveRounds() : C.promo.days.filter(r => okRound(r))) : [];
 // a menu with sizes (Greek Sandwich 2 pcs / 4 pcs) is priced by the size picked
 const sizeOf = (m, id) => (m.sizes || []).find(z => z.id === String(id));
+const pcsOf = (m, id) => { const z = id !== undefined && sizeOf(m, id); return z ? (parseInt(z.name, 10) || 0) : 0; };   // "4 pcs" → 4
 const basePrice = (m, size) => { const z = size !== undefined && sizeOf(m, size); return z ? z.price : (m.fullPrice || m.price); };
 const priceRange = (m, f) => { const ps = (m.sizes || []).map(z => f(z.price)); return ps.length > 1 ? baht(Math.min(...ps)) + '–' + Math.max(...ps) : baht(f(basePrice(m))); };
 const salePrice = p => Math.ceil(p * (100 - C.promo.pct) / 100 - 1e-9);
@@ -832,7 +875,7 @@ const cardPriceHTML = m => {
   return `<div class="pr h">${baht(basePrice(m))}</div>`;
 };
 const cardSaleLine = m => { const ds = promoDaysLive(); return ds.length && !promoAll()
-  ? `<div class="saleline">รับ ${esc(daysText(ds))} เหลือ <b>${baht(salePrice(basePrice(m)))}</b></div>` : ''; };
+  ? `<div class="saleline">รับ ${esc(daysText(ds))} เหลือ <b>${m.sizes && m.sizes.length > 1 ? priceRange(m, salePrice) : baht(salePrice(basePrice(m)))}</b></div>` : ''; };
 // demo / UAT: the sale is switched from the little test panel (or ?promo=15&days=Fri)
 function demoPromo(){
   if (IS_GAS || API_URL) return;
@@ -878,8 +921,10 @@ function render(){
     ${IS_GAS || API_URL ? '' : '<div class="demo">โหมดตัวอย่าง (ยังไม่ต่อ Google Sheet)</div>'}
     ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}</div>`}
     ${load('greek_pending') ? `<button class="banner" onclick="renderDone(load('greek_pending'))">${ICON.qr}<span>ออเดอร์ ${esc(load('greek_pending').orderId)} ยังไม่ได้แนบสลิป</span>แนบเลย →</button>` : ''}
+    ${pickupBanner()}
     ${installCard()}
     ${history_().length ? `<button class="hist-btn" onclick="openHistory()">${ICON.receipt}<span>ออเดอร์ของฉัน</span><em>${history_().length}</em></button>` : ''}
+    ${stampCard()}
     <div class="grid">
       ${hiddenStrip()}
       ${C.menu.map(m => `
@@ -972,9 +1017,11 @@ function refreshItem(){
   syncScoops(); syncExtras();
   { // title price for the chosen day (first chosen when several)
     const day = (editIndex < 0 && draft.days && draft.days.length) ? draft.days[0] : draft.round, b = basePrice(m, draft.size);
-    $('titlePrice').innerHTML = isPromoDay(day) ? `<s class="was">${baht(b)}</s><div class="pr h">${baht(salePrice(b))}</div>` : `<div class="pr h">${baht(b)}</div>`;
+    const noSize = !!(m.sizes && m.sizes.length > 1) && !sizeOf(m, draft.size);          // sized menu, nothing picked yet → show the range
+    const full = noSize ? priceRange(m, x => x) : baht(b), sale = () => noSize ? priceRange(m, salePrice) : baht(salePrice(b));   // sale price only when a sale is on
+    $('titlePrice').innerHTML = isPromoDay(day) ? `<s class="was">${full}</s><div class="pr h">${sale()}</div>` : `<div class="pr h">${full}</div>`;
     const ds = promoDaysLive();
-    $('saleHint').innerHTML = ds.length && !promoAll() ? `<div class="salehint"><span class="saletag">SALE</span> รับวันที่ ${esc(daysText(ds))} ลด ${C.promo.pct}% เหลือ ${baht(salePrice(b))}${isPromoDay(day) ? ' ✓' : ' · เลือกวันนั้นด้านล่างได้เลย'}</div>` : '';
+    $('saleHint').innerHTML = ds.length && !promoAll() ? `<div class="salehint"><span class="saletag">SALE</span> รับวันที่ ${esc(daysText(ds))} ลด ${C.promo.pct}% เหลือ ${sale()}${isPromoDay(day) ? ' ✓' : ' · เลือกวันนั้นด้านล่างได้เลย'}</div>` : '';
   }
   $('unitTxt').textContent = baht(unitPrice(draft)) + ' / ถ้วย';
   const multi = editIndex < 0 && draft.days.length > 1;
@@ -1161,7 +1208,7 @@ function renderCart(){
   cart.forEach(it => { if (!okRound(it.round)) { const live = liveRounds(); it.round = live.length === 1 ? live[0] : ''; } });   // a day that has passed needs a new day
   const groups = (C.rounds.length ? liveRounds().concat(['']) : ['']).map(r => ({ r, items: cart.map((it,i) => ({it, i})).filter(x => (x.it.round || '') === r) })).filter(g => g.items.length);
   const itemRow = ({it, i}) => { const m = menuOf(it.menuId); return `
-        <div class="ci"><div class="thumb" style="background:${tintOf(m)}">${cup(m, {size:44, fruits: it.fruits, syrup: !!(it.addons && it.addons.HER)})}</div>
+        <div class="ci"><div class="thumb" style="background:${tintOf(m)}">${cup(m, {size:44, fruits: it.fruits, syrup: !!(it.addons && it.addons.HER), pcs: pcsOf(m, it.size)})}</div>
           <div class="info"><div class="nm">${esc(m.name)} × ${it.qty}</div>
             <div class="opt">${esc(describe(it)) || '—'}</div>
             <div><button class="link" onclick="editItem(${i})">แก้ไข</button><button class="link del" onclick="removeItem(${i})">ลบ</button></div></div>
@@ -1403,14 +1450,14 @@ function coin(){ const g=new Grid(6,7); ell(g,3,3.5,2.6,3.2,['#FFEC27']); for(le
     const grid = shown.length === 4;
     stage.classList.toggle('tall', grid);
     stage.innerHTML = `<div class="g-banner">ORDER COMPLETE!</div><div class="g-items${grid ? ' grid2' : ''}"></div>
-      <div class="g-hud"><span>EXP</span><div class="g-bar"><i></i></div><span>+${cups} CUP</span></div>`;
+      <div class="g-hud">${(typeof stampHud === 'function' && stampHud(cups)) || `<span>EXP</span><div class="g-bar"><i></i></div><span>+${cups} CUP</span>`}</div>`;
     const box = stage.querySelector('.g-items');
     shown.forEach((it,i) => {
       const d = document.createElement('div'); d.className = 'g-item';
       const c = document.createElement('canvas'); c.className = 'spr'; draw(sprite(it), c, 2); c.style.width = (72*scale) + 'px'; c.style.animationDelay = (-i*.45) + 's';
       const s = document.createElement('div'); s.className = 'sh'; s.style.animationDelay = (-i*.45) + 's';
       d.appendChild(c); d.appendChild(s);
-      if (n > 1){ const nm = document.createElement('div'); nm.className = 'g-name'; nm.textContent = NAMES[it.id] || String(it.name || it.id).toUpperCase().slice(0,12); d.appendChild(nm); }
+      if (n > 1){ const nm = document.createElement('div'); nm.className = 'g-name'; const nk = String(it.id).split('#'); nm.textContent = NAMES[nk[0]] ? NAMES[nk[0]] + (nk[1] ? ' ' + nk[1] + 'P' : '') : String(it.name || it.id).toUpperCase().slice(0,12); d.appendChild(nm); }
       if (it.qty > 1){ const q = document.createElement('div'); q.className = 'g-qty'; q.textContent = 'x' + it.qty; d.appendChild(q); }
       box.appendChild(d); });
     if (more){ const m = document.createElement('div'); m.className = 'g-more'; m.textContent = '+' + more; box.appendChild(m); }
@@ -1510,9 +1557,9 @@ function renderDone(r){
 function orderMenus(r){
   if (r.menus && r.menus.length) return r.menus;
   const by = {}, list = [];
-  (r.items || []).forEach(it => { const m = C && menuOf(it.menuId);
-    if (!by[it.menuId]) { by[it.menuId] = { id: it.menuId, name: m ? m.name : it.menuId, qty: 0, fruits: it.fruits || [] }; list.push(by[it.menuId]); }
-    by[it.menuId].qty += it.qty || 1; });
+  (r.items || []).forEach(it => { const m = C && menuOf(it.menuId), pc = m ? pcsOf(m, it.size) : 0, key = it.menuId + (pc ? '#' + pc : '');
+    if (!by[key]) { by[key] = { id: key, name: (m ? m.name : it.menuId) + (pc ? ' ' + pc + ' pcs' : ''), qty: 0, fruits: it.fruits || [] }; list.push(by[key]); }
+    by[key].qty += it.qty || 1; });
   return list.length ? list : [{ id: 'ORI', name: 'Original', qty: r.cups || 1, fruits: [] }];
 }
 // shrink the photo on the phone (slips are big), then send it to the shop
@@ -1664,7 +1711,7 @@ function pickSlip(input){
     box.innerHTML = `<img src="${img}" alt="สลิปที่เลือก"><span>กำลังส่งสลิป…</span>`;
     return shrinkTo(img, 360, .7).then(thumb => call('attachSlip', { orderId: r.orderId, token: r.token, image: img, thumb, slipRef: slip.ref, slipBank: slip.bankName, slipKind: slip.kind, slipPayload: slip.payload })).then(res => { slip.verified = !!(res && res.verified); slip.amount = res && res.amount; return img; });
   }).then(img => {
-    try { localStorage.removeItem('greek_pending'); } catch(e){}
+    forget('greek_pending');
     save('greek_history', history_().map(h => h.orderId === r.orderId ? Object.assign(h, slip.verified ? {slip: true, pay: 'จ่ายแล้ว'} : {slip: true}) : h));
     box.classList.add('ok');
     const used = load('greek_slip_refs') || {}; used[slip.ref] = r.orderId; save('greek_slip_refs', used);
@@ -1706,7 +1753,7 @@ function openHistory(){
   histLive = null; renderHistory(); show('histSheet');
   refreshConfig().then(() => { if (sheetOpen === 'histSheet') renderHistory(); }).catch(() => {});
   const list = history_().map(h => ({ orderId: h.orderId, token: h.token }));
-  call('myOrders', { orders: list }).then(m => { if (syncHistory(m) && !document.querySelector('.done')) render(); histLive = m || {}; renderHistory(); })
+  call('myOrders', { orders: list }).then(m => { if (m && m.__v) save('greek_live', m); if (syncHistory(m) && !document.querySelector('.done')) render(); histLive = m || {}; renderHistory(); })
     .catch(() => { histLive = {}; renderHistory('อัปเดตสถานะไม่ได้ตอนนี้ — แสดงข้อมูลที่จำไว้'); });
 }
 // the sheet is the truth: an order that is no longer in the Orders tab is dropped from this phone too.
@@ -1715,7 +1762,7 @@ function syncHistory(m){
   if (!m || !m.__v) return false;
   const hs = history_(), keep = hs.filter(h => m[h.orderId]);
   const p = load('greek_pending'), dropPending = p && !m[p.orderId] && hs.some(h => h.orderId === p.orderId);
-  if (dropPending) { try { localStorage.removeItem('greek_pending'); } catch(e){} }
+  if (dropPending) { forget('greek_pending'); }
   if (keep.length === hs.length) return !!dropPending;
   save('greek_history', keep);
   return true;
@@ -1724,7 +1771,9 @@ function syncHistory(m){
 function quietSync(){
   if (!C || !history_().length) return;
   call('myOrders', { orders: history_().map(h => ({ orderId: h.orderId, token: h.token })) }).then(m => {
-    if (syncHistory(m) && !document.querySelector('.done')) render();
+    const changed = m && m.__v && JSON.stringify(load('greek_live')) !== JSON.stringify(m);
+    if (changed) save('greek_live', m);
+    if ((syncHistory(m) || changed) && !sheetOpen && !document.querySelector('.done')) render();
     if (sheetOpen === 'histSheet') { histLive = m; renderHistory(); }
   }).catch(() => {});
 }
@@ -1770,7 +1819,7 @@ function askCancel(btn, k, partId){
   call('cancelOrder', { orderId: h.orderId, token: h.token, partId: partId || '', device: deviceId() }).then(m => {
     histLive = Object.assign(histLive || {}, m || {});
     const rows = (m || {})[h.orderId] || [];
-    if (rows.length && rows.every(r => r.status === 'ยกเลิก')){ const p = load('greek_pending'); if (p && p.orderId === h.orderId) { try { localStorage.removeItem('greek_pending'); } catch(e){} } }
+    if (rows.length && rows.every(r => r.status === 'ยกเลิก')){ const p = load('greek_pending'); if (p && p.orderId === h.orderId) { forget('greek_pending'); } }
     renderHistory('ยกเลิกเรียบร้อย');
   }).catch(e => renderHistory((e && e.message) || 'ยกเลิกไม่สำเร็จ ลองใหม่อีกครั้ง'));
 }
@@ -1832,6 +1881,85 @@ window.addEventListener('popstate', () => {
 /* ---------- boot ---------- */
 
 
+/* ---------- my orders, part by part, with the shop's latest status (falls back to what this phone remembers) ---------- */
+function myParts(){
+  const live = load('greek_live') || {}, out = [];
+  history_().forEach(h => { const lp = live[h.orderId];
+    (h.parts || []).forEach(p => { const l = lp && lp.find(x => x.id === p.orderId);
+      out.push({ id: p.orderId, base: h.orderId, round: l ? l.round : p.round, cups: p.cups || 0, total: l ? l.total : p.total, summary: p.summary || '',
+        pay: l ? l.pay : (h.slip ? 'ส่งสลิปแล้ว' : 'ยังไม่จ่าย'), status: l ? l.status : 'ใหม่', payLater: !!h.payLater }); }); });
+  return out;
+}
+const dayDiff = r => { const d = roundDate(r); return d ? Math.round((d - todayBKK()) / 864e5) : null; };
+
+/* ---------- idea 2: "pick up today / tomorrow" card on the home page ---------- */
+function pickupBanner(){
+  if (!C || !C.pickup) return '';                        // Settings pickup_banner = TRUE
+  const hide = load('greek_pk_hide') || [];
+  const due = myParts().filter(p => { const k = dayDiff(p.round); return (k === 0 || k === 1) && p.status !== 'ยกเลิก' && p.status !== 'ส่งแล้ว' && hide.indexOf(p.id + '@' + p.round) < 0; });
+  if (!due.length) return '';
+  const today = due.some(p => dayDiff(p.round) === 0), list = due.filter(p => dayDiff(p.round) === (today ? 0 : 1));
+  const tag = p => p.pay === 'จ่ายแล้ว' ? '<span class="chip ok">จ่ายแล้ว ✓</span>'
+    : p.payLater ? `<span class="chip warn">จ่ายตอนรับ ${baht(p.total)}</span>` : p.pay === 'ส่งสลิปแล้ว' ? '<span class="chip info">ส่งสลิปแล้ว</span>' : `<span class="chip warn">ยังไม่จ่าย ${baht(p.total)}</span>`;
+  const ready = p => p.status === 'ทำแล้ว' ? '<span class="chip ok">ทำเสร็จแล้ว รอรับ</span>' : '';
+  return `<div class="pickup${today ? ' today' : ''}" role="status">
+    <div class="pk-head"><span class="pk-icon" aria-hidden="true">${happyCup(34)}</span>
+      <div style="flex:1"><div class="pk-kick">${today ? '▶ TODAY!' : '▶ TOMORROW'}</div><b>${today ? 'วันนี้มารับของนะ~' : 'พรุ่งนี้มารับของนะ~'}</b><small>${esc(roundLabel(list[0].round))}</small></div>
+      <button class="pk-x" aria-label="ซ่อน" onclick="hidePickup()">×</button></div>
+    ${list.map(p => `<div class="pk-row"><div><span>${esc(p.summary || 'ออเดอร์ ' + p.id)}</span><small>${esc(p.id)}</small></div><b>${baht(p.total)}</b></div>
+      <div class="pk-tags">${tag(p)}${ready(p)}</div>`).join('')}
+    <button class="link pk-go" onclick="openHistory()">ดูออเดอร์ของฉัน ▶</button>
+  </div>`;
+}
+function hidePickup(){
+  const hide = load('greek_pk_hide') || [];
+  myParts().forEach(p => { const k = dayDiff(p.round); if (k === 0 || k === 1) hide.push(p.id + '@' + p.round); });
+  save('greek_pk_hide', hide.slice(-60)); render();
+}
+
+/* ---------- idea 1: pixel stamp card — every cup = 1 coin, a full card = a reward ---------- */
+const stampRule = () => C && C.stamp && C.stamp.goal > 0 ? C.stamp : null;
+function stampCount(){
+  const cups = myParts().filter(p => p.status !== 'ยกเลิก').reduce((t, p) => t + (p.cups || 0), 0);
+  return cups + (!IS_GAS && !API_URL ? (load('uat_stamps') || 0) : 0);
+}
+function stampState(){ const r = stampRule(); if (!r) return null; const n = stampCount(), g = r.goal;
+  return { n, g, k: n && n % g === 0 ? g : n % g, earned: Math.floor(n / g), left: g - (n % g), reward: r.reward }; }
+function stampCard(){
+  const st = stampState(); if (!st) return '';
+  const full = st.k === st.g;
+  return `<button class="stamp${full ? ' full' : ''}" onclick="openStamps()" aria-label="บัตรสะสม ${st.k} จาก ${st.g}">
+    <span class="st-lbl">COINS</span>
+    <span class="st-row">${Array.from({ length: st.g }, (_, i) => i < st.k ? `<img class="pxi" src="${Game16.coinURL()}" alt="">` : '<i></i>').join('')}</span>
+    <span class="st-n"><b>${st.k}</b>/${st.g}</span>
+    <small class="st-msg">${full ? `🎁 ครบแล้ว! รับ ${esc(st.reward)} · แตะดูวิธีใช้` : `อีก ${st.left} ถ้วย รับ ${esc(st.reward)}`}</small></button>`;
+}
+function openStamps(){
+  const st = stampState(); if (!st) return;
+  closeSlipPopup();
+  const full = st.k === st.g, demo = !IS_GAS && !API_URL;
+  const w = document.createElement('div'); w.className = 'sp-wrap'; w.id = 'slipPop';
+  w.innerHTML = `<div class="sp sp-coins" role="dialog" aria-modal="true" aria-labelledby="spT">
+      <div class="sp-top"><div class="sp-banner">${full ? 'REWARD READY!' : 'STAMP CARD'}</div>
+        <div class="st-grid">${Array.from({ length: st.g }, (_, i) => `<span class="st-slot${i < st.k ? ' on' : ''}" style="animation-delay:${i * 60}ms">${i < st.k ? `<img class="pxi" src="${Game16.coinURL()}" alt="">` : i + 1}</span>`).join('')}</div></div>
+      <div class="sp-body">
+        <h2 id="spT" class="h" style="text-align:center;margin:0;font-size:28px">${full ? 'ได้รางวัลแล้ว!' : `${st.k} / ${st.g} เหรียญ`}</h2>
+        <div class="sub" style="text-align:center">${full ? `รับ <b>${esc(st.reward)}</b> · บอกร้านในไลน์ตอนสั่งรอบหน้า หรือโชว์หน้านี้ตอนรับของ` : `ทุก 1 ถ้วย = 1 เหรียญ · ครบ ${st.g} เหรียญ รับ <b>${esc(st.reward)}</b><br>อีก ${st.left} ถ้วยเท่านั้น!`}</div>
+        ${st.earned ? `<div class="st-earned">🏆 สะสมครบมาแล้ว ${st.earned} ใบ · รวม ${st.n} ถ้วย</div>` : ''}
+        <div class="sub" style="text-align:center;font-size:12px">นับจากออเดอร์ในมือถือเครื่องนี้ (ไม่นับออเดอร์ที่ยกเลิก)</div>
+        ${demo ? `<div class="uat-row"><button class="mini" onclick="uatStamp(1)">+1 ถ้วย (UAT)</button><button class="mini" onclick="uatStamp(st => -st)">ล้าง (UAT)</button></div>` : ''}
+        <button class="btn center" onclick="closeSlipPopup()">โอเค!</button>
+      </div></div>`;
+  w.addEventListener('click', e => { if (e.target === w) closeSlipPopup(); });
+  document.body.appendChild(w); lockPage();
+}
+function uatStamp(d){ const cur = load('uat_stamps') || 0; save('uat_stamps', typeof d === 'function' ? 0 : cur + d); closeSlipPopup(); render(); openStamps(); }
+// order-complete scene: the bar fills from the old coin count to the new one
+function stampHud(cups){
+  const st = stampState(); if (!st) return '';
+  const before = Math.max(0, st.n - cups), from = before % st.g / st.g * 100, to = st.k / st.g * 100, crossed = Math.floor(before / st.g) < Math.floor(st.n / st.g);
+  return `<span>COIN</span><div class="g-bar"><i class="st" style="--from:${from}%;--to:${crossed ? 100 : to}%"></i></div><span>${crossed ? 'FREE!' : st.k + '/' + st.g}</span>`;
+}
 /* ---------- hidden menu teaser (Settings "hidden_menu" = the line under HIDDEN MENU; blank = not shown) ---------- */
 const QMARK = 'data:image/svg+xml,' + encodeURIComponent("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 19 19\" shape-rendering=\"crispEdges\"><path fill=\"#F7C948\" d=\"M8 0h3v1h-3zM5 1h3v1h-3zM11 1h3v1h-3zM4 2h1v1h-1zM14 2h1v1h-1zM3 3h1v1h-1zM15 3h1v1h-1zM2 4h1v1h-1zM16 4h1v1h-1zM1 5h1v1h-1zM17 5h1v1h-1zM1 6h1v1h-1zM17 6h1v1h-1zM1 7h1v1h-1zM17 7h1v1h-1zM0 8h1v1h-1zM18 8h1v1h-1zM0 9h1v1h-1zM18 9h1v1h-1zM0 10h1v1h-1zM18 10h1v1h-1zM1 11h1v1h-1zM17 11h1v1h-1zM1 12h1v1h-1zM17 12h1v1h-1zM1 13h1v1h-1zM17 13h1v1h-1zM2 14h1v1h-1zM16 14h1v1h-1zM3 15h1v1h-1zM15 15h1v1h-1zM4 16h1v1h-1zM14 16h1v1h-1zM5 17h3v1h-3zM11 17h3v1h-3zM8 18h3v1h-3z\"/><path fill=\"#4B3B5C\" d=\"M8 1h3v1h-3zM5 2h8v1h-8zM4 3h3v1h-3zM3 4h2v1h-2zM2 5h2v1h-2zM2 6h2v1h-2zM2 7h1v1h-1zM1 8h2v1h-2zM1 9h2v1h-2zM1 10h2v1h-2zM2 11h1v1h-1zM2 12h1v1h-1z\"/><path fill=\"#2A2033\" d=\"M13 2h1v1h-1zM7 3h8v1h-8zM6 4h10v1h-10zM5 5h12v1h-12zM4 6h3v1h-3zM11 6h6v1h-6zM3 7h3v1h-3zM8 7h2v1h-2zM12 7h5v1h-5zM3 8h7v1h-7zM12 8h6v1h-6zM3 9h6v1h-6zM11 9h7v1h-7zM3 10h5v1h-5zM10 10h8v1h-8zM3 11h14v1h-14zM3 12h5v1h-5zM10 12h7v1h-7zM2 13h15v1h-15zM3 14h13v1h-13zM4 15h11v1h-11zM5 16h9v1h-9zM8 17h3v1h-3z\"/><path fill=\"#6E5A85\" d=\"M5 4h1v1h-1zM4 5h1v1h-1z\"/><path fill=\"#F7C948\" d=\"M7 6h4v1h-4zM6 7h2v1h-2zM10 7h2v1h-2zM10 8h2v1h-2zM9 9h2v1h-2zM8 10h2v1h-2zM8 12h2v1h-2z\"/></svg>");
 function hiddenStrip(){
