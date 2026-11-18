@@ -829,8 +829,13 @@ function testEasySlip() {
   let j = {}; try { j = JSON.parse(res.getContentText()); } catch (e) {}
   if (j.status !== 200) return ui.alert('❌ EasySlip ตอบว่า: ' + (j.message || ('HTTP ' + res.getResponseCode())) + '\n(เช็คว่า copy key มาครบ ไม่มีเว้นวรรค)');
   const d = j.data || {};
-  ui.alert('✅ เชื่อม EasySlip สำเร็จ\n\nแอป: ' + (d.application || '-') + '\nใช้ไปแล้ว: ' + (d.usedQuota != null ? d.usedQuota : '-') +
-    ' / ' + (d.maxQuota != null ? d.maxQuota : '-') + '\nเหลือ: ' + (d.remainingQuota != null ? d.remainingQuota : '-') + '\nหมดอายุ: ' + (d.expiredAt || '-'));
+  const exp = Date.parse(d.expiredAt || ''), expired = exp && exp < Date.now(), empty = d.remainingQuota != null && Number(d.remainingQuota) <= 0;
+  const expTxt = exp ? Utilities.formatDate(new Date(exp), 'Asia/Bangkok', 'd MMM yyyy HH:mm') : '-';
+  const head = expired ? '⚠️ แพ็กเกจ EasySlip หมดอายุแล้ว — ตอนนี้ตรวจสลิปอัตโนมัติไม่ได้\n(สลิปใหม่จะขึ้น ⏳ รอร้านตรวจ) ต่ออายุ/เปลี่ยนแพ็กเกจในเว็บ EasySlip'
+    : empty ? '⚠️ โควตา EasySlip หมดแล้ว — ตอนนี้ตรวจสลิปอัตโนมัติไม่ได้\n(สลิปใหม่จะขึ้น ⏳ รอร้านตรวจ) ซื้อเพิ่มในเว็บ EasySlip'
+    : '✅ เชื่อม EasySlip สำเร็จ ตรวจสลิปได้ปกติ';
+  ui.alert(head + '\n\nแอป: ' + (d.application || '-') + '\nใช้ไปแล้ว: ' + (d.usedQuota != null ? d.usedQuota : '-') +
+    ' / ' + (d.maxQuota != null ? d.maxQuota : '-') + '\nเหลือ: ' + (d.remainingQuota != null ? d.remainingQuota : '-') + '\nหมดอายุ: ' + expTxt + (expired ? ' (หมดแล้ว)' : ''));
 }
 /** กด Run ฟังก์ชันนี้ 1 ครั้งใน Apps Script เพื่ออนุญาตให้เก็บสลิปใน Google Drive */
 function authorize() {
