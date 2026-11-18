@@ -1343,8 +1343,8 @@ function liveSession_(dev, rec) {
     const idx = JSON.parse(cache.get('LS_IDX') || '[]'); if (idx.indexOf(dev) < 0) { idx.push(dev); cache.put('LS_IDX', JSON.stringify(idx.slice(-300)), 21600); }
   }
   if (rec.s !== ss.s || rec.d !== ss.d) { ss.steps.push([now, rec.s, rec.d]); ss.steps = ss.steps.slice(-25); }
-  ss.last = now; ss.s = rec.s; ss.d = rec.d; ss.c = rec.c; ss.t = rec.t; if (rec.n) ss.n = rec.n; if (rec.p) ss.p = rec.p;
-  if ((rec.s === 'done' || rec.s === 'pay') && /^G\d+$/.test(rec.d) && ss.orders.indexOf(rec.d) < 0) ss.orders.push(rec.d);
+  const onOrderScreen = rec.s === 'done' || rec.s === 'pay';            // those screens report the order's cups, not a cart
+  ss.last = now; ss.s = rec.s; ss.d = rec.d; ss.c = onOrderScreen ? 0 : rec.c; ss.t = onOrderScreen ? 0 : rec.t; if (rec.n) ss.n = rec.n; if (rec.p) ss.p = rec.p;
   cache.put(key, JSON.stringify(ss), 21600);
 }
 // called from submitOrder: the order is the most important thing a visit can end with
@@ -1372,13 +1372,15 @@ function liveSweep_(force) {
     if (done.length) liveWrite_(done);
   } finally { lock.releaseLock(); }
 }
-const LOG_STEP = { home: 'เมนู', item: '', cart: 'ตะกร้า', pay: 'จ่ายเงิน', done: 'สั่งเสร็จ', history: 'ออเดอร์ของฉัน' };
+const LOG_STEP = { home: 'เมนู', item: '', cart: 'ตะกร้า', pay: 'หน้าจ่ายเงิน', done: 'หน้าสั่งเสร็จ', history: 'ออเดอร์ของฉัน' };
 function liveFinal_(ss) {
   if (ss.orders.length) return '✅ สั่งแล้ว ' + ss.orders.join(', ') + (ss.ot ? ' · ' + baht_(ss.ot) : '') + (ss.s === 'pay' ? ' · ยังไม่แนบสลิป' : '');
   if (ss.c > 0 && ss.s === 'cart') return '🛒 ออกจากหน้าตะกร้า ยังไม่กดสั่ง';
   if (ss.c > 0) return '🛒 มีของในตะกร้า แต่ไม่ได้สั่ง';
   if (ss.s === 'item') return '🍓 ดู ' + (ss.d || 'เมนู') + ' แล้วออก';
   if (ss.s === 'history') return '📜 ดูออเดอร์ของฉันแล้วออก';
+  if (ss.s === 'done') return '📄 เปิดดูหน้าสั่งเสร็จ ' + (ss.d || '') + ' (ออเดอร์เดิม)';       // app reopened on an older order's screen
+  if (ss.s === 'pay') return '💳 เปิดหน้าจ่ายเงิน ' + (ss.d || '') + ' (ออเดอร์เดิม)';
   return '👀 ดูหน้าเมนูแล้วออก';
 }
 // what a person still in the app is doing right now
@@ -1387,6 +1389,8 @@ function liveNow_(ss) {
   if (ss.s === 'cart') return '🛒 อยู่ในตะกร้า' + (ss.c ? ' ' + ss.c + ' ถ้วย · ' + baht_(ss.t) : '');
   if (ss.s === 'item') return '🍓 กำลังดู ' + (ss.d || 'เมนู') + (ss.c ? ' · ตะกร้า ' + ss.c + ' ถ้วย' : '');
   if (ss.s === 'history') return '📜 ดูออเดอร์ของฉัน';
+  if (ss.s === 'done') return '📄 ดูหน้าสั่งเสร็จ ' + (ss.d || '') + ' (ออเดอร์เดิม)';
+  if (ss.s === 'pay') return '💳 อยู่หน้าจ่ายเงิน ' + (ss.d || '') + ' (ออเดอร์เดิม)';
   return '👀 กำลังดูหน้าเมนู' + (ss.c ? ' · ตะกร้า ' + ss.c + ' ถ้วย' : '');
 }
 function liveWrite_(list) {
