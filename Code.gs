@@ -92,6 +92,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('🥣 Greek Shop')
     .addItem('🔑 ตั้ง PIN หน้า Live', 'setLivePin')
     .addItem('🧾 เช็คการเชื่อม EasySlip', 'testEasySlip')
+    .addItem('🔑 ใส่ / เปลี่ยน EasySlip key', 'setEasySlipKey')
     .addItem('📊 นับออเดอร์ต่อสัปดาห์', 'orderStats')
     .addItem('🎄 ธีมคริสต์มาส: เปิด / ปิด', 'toggleXmas')
     .addItem('❓ แถบ NEW MENU (Coming soon): เปิด / ปิด', 'toggleHidden')
@@ -617,15 +618,20 @@ function deviceCheck_(id) {
   return key;
 }
 // runs after the order is saved: it must never turn a saved order into an error for the customer
+// per-phone counters (DEV_) only matter today → drop older ones. Used-slip records (SLIP_) stay: they stop a slip being reused.
+function cleanProps_() {
+  const props = PropertiesService.getScriptProperties(), all = props.getProperties(), d = today_();
+  const old = Object.keys(all).filter(k => k.indexOf('DEV_') === 0 && String(all[k]).split('|')[0] !== d);
+  old.forEach(k => props.deleteProperty(k));
+  return old.length;
+}
 function deviceRecord_(key, base) {
   try {
     const props = PropertiesService.getScriptProperties(), st = deviceState_(key);
     st.orders.push(base);
     props.setProperty(key, [today_(), Date.now(), st.orders.join(',')].join('|'));
-    if (Math.random() < 0.05) {          // tidy up phones from earlier days now and then
-      const all = props.getProperties(), d = today_();
-      Object.keys(all).forEach(k => { if (k.indexOf('DEV_') === 0 && String(all[k]).split('|')[0] !== d) props.deleteProperty(k); });
-    }
+    const c = CacheService.getScriptCache(), ck = 'PS_' + today_();
+    if (!c.get(ck)) { c.put(ck, '1', 21600); cleanProps_(); }    // tidy up phones from earlier days, a few times a day at most
   } catch (e) { console.error('deviceRecord_: ' + e); }
 }
 function deviceForget_(id, base) {
@@ -727,15 +733,16 @@ function findOrder_(base) {
 }
 
 /* ---------------- ตรวจสลิปกับธนาคาร (EasySlip) ----------------
- * ใส่ API key ใน Apps Script → Project Settings → Script Properties ชื่อ EASYSLIP_KEY
+ * ใส่ API key ผ่านเมนู 🥣 Greek Shop → 🔑 ใส่ / เปลี่ยน EasySlip key (เก็บใน Script Properties ชื่อ EASYSLIP_KEY)
  * ไม่มี key = ทำงานแบบเดิม (ร้านเช็คเอง) · EasySlip ล่ม/โควต้าหมด = รับสลิปไว้ "รอร้านตรวจ" ไม่บล็อกลูกค้า
  * ผ่าน = เงินเข้าบัญชีร้าน + ยอด ≥ ยอดออเดอร์ + โอนหลังกดสั่ง → "จ่ายแล้ว" อัตโนมัติ */
 const EASYSLIP_ = 'https://api.easyslip.com/v1';
 const SHOP_PROMPTPAY_ = '004999246525967';      // e-wallet ID เดียวกับที่แอปใช้ทำ QR
+const KEY_NAME_ = /^easy\s*slip[\s_-]*(api)?[\s_-]*(key)?$/i;
 function easySlipKey_() {
   // ยอมรับชื่อที่พิมพ์ต่างนิดหน่อย เช่น easyslip_key, "EASYSLIP KEY ", EasySlip API
   const all = PropertiesService.getScriptProperties().getProperties();
-  const name = Object.keys(all).find(k => /^easy\s*slip[\s_-]*(api)?[\s_-]*(key)?$/i.test(k.trim()));
+  const name = Object.keys(all).find(k => KEY_NAME_.test(k.trim()));
   return String(name ? all[name] : '').replace(/^\s*bearer\s+/i, '').trim();
 }
 function propNames_() {
@@ -819,12 +826,28 @@ function shopAccountText_() {
   const s = settings_();
   return [s.bank_name, s.bank_account, s.account_name].filter(Boolean).join(' ') || 'บัญชีร้าน';
 }
-/** กด Run เพื่อเช็คว่าใส่ EASYSLIP_KEY ถูก และดูโควต้าที่เหลือ */
+/** เมนู: ใส่ / เปลี่ยน EasySlip key — ใช้แทนหน้า Script Properties (หน้านั้นแก้ไม่ได้เมื่อมีเกิน 50 รายการ) */
+function setEasySlipKey() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('🔑 ใส่ EasySlip API key', 'คัดลอก key จากเว็บ EasySlip มาวางช่องนี้\n(เก็บไว้ในสคริปต์ของชีตนี้เท่านั้น)', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  const key = String(r.getResponseText() || '').replace(/^\s*bearer\s+/i, '').trim();
+  if (!/^\S{10,500}$/.test(key)) return ui.alert('key ดูไม่ถูกต้อง (ว่าง หรือมีเว้นวรรคอยู่ตรงกลาง) ลองคัดลอกมาใหม่\nยังใช้ key เดิมอยู่');
+  const res = UrlFetchApp.fetch(EASYSLIP_ + '/me', { headers: { Authorization: 'Bearer ' + key }, muteHttpExceptions: true });
+  let j = {}; try { j = JSON.parse(res.getContentText()); } catch (e) {}
+  if (j.status !== 200) return ui.alert('❌ EasySlip ไม่รับ key นี้: ' + (j.message || ('HTTP ' + res.getResponseCode())) + '\nยังใช้ key เดิมอยู่ ไม่ได้เปลี่ยนอะไร');
+  const props = PropertiesService.getScriptProperties();
+  Object.keys(props.getProperties()).filter(k => KEY_NAME_.test(k.trim())).forEach(k => props.deleteProperty(k));
+  props.setProperty('EASYSLIP_KEY', key);
+  cleanProps_();
+  testEasySlip();
+}
+/** เมนู: เช็คว่าใส่ EASYSLIP_KEY ถูก และดูโควต้า / วันหมดอายุ */
 function testEasySlip() {
   const key = easySlipKey_(), ui = SpreadsheetApp.getUi();
   if (!key) { const n = propNames_();
     return ui.alert('ยังหา key ไม่เจอ\n\nชื่อ property ที่ระบบเห็นตอนนี้: ' + (n.length ? n.join(', ') : '(ไม่มีเลย)') +
-      '\n\nต้องมีชื่อ EASYSLIP_KEY และช่อง Value ต้องไม่ว่าง (กด Save script properties ด้วย)'); }
+      '\n\nใส่ key ผ่านเมนู 🥣 Greek Shop → 🔑 ใส่ / เปลี่ยน EasySlip key ได้เลย'); }
   const res = UrlFetchApp.fetch(EASYSLIP_ + '/me', { headers: { Authorization: 'Bearer ' + key }, muteHttpExceptions: true });
   let j = {}; try { j = JSON.parse(res.getContentText()); } catch (e) {}
   if (j.status !== 200) return ui.alert('❌ EasySlip ตอบว่า: ' + (j.message || ('HTTP ' + res.getResponseCode())) + '\n(เช็คว่า copy key มาครบ ไม่มีเว้นวรรค)');
