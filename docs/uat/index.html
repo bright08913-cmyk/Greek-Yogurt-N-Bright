@@ -225,6 +225,7 @@
   .hhead span{font-size:12px;color:var(--muted)}
   .hrow{display:flex;justify-content:space-between;gap:10px;padding:8px 0}
   .hrow + .hrow{border-top:3px dotted var(--line)}
+  .hrow > div{flex:1;min-width:0}
   .hrow b{font-weight:700;font-size:15px;display:block}
   .hrow small{display:block;font-size:12px;color:var(--muted)}
   .hrow em{font-style:normal;font-family:var(--px-font);font-weight:700;font-size:22px;white-space:nowrap}
@@ -538,6 +539,29 @@
   @keyframes rwFlash{50%{background:#FFE58A}}
   .g-bar b{position:absolute;left:0;top:0;bottom:0;background:#C93C63;z-index:1}
   .g-bar i.st{background:repeating-linear-gradient(90deg,#FF9DB5 0 4px,#FFC3D2 4px 8px)}
+
+  /* order progress energy bar */
+  .hp{margin:8px 0 2px;max-width:340px}
+  .hp-top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+  .hp-lv{font-family:var(--arcade);font-size:9px;color:#fff;background:var(--ink);padding:3px 6px 2px;letter-spacing:1px;white-space:nowrap;flex:none}
+  .hp-top b{font-size:14px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hp-n{font-family:var(--px-font);font-size:18px;color:var(--muted)}
+  .hp-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;padding:3px;background:#2E2238;--pw:2px;box-shadow:var(--pxs)}
+  .hp-bar i{height:12px;background:#4B3B5C;box-shadow:inset 0 3px 0 rgba(255,255,255,.08)}
+  .hp.s0 .hp-bar i.now,.hp .hp-bar i.full{background:linear-gradient(#FFC3D2 0 35%,#FF8FAB 35%)}
+  .hp.s1 .hp-bar i.now{background:repeating-linear-gradient(-45deg,#FFD34E 0 6px,#F2B230 6px 12px);background-size:17px 17px;animation:hpCook 1.2s steps(4) infinite}
+  .hp.s1 .hp-lv{background:#C98A1E}
+  .hp.s2 .hp-bar i.now,.hp.s2 .hp-bar i.full{background:linear-gradient(#B8F0CF 0 35%,#3BC47A 35%)}
+  .hp.s2 .hp-lv{background:var(--ok)}
+  .hp.s2 .hp-top b{color:var(--ok)}
+  .hp.s3 .hp-bar i{background:linear-gradient(#FFF0A8 0 35%,#F7C948 35%)}
+  .hp.s3 .hp-lv{background:#B98A12}
+  @keyframes hpCook{to{background-position:17px 0}}
+  .hp-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-top:4px;font-size:10px;color:var(--muted);text-align:center;white-space:nowrap}
+  .hp-steps .hp-cur{color:var(--ink);font-weight:700}.hp-steps .hp-past{color:var(--ink)}
+  .hp.sm{margin:6px 0 2px}.hp.sm .hp-top b{font-size:13px}.hp.sm .hp-bar i{height:9px}
+  @media (prefers-reduced-motion: reduce){.hp.s1 .hp-bar i.now{animation:none}}
+  @media (max-width:360px){.hp-lv{letter-spacing:0;padding:3px 4px 2px}.hp-top{gap:6px}.hp-top b{font-size:13px}}
 </style>
 </head>
 <body>
@@ -638,7 +662,7 @@ function call(fn, arg){
         const gone = load('demo_cancel') || [];
         if (fn === 'cancelOrder') { history_().filter(h => h.orderId === arg.orderId).forEach(h => (h.parts || []).forEach(p => { if (!arg.partId || p.orderId === arg.partId) gone.push(p.orderId); })); save('demo_cancel', gone); }
         const out = {__v: 2}; history_().forEach(h => out[h.orderId] = (h.parts || []).map(p => ({ id: p.orderId, round: p.round, total: p.total,
-          pay: h.slip ? 'ส่งสลิปแล้ว' : 'ยังไม่จ่าย', status: gone.indexOf(p.orderId) >= 0 ? 'ยกเลิก' : ((load('demo_done') || []).indexOf(p.orderId) >= 0 ? 'ส่งแล้ว' : 'ใหม่'), slip: !!h.slip }))); resolve(out); }
+          pay: h.slip ? 'ส่งสลิปแล้ว' : 'ยังไม่จ่าย', status: gone.indexOf(p.orderId) >= 0 ? 'ยกเลิก' : ((load('demo_status') || {})[p.orderId] || ((load('demo_done') || []).indexOf(p.orderId) >= 0 ? 'ส่งแล้ว' : 'ใหม่')), slip: !!h.slip }))); resolve(out); }
       else resolve({ orderId: arg.orderId });
     }, 700);
   });
@@ -944,7 +968,7 @@ function render(){
     <h1 class="hello">${xmas() ? 'คริสต์มาสนี้ กินถ้วยไหนดี~' : 'วันนี้กินถ้วยไหนดี~'}</h1>
     ${promoDaysLive().length ? `<div class="promo"><span class="promo-tag">SALE</span><div><b>${esc(C.promo.label)}</b><small>ทุกเมนูลด ${C.promo.pct}% ${promoAll() ? 'ทุกวันรับ' : 'เฉพาะรับวันที่ ' + esc(daysText(promoDaysLive()))} · add-on ราคาเดิม</small></div><span class="promo-pct">-${C.promo.pct}%</span></div>` : ''}
     <div class="sub">แตะเมนู เลือกผลไม้ แล้วกดสั่งได้เลย</div>
-    ${IS_GAS || API_URL ? '' : '<div class="demo">🧪 UAT · ลองบัตรสะสมเหรียญ: แตะแถบ COINS → ปุ่มเทสด้านล่าง → ใช้สิทธิ์ Scoop ฟรี — ไม่ส่งออเดอร์จริง</div>'}
+    ${IS_GAS || API_URL ? '' : '<div class="demo">🧪 UAT · ลองสั่ง 1 ออเดอร์ แล้วกด "ออเดอร์ของฉัน" ดูแถบสถานะ — ไม่ส่งออเดอร์จริง</div>'}
     ${C.open ? '' : `<div class="closed">${esc(C.closedMsg)}</div>`}
     ${load('greek_pending') ? `<button class="banner" onclick="renderDone(load('greek_pending'))">${ICON.qr}<span>ออเดอร์ ${esc(load('greek_pending').orderId)} ยังไม่ได้แนบสลิป</span>แนบเลย →</button>` : ''}
     ${pickupBanner()}
@@ -1829,7 +1853,9 @@ function renderHistory(note){
         <div class="hhead"><b>${esc(h.orderId)}</b><span>${fmt(h.at)}</span></div>
         ${rows.map(r => { const part = (h.parts || []).find(p => p.orderId === r.id) || {};
           return `<div class="hrow"><div><b>${esc(roundLabel(r.round || ''))}</b><small>${esc(part.summary || '')}</small>
-            <div class="chips">${live ? chip(ST_TXT, r.status) + (r.status === 'ยกเลิก' ? '' : chip(PAY_TXT, r.pay)) : ''}</div>
+            ${live && r.status !== 'ยกเลิก' ? stageBar(r.status, r.round) : ''}
+            <div class="chips">${live ? (r.status === 'ยกเลิก' ? chip(ST_TXT, r.status) : chip(PAY_TXT, r.pay)) : ''}</div>
+            ${live && !IS_GAS && !API_URL && r.status !== 'ยกเลิก' ? `<button class="link" style="font-size:12px" onclick="uatNextStatus('${r.id}')">UAT: ร้านเปลี่ยนสถานะ ▶</button>` : ''}
             ${rows.length > 1 && canCancel(r) && SAFE_ID.test(r.id) ? `<button class="link del" onclick="askCancel(this, ${k}, '${r.id}')">ยกเลิกวันนี้</button>` : ''}</div>
             <em style="${r.status === 'ยกเลิก' ? 'text-decoration:line-through;opacity:.5' : ''}">${baht(r.total)}</em></div>`; }).join('')}
         <div class="hfoot"><span>${h.payLater ? 'จ่ายตอนรับของ' : 'จ่ายเลย'} · ${alive.length ? 'รวม ' + baht(live ? alive.reduce((t,r) => t + r.total, 0) : h.total) : 'ยกเลิกทั้งออเดอร์แล้ว'}</span>
@@ -1925,6 +1951,29 @@ function myParts(){
 }
 const dayDiff = r => { const d = roundDate(r); return d ? Math.round((d - todayBKK()) / 864e5) : null; };
 
+
+/* ---------- order progress: a 4-step arcade energy bar (ORDER IN → COOKING → READY! → CLEAR!) ----------
+   from the shop's "สถานะออเดอร์": ใหม่ → (pickup day reached = cooking) → ทำแล้ว → ส่งแล้ว */
+const STAGES = [['ORDER IN', 'รับออเดอร์แล้ว', 'รับออเดอร์'], ['COOKING', 'กำลังเตรียม', 'กำลังทำ'], ['READY!', 'พร้อมรับแล้ว', 'พร้อมรับ'], ['CLEAR!', 'รับของแล้ว', 'รับแล้ว']];
+function stageOf(status, round){
+  if (status === 'ยกเลิก') return -1;
+  if (status === 'ส่งแล้ว') return 3;
+  if (status === 'ทำแล้ว') return 2;
+  if (status === 'กำลังทำ') return 1;
+  const k = dayDiff(round); return k !== null && k <= 0 ? 1 : 0;
+}
+function stageBar(status, round, compact){
+  const s = stageOf(status, round); if (s < 0) return '';
+  return `<div class="hp s${s}${compact ? ' sm' : ''}" role="img" aria-label="สถานะออเดอร์: ${STAGES[s][1]} (${s + 1} จาก 4)">
+    <div class="hp-top"><span class="hp-lv">${STAGES[s][0]}</span><b>${STAGES[s][1]}</b><span class="hp-n">${s + 1}/4</span></div>
+    <div class="hp-bar">${[0, 1, 2, 3].map(i => `<i class="${i < s ? 'full' : i === s ? 'now' : ''}"></i>`).join('')}</div>
+    ${compact ? '' : `<div class="hp-steps">${STAGES.map((x, i) => `<span class="${i === s ? 'hp-cur' : i < s ? 'hp-past' : ''}">${x[2]}</span>`).join('')}</div>`}
+  </div>`;
+}
+function uatNextStatus(id){
+  const order = ['ใหม่', 'ทำแล้ว', 'ส่งแล้ว'], m = load('demo_status') || {};
+  m[id] = order[(order.indexOf(m[id] || 'ใหม่') + 1) % order.length]; save('demo_status', m); openHistory();
+}
 /* ---------- idea 2: "pick up today / tomorrow" card on the home page ---------- */
 function pickupBanner(){
   if (!C || !C.pickup) return '';                        // Settings pickup_banner = TRUE
@@ -1934,13 +1983,13 @@ function pickupBanner(){
   const today = due.some(p => dayDiff(p.round) === 0), list = due.filter(p => dayDiff(p.round) === (today ? 0 : 1));
   const tag = p => p.pay === 'จ่ายแล้ว' ? '<span class="chip ok">จ่ายแล้ว ✓</span>'
     : p.payLater ? `<span class="chip warn">จ่ายตอนรับ ${baht(p.total)}</span>` : p.pay === 'ส่งสลิปแล้ว' ? '<span class="chip info">ส่งสลิปแล้ว</span>' : `<span class="chip warn">ยังไม่จ่าย ${baht(p.total)}</span>`;
-  const ready = p => p.status === 'ทำแล้ว' ? '<span class="chip ok">ทำเสร็จแล้ว รอรับ</span>' : '';
+  const ready = () => '';
   return `<div class="pickup${today ? ' today' : ''}" role="status">
     <div class="pk-head"><span class="pk-icon" aria-hidden="true">${happyCup(34)}</span>
       <div style="flex:1"><div class="pk-kick">${today ? '▶ TODAY!' : '▶ TOMORROW'}</div><b>${today ? 'วันนี้มารับของนะ~' : 'พรุ่งนี้มารับของนะ~'}</b><small>${esc(roundLabel(list[0].round))}</small></div>
       <button class="pk-x" aria-label="ซ่อน" onclick="hidePickup()">×</button></div>
     ${list.map(p => `<div class="pk-row"><div><span>${esc(p.summary || 'ออเดอร์ ' + p.id)}</span><small>${esc(p.id)}</small></div><b>${baht(p.total)}</b></div>
-      <div class="pk-tags">${tag(p)}${ready(p)}</div>`).join('')}
+      ${stageBar(p.status, p.round, true)}<div class="pk-tags">${tag(p)}${ready(p)}</div>`).join('')}
     <button class="link pk-go" onclick="openHistory()">ดูออเดอร์ของฉัน ▶</button>
   </div>`;
 }

@@ -424,12 +424,15 @@ function submitOrder(order) {
       const id = rounds.length > 1 ? base + '-' + (k + 1) : base;
       const total = ls.reduce((s, l) => s + l.total, 0);
       const cups = ls.reduce((s, l) => s + l.qty, 0);
-      ls.forEach(l => {
-        const first = !rows.length;
+      // "ยอดโอน" column: slip orders → the whole order on its first row (one transfer pays everything)
+      //                   pay on pickup → each pickup day on that day's first row (paid at each pickup)
+      const daySum = '=SUMIFS(K:K,A:A,"' + id + '",R:R,"<>ยกเลิก")';
+      ls.forEach((l, li) => {
+        const first = !rows.length, sumCell = order.payLater ? (li === 0 ? daySum : '') : (first ? sumF : '');
         const tops = Object.keys(l.addonCount).filter(a => a !== 'SCP')
           .map(a => addonById[a].name + (l.addonCount[a] > 1 ? ' x' + l.addonCount[a] : '')).concat(l.reward ? [REWARD_MARK] : []).join(', ');
         rows.push([id, now, name, round, l.label, l.fruits.join(', '), l.addonCount.SCP || '', tops,
-          l.qty, l.unit, l.total, first ? note : '', payMethod, first ? sumF : '', PAY_STATUS[0], '', '',
+          l.qty, l.unit, l.total, first ? note : '', payMethod, sumCell, PAY_STATUS[0], '', '',
           ORDER_STATUS[0], token]);
       });
       return { orderId: id, round, cups, total, summary: ls.map(l => l.label + (l.qty > 1 ? ' x' + l.qty : '')).join(', ') };
